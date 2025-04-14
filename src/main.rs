@@ -15,7 +15,8 @@ static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 #[allow(unused)]
 pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
     let mut model_list = ModelList{list:HashMap::new()};
-    let ms =raylib::models::Mesh::gen_mesh_cube(thread, 0.2, 0.2,0.2);
+    let sz = 0.1;
+    let ms =raylib::models::Mesh::gen_mesh_cube(thread, sz, sz,sz);
     let box_mesh = handle.load_model_from_mesh(thread, unsafe {
         ms.make_weak()  
     }).unwrap();
@@ -24,14 +25,16 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
     unsafe{
         level::LEVEL = Some(level);
     }
+
     {
+
         let cube = create_entity().unwrap();
         add_model_comp(cube, ModelComp::new("box", Color::PINK));
         let mut trans =TransformComp{trans:Transform::default()};
         trans.trans.translation = Vector3::new(0.0, -0.5, 0.);
         trans.trans.rotation = Vector4::new(0., 0. ,0., 1.);
         add_transform_comp(cube, trans);
-        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-0.1, -0.1, -0.1),Vector3::new(0.1, 0.1,0.1)), velocity:Vector3::new(0. ,0.1, 0.)});
+        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-sz, -sz, -sz),Vector3::new(sz, sz,sz)), velocity:Vector3::new(0. ,0.1, 0.), did_collide:false});
     }
     {
         let cube = create_entity().unwrap();
@@ -40,7 +43,7 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
         trans.trans.rotation = Vector4::new(0., 0. ,0., 1.); 
         trans.trans.translation = Vector3::new(0., 0.5, 0.);
         add_transform_comp(cube, trans);
-        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-0.1, -0.1, -0.1),Vector3::new(0.1, 0.1,0.1)), velocity:Vector3::new(0., -0.1, 0.)}); 
+        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-sz ,-sz, -sz),Vector3::new(sz,sz,sz)), velocity:Vector3::new(0., -0.1, 0.), did_collide:false}); 
     }
 
     model_list

@@ -23,6 +23,7 @@ pub fn max<T:PartialOrd>(a:T, b:T)->T{
 pub struct PhysicsComp{
     pub collision:BoundingBox,
     pub velocity:Vector3,
+    pub did_collide:bool,
 }
 pub struct Col{
     pub hit_ref:Entity,
@@ -32,16 +33,13 @@ crate::gen_comp_functions!(PhysicsComp, physics_comps, add_physics_comp,remove_p
 fn get_vertices(a:BoundingBox, a_trans:Transform)->[Vector3;8]{
     let mut verts= [Vector3::new(1.,1., 1.), Vector3::new(1., -1., 1.), Vector3::new(-1., 1., 1.), Vector3::new(-1., -1., 1.0), 
     Vector3::new(1.,1., -1.), Vector3::new(1., -1., -1.), Vector3::new(-1., 1., -1.), Vector3::new(-1., -1., -1.0)];
-    for i in &mut verts{
-        i.normalize();
-    }
     let dx = a.max.x-a.min.x;
     let dy = a.max.y-a.min.y;
     let dz = a.max.z-a.min.z;
     for i in &mut verts{
-        let x = i.x*dx/2.;
-        let y = i.y*dy/2.;
-        let z = i.z*dz/2.;
+        let x = i.x*dx/4.;
+        let y = i.y*dy/4.;
+        let z = i.z*dz/4.;
         *i = Vector3::new(x,y,z);
     }
     for i in &mut verts{
@@ -51,21 +49,20 @@ fn get_vertices(a:BoundingBox, a_trans:Transform)->[Vector3;8]{
     }
     verts
 }
-fn get_normals(a_trans:Transform)->[Vector3;27]{
-    let mut normals = [const{Vector3::new(0., 0., 0.)}; 27];
-    let mut count = 0;
-    for x in -1..2{
-        for y in -1..2{
-            for z in -1..2{
-                normals[count] = Vector3::new(x as f32, y as f32, z as f32);
-                count += 1;
-            }
-        }
-    }
+fn get_normals(a_trans:Transform)->[Vector3;6]{
+    let mut normals = [
+        Vector3::new(1., 0., 0.), Vector3::new(-1., 0., 0.),
+        Vector3::new(0., 1., 0.), Vector3::new(0., -1., 0.),
+        Vector3::new(0., 0., 1.), Vector3::new(0., 0., -1.),
+    ];
     let rot = a_trans.rotation.to_matrix();
+    for i in &mut normals{
+        i.normalize();
+    }
     for i in &mut normals{
         i.transform(rot);
     }
+
     normals
 }
 fn check_collision(a:PhysicsComp, a_trans:TransformComp, b:PhysicsComp, b_trans:TransformComp)->Option<Col>{
@@ -73,16 +70,18 @@ fn check_collision(a:PhysicsComp, a_trans:TransformComp, b:PhysicsComp, b_trans:
     let b_verts = get_vertices(b.collision, b_trans.trans);
     let a_norms = get_normals(a_trans.trans);
     let b_norms = get_normals(b_trans.trans);
-    let mut norms = [const{Vector3::new(0., 0., 0.,)};54];
+    let mut norms = [const{Vector3::new(0., 0., 0.,)};12];
     let mut idx = 0;
     for i in a_norms{
         norms[idx] = i;
         idx +=1;
     }
-    let mut idx = 0;
     for i in b_norms{
         norms[idx] = i;
         idx +=1;
+    }
+    for i in &norms{
+        assert!(i.length()>0.);
     }
     let mut col_norm = Vector3::new(0., 0., 0.);
     let mut col_depth = 100000.0;
@@ -109,7 +108,7 @@ fn check_collision(a:PhysicsComp, a_trans:TransformComp, b:PhysicsComp, b_trans:
                 b_min = b_dot;
             }
         }
-        if a_min>b_max || b_min>a_max{
+        if a_min>b_max+0.1 || b_min>a_max+0.1{
            return None;
         } else{
             let da = (a_min-b_max).abs();
@@ -128,8 +127,7 @@ fn check_collision(a:PhysicsComp, a_trans:TransformComp, b:PhysicsComp, b_trans:
     Some(Col{hit_ref:Entity{idx:0, generation:0}, norm:col_norm})
 }
 fn check_collision_single(new_loc:TransformComp,v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<TransformComp>], to_iter:&[usize])->Option<Col>{
-    if to_iter.len() != 0{
-        println!("{:#?}", to_iter);
+    if to_iter.len() != 0{ 
     }
 
     for i in to_iter.iter().map(|i| *i){
@@ -138,7 +136,7 @@ fn check_collision_single(new_loc:TransformComp,v:usize,phys:&mut [Option<Physic
         }
         if i != v{
             if let Some(mut col) = check_collision(phys[v].clone().unwrap(), new_loc.clone(), phys[i].clone().unwrap(), trans[i].clone().unwrap()){
-                col.hit_ref = Entity{idx:i as u32, generation:unsafe{get_level().component_indexes.read().unwrap()[i]}};
+                col.hit_ref = Entity{idx:i as u32, generation:get_level().component_indexes.read().unwrap()[i]};
                 return Some(col);
             }
         }
@@ -172,10 +170,9 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
                     continue;
                 }
                 if let Some(s) = check_collision_single(new.clone(), v, phys, trans, &to_iter[x as usize][y as usize][z as usize]){
-                    phys[v].as_mut().unwrap().velocity *= -1.0;
-
-                    phys[s.hit_ref.idx as usize].as_mut().unwrap().velocity *= -1.0;
-                    trans[v].as_mut().unwrap().trans.translation += phys[v].as_mut().unwrap().velocity*1./120.;
+                    phys[v].as_mut().unwrap().velocity.reflect(s.norm);
+                    phys[s.hit_ref.idx as usize].as_mut().unwrap().velocity.reflect(-s.norm);
+                    trans[v].as_mut().unwrap().trans.translation += phys[v].as_mut().unwrap().velocity*1./60.;
                     return;
 
                 }
