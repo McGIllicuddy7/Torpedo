@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{level::get_level, physics::get_physics_comp};
+use crate::level::get_level;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelComp{
     pub model:String,
@@ -33,8 +33,8 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
             let trans = transforms[i].as_ref().unwrap();
             models.list.get_mut(&v.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
            // rend.draw_model(&models.list[&v.model], trans.trans.translation, 1.0, v.tint);
-            if let Some(x) = get_level().physics_comps.list.read().unwrap()[i]{
-                let mut bb = x.collision;
+            if let Some(x) = &get_level().physics_comps.list.read().unwrap()[i]{
+                let mut bb =BoundingBox{max:x.collision.max(), min:x.collision.min()};
                 bb.min += trans.trans.translation;
                 bb.max += trans.trans.translation;
                 rend.draw_bounding_box(bb, Color::GREEN);

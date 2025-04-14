@@ -1,7 +1,7 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, f32::consts::TAU, sync::Mutex};
 
 use level::{add_transform_comp, create_entity, save_level, Level, TransformComp};
-use physics::{add_physics_comp, PhysicsComp};
+use physics::{add_physics_comp, create_box, PhysicsComp};
 use raylib::prelude::*;
 use renderer::{add_model_comp, ModelComp, ModelList};
 
@@ -25,27 +25,18 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
     unsafe{
         level::LEVEL = Some(level);
     }
-
-    {
-
-        let cube = create_entity().unwrap();
-        add_model_comp(cube, ModelComp::new("box", Color::PINK));
-        let mut trans =TransformComp{trans:Transform::default()};
-        trans.trans.translation = Vector3::new(0.0, -0.5, 0.);
-        trans.trans.rotation = Vector4::new(0., 0. ,0., 1.);
-        add_transform_comp(cube, trans);
-        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-sz, -sz, -sz),Vector3::new(sz, sz,sz)), velocity:Vector3::new(0. ,0.1, 0.), did_collide:false});
+    let mut size = Vector3::new(0.2, 0.2, 0.2);
+    let count = 10;
+    let rad = 1.;
+    let colors = [Color::RED, Color::BLUE, Color::GREEN, Color::WHITE, Color::BLACK, Color::PURPLE, Color::PINK, Color::CRIMSON, Color::CYAN, Color::DARKGREEN];
+    for i in 0..count{
+        let mut deg = i as f32 / count as f32*TAU;
+        let x = deg.cos()*rad;
+        let y= deg.sin()*rad;
+        let location = Vector3::new(x,y, 0.);
+        let velocity = Vector3::new(-x, -y, 0.).normalized()/10.0;
+        create_box(size, location, velocity, colors[i as usize]);
     }
-    {
-        let cube = create_entity().unwrap();
-        add_model_comp(cube, ModelComp::new("box", Color::RED));
-        let mut trans =TransformComp{trans:Transform::default()};
-        trans.trans.rotation = Vector4::new(0., 0. ,0., 1.); 
-        trans.trans.translation = Vector3::new(0., 0.5, 0.);
-        add_transform_comp(cube, trans);
-        add_physics_comp(cube, PhysicsComp{collision:BoundingBox::new(Vector3::new(-sz ,-sz, -sz),Vector3::new(sz,sz,sz)), velocity:Vector3::new(0., -0.1, 0.), did_collide:false}); 
-    }
-
     model_list
 }
 static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::RaylibHandle)-> ModelList+Send+Sync>>> = Mutex::new(None);
