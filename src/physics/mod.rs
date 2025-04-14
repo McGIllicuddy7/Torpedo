@@ -1,9 +1,252 @@
+use std::vec;
+
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct PhysicsComponent{
-    pub location:Transform, 
-    pub collision:BoundingBox,
+use crate::level::{get_level, Entity, Level, TransformComp, LEVEL};
+
+pub fn min<T:PartialOrd>(a:T, b:T)->T{
+    if a<b{
+        a
+    } else{
+        b
+    }
 }
-crate::get_level_comp_list!(PhysicsComponent, physics_comps, add_physics_comp,remove_physics_comp,get_physics_comp, get_physics_mut);
+pub fn max<T:PartialOrd>(a:T, b:T)->T{
+    if a<b{
+        b
+    } else{
+        a
+    }
+}
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct PhysicsComp{
+    pub collision:BoundingBox,
+    pub velocity:Vector3,
+}
+pub struct Col{
+    pub hit_ref:Entity,
+    pub norm:Vector3,
+}
+crate::gen_comp_functions!(PhysicsComp, physics_comps, add_physics_comp,remove_physics_comp, get_physics_comp, get_physics_mut);
+fn get_vertices(a:BoundingBox, a_trans:Transform)->[Vector3;8]{
+    let mut verts= [Vector3::new(1.,1., 1.), Vector3::new(1., -1., 1.), Vector3::new(-1., 1., 1.), Vector3::new(-1., -1., 1.0), 
+    Vector3::new(1.,1., -1.), Vector3::new(1., -1., -1.), Vector3::new(-1., 1., -1.), Vector3::new(-1., -1., -1.0)];
+    for i in &mut verts{
+        i.normalize();
+    }
+    let dx = a.max.x-a.min.x;
+    let dy = a.max.y-a.min.y;
+    let dz = a.max.z-a.min.z;
+    for i in &mut verts{
+        let x = i.x*dx/2.;
+        let y = i.y*dy/2.;
+        let z = i.z*dz/2.;
+        *i = Vector3::new(x,y,z);
+    }
+    for i in &mut verts{
+        let mut tmp = *i;
+        tmp +=  a_trans.translation;
+        *i = tmp;
+    }
+    verts
+}
+fn get_normals(a_trans:Transform)->[Vector3;27]{
+    let mut normals = [const{Vector3::new(0., 0., 0.)}; 27];
+    let mut count = 0;
+    for x in -1..2{
+        for y in -1..2{
+            for z in -1..2{
+                normals[count] = Vector3::new(x as f32, y as f32, z as f32);
+                count += 1;
+            }
+        }
+    }
+    let rot = a_trans.rotation.to_matrix();
+    for i in &mut normals{
+        i.transform(rot);
+    }
+    normals
+}
+fn check_collision(a:PhysicsComp, a_trans:TransformComp, b:PhysicsComp, b_trans:TransformComp)->Option<Col>{
+    let a_verts = get_vertices(a.collision, a_trans.trans);
+    let b_verts = get_vertices(b.collision, b_trans.trans);
+    let a_norms = get_normals(a_trans.trans);
+    let b_norms = get_normals(b_trans.trans);
+    let mut norms = [const{Vector3::new(0., 0., 0.,)};54];
+    let mut idx = 0;
+    for i in a_norms{
+        norms[idx] = i;
+        idx +=1;
+    }
+    let mut idx = 0;
+    for i in b_norms{
+        norms[idx] = i;
+        idx +=1;
+    }
+    let mut col_norm = Vector3::new(0., 0., 0.);
+    let mut col_depth = 100000.0;
+    for i in norms{
+        let mut a_max = -1000000.0;
+        let mut a_min = -a_max;
+        let mut b_max = a_max;
+        let mut b_min = -b_max;
+        for j in a_verts{
+            let a_dot = j.dot(i);
+            if a_dot >a_max{
+                a_max = a_dot;
+            }
+            if a_dot<a_min{
+                a_min = a_dot;
+            }
+        }
+        for j in b_verts{
+            let b_dot = j.dot(i);
+            if b_dot >b_max{
+                b_max = b_dot;
+            }
+            if b_dot<b_min{
+                b_min = b_dot;
+            }
+        }
+        if a_min>b_max || b_min>a_max{
+           return None;
+        } else{
+            let da = (a_min-b_max).abs();
+            let db = (b_min -a_max).abs();
+            let del = if da>db{
+                db
+            } else{
+                da
+            };
+            if del<col_depth{
+                col_depth = del;
+                col_norm = i;
+            }
+        }
+    }
+    Some(Col{hit_ref:Entity{idx:0, generation:0}, norm:col_norm})
+}
+fn check_collision_single(new_loc:TransformComp,v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<TransformComp>], to_iter:&[usize])->Option<Col>{
+    if to_iter.len() != 0{
+        println!("{:#?}", to_iter);
+    }
+
+    for i in to_iter.iter().map(|i| *i){
+        if trans[i].is_none() || phys[i].is_none(){
+            continue;
+        }
+        if i != v{
+            if let Some(mut col) = check_collision(phys[v].clone().unwrap(), new_loc.clone(), phys[i].clone().unwrap(), trans[i].clone().unwrap()){
+                col.hit_ref = Entity{idx:i as u32, generation:unsafe{get_level().component_indexes.read().unwrap()[i]}};
+                return Some(col);
+            }
+        }
+    }
+    return None;
+}
+const COUNT:usize = 10;
+fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<TransformComp>], to_iter:&[[[Vec<usize>;COUNT];COUNT];COUNT], min_loc:Vector3, max_loc:Vector3){
+    let old = trans[v].clone().unwrap();
+    let mut new = old.clone();
+    new.trans.translation += phys[v].as_ref().unwrap().velocity*1./60.;
+    let d = max_loc-min_loc;
+    let delt = ((phys[v].as_ref().unwrap().collision.max-phys[v].as_ref().unwrap().collision.min).length()*max(d.x, max(d.y,d.z))) as i64+2;
+    let del = new.trans.translation-min_loc;
+    let x = (del.x/d.x) as usize;
+    let y = (del.y/d.y) as usize;
+    let z = (del.z/d.z) as usize;
+    for dx in-delt..delt{
+        for dy  in -delt..delt{
+            for dz in -delt..delt{
+                let x = x  as i64+dx;
+                let y = y as i64+dy;
+                let z = z as i64+dz;
+                if x<0 || x>=COUNT as i64{
+                    continue;
+                }
+                if y<0 || y>=COUNT as i64{
+                    continue;
+                }
+                if z<0 || z>=COUNT as i64{
+                    continue;
+                }
+                if let Some(s) = check_collision_single(new.clone(), v, phys, trans, &to_iter[x as usize][y as usize][z as usize]){
+                    phys[v].as_mut().unwrap().velocity *= -1.0;
+
+                    phys[s.hit_ref.idx as usize].as_mut().unwrap().velocity *= -1.0;
+                    trans[v].as_mut().unwrap().trans.translation += phys[v].as_mut().unwrap().velocity*1./120.;
+                    return;
+
+                }
+
+            }
+        }
+    }
+    trans[v] = Some(new);
+}
+pub fn update(){
+    let mut trans = get_level().transform_comps.list.read().unwrap().clone();
+    let mut phys_lock = get_level().physics_comps.list.write().unwrap();
+    let phys = phys_lock.as_mut();
+    let mut vecs = [const {[const{[const {Vec::<usize>::new()};COUNT]}; COUNT]};COUNT];
+    let mut min_loc = Vector3::new(10000.0, 10000.0, 10000.0);
+    let mut max_loc = -min_loc;
+    let mut iter = Vec::new();
+    for i in 0..phys.len(){
+        if phys[i].is_some(){
+            let t = trans[i].clone().unwrap();
+            let loc = t.trans.translation;
+            if loc.x<min_loc.x{
+                min_loc.x = loc.x;
+            }
+            if loc.y <min_loc.y{
+                min_loc.y = loc.y;
+            }
+            if loc.z<min_loc.z{
+                min_loc.z = loc.z;
+            }
+            if loc.x>max_loc.x{
+                max_loc.x = loc.x;
+            }
+            if loc.y>max_loc.y{
+                max_loc.y = loc.y;
+            }
+            if loc.z>max_loc.z{
+                max_loc.z = loc.z;
+            }
+            iter.push(i);
+        }
+    }
+    for i in&iter{
+        let d = max_loc-min_loc;
+        let delt = ((phys[*i].as_ref().unwrap().collision.max-phys[*i].as_ref().unwrap().collision.min).length()*max(d.x, max(d.y,d.z))) as i64+3;
+        let del = trans[*i].as_ref().unwrap().trans.translation-min_loc;
+        let x = (del.x/d.x) as usize;
+        let y = (del.y/d.y) as usize;
+        let z = (del.z/d.z) as usize;
+        for dx in-delt..delt{
+            for dy  in -delt..delt{
+                for dz in -delt..delt{
+                    let x = x  as i64+dx;
+                    let y = y as i64+dy;
+                    let z = z as i64+dz;
+                    if x<0 || x>=COUNT as i64{
+                        continue;
+                    }
+                    if y<0 || y>=COUNT as i64{
+                        continue;
+                    }
+                    if z<0 || z>=COUNT as i64{
+                        continue;
+                    }
+                    vecs[x as usize][y as usize][z as usize].push(*i);
+                }
+            }
+        }
+    }
+    for i in iter{
+        update_phys(i, phys, &mut trans, &vecs, min_loc, max_loc);
+    }
+    *get_level().transform_comps.list.write().unwrap() = trans
+}
