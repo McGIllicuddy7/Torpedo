@@ -1,8 +1,10 @@
 
+use std::sync::Mutex;
+
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 
-const COUNT:usize = 30;
+const COUNT:usize = 64;
 use crate::{level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, renderer::{add_model_comp, ModelComp}};
 
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
@@ -72,7 +74,7 @@ pub struct PhysicsComp{
     pub collision:Collision,
     pub velocity:Vector3,
     pub offset:Transform,
-    pub did_collide:bool,
+    pub can_ever_move:bool,
 }
 impl PhysicsComp{
     pub fn max(&self)->Vector3{
@@ -109,30 +111,60 @@ fn get_vertices(a:BoundingBox,offset:Transform, a_trans:Transform)->[Vector3;8]{
     }
     verts
 }
-fn get_normals(a_trans:Transform, a_off:Transform)->[Vector3;13]{
-    let mut normals = [const{Vector3::new(0., 0., 0.,)};13];
-    let mut count = 0;
-    for x in -1..2{
-        for y in -1..2{
-            for z in -1..2{
-                if x == 0 && y == 0 && z == 0{
-                    continue;
-                }
-                let v = Vector3::new(x as f32, y as f32, z as f32);
-                if normals.contains(&(-v)){
-                    continue;
-                }
-                normals[count] =v;
-                count += 1;
-            }
+const fn vec_contains(a:&[Vector3], v:Vector3)->bool{
+    let mut idx = 0;
+    while idx<a.len(){
+        if a[idx].x == v.x && a[idx].y == v.y && a[idx].z == v.z{
+            return true;
         }
+        idx += 1;
+        assert!(idx != 0);
     }
+    false
+}
+fn get_normals(a_trans:Transform, a_off:Transform)->[Vector3;13]{
+    #[allow(long_running_const_eval)]
+    let mut normals = const{
+        let mut norms = [const{Vector3::new(0., 0., 0.,)};13];
+        let mut count = 0;
+        let mut x = -1;
+        let mut y = -1;
+        let mut z = -1;
+        while x<2{
+            while y<2{
+                while z<2{
+                    if x == 0 && y == 0 && z == 0{
+                        z+= 1;
+                        continue;
+                    }
+                    let v = Vector3::new(x as f32, y as f32, z as f32);
+                    if vec_contains(&norms, Vector3::new(-v.x, -v.y, -v.z)){
+                        z+= 1;
+                        continue;
+                    }
+                    norms[count] =v;
+                    count += 1;
+                    z+= 1;
+                }
+                z = -1;
+                y += 1;
+            }
+            y = -1;
+            x += 1;
+        }
+        let mut idx = 0;
+        while idx<norms.len(){
+            let l = norms[idx].x*norms[idx].x + norms[idx].y *norms[idx].y+norms[idx].z* norms[idx].z;
+            norms[idx].x /= l;
+            norms[idx].y /= l;
+            norms[idx].x /= l;
+            idx += 1;
+        }
+        norms
+    };
     let rot = (a_trans.rotation*a_off.rotation).to_matrix();
     for i in &mut normals{
         i.transform(rot);
-    }
-    for i in &mut normals{
-        i.normalize();
     }
     normals
 }
@@ -239,7 +271,7 @@ fn check_collision(a:BoundingBox, a_off:Transform,a_trans:TransformComp, b:Bound
         }
     }
 
-    Some(Col{hit_ref:Entity{idx:0, generation:0}, norm:col_norm, depth:col_depth})
+    Some(Col{hit_ref:Entity{idx:0, generation:0}, norm:col_norm.normalized(), depth:col_depth})
 }
 pub fn check_collision_pair(a:PhysicsComp, b:PhysicsComp,v:usize, i:usize,new_loc:TransformComp,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<TransformComp>])->Option<Col>{
     let mut col:Option<Col> = None;
@@ -304,15 +336,19 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
     let old = trans[v].clone().unwrap();
     let mut new = old.clone();
     new.trans.translation += phys[v].as_ref().unwrap().velocity*1./60.;
-    let d = max_loc-min_loc;
-    let delt =2;
+    let mut d = max_loc-min_loc;
+    if d.length()<10.{
+        d.normalize();
+        d*= 10.
+    }
+    let delt =((phys[v].as_ref().unwrap().max()- phys[v].as_ref().unwrap().min()).length()/d.length()).ceil()as i64+1;
     let del = new.trans.translation-min_loc;
-    let x = (del.x/d.x) as usize;
-    let y = (del.y/d.y) as usize;
-    let z = (del.z/d.z) as usize;
-    for dx in-delt..delt{
-        for dy  in -delt..delt{
-            for dz in -delt..delt{
+    let x = ((del.x/d.x)*COUNT as f32)  as usize;
+    let y =((del.y/d.y)*COUNT as f32)  as usize;
+    let z =((del.z/d.z)*COUNT as f32)  as usize;
+    for dx in-delt..delt+1{
+        for dy  in -delt..delt+1{
+            for dz in -delt..delt+1{
                 let x = x  as i64+dx;
                 let y = y as i64+dy;
                 let z = z as i64+dz;
@@ -325,12 +361,17 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
                 if z<0 || z>=COUNT as i64{
                     continue;
                 }
+                if to_iter[x as usize][y as usize][z as usize].len() == 0{
+                    continue;
+                }
                 if let Some(s) = check_collision_single(new.clone(), v, phys, trans, &to_iter[x as usize][y as usize][z as usize]){
                     phys[v].as_mut().unwrap().velocity.reflect(s.norm);
                     phys[s.hit_ref.idx as usize].as_mut().unwrap().velocity.reflect(-s.norm);
-                    trans[v].as_mut().unwrap().trans.translation +=s.norm*(s.depth+0.0000001);
-                    if check_collision_single(trans[v].as_mut().unwrap().clone(), v, phys, trans, &to_iter[x as usize][y as usize][z as usize]).is_some(){
-                        trans[v].as_mut().unwrap().trans.translation = old.trans.translation;
+                    trans[v].as_mut().unwrap().trans.translation +=s.norm*(s.depth);
+                    if let Some(s) = check_collision_single(trans[v].as_mut().unwrap().clone(), v, phys, trans, &to_iter[x as usize][y as usize][z as usize]){
+                        let delt = trans[v].as_ref().unwrap().trans.translation-trans[s.hit_ref.idx as usize].as_ref().unwrap().trans.translation;
+                        trans[v].as_mut().unwrap().trans.translation = old.trans.translation+delt.normalized()*0.001;
+
                     }
                     return;
                 }
@@ -340,11 +381,20 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
     }
     trans[v] = Some(new);
 }
+static BOXES:Mutex<[[[Vec<usize>;COUNT];COUNT];COUNT]> = Mutex::new([const {[const{[const {Vec::<usize>::new()};COUNT]}; COUNT]};COUNT]);
 pub fn update(){
     let mut trans = get_level().transform_comps.list.read().unwrap().clone();
     let mut phys_lock = get_level().physics_comps.list.write().unwrap();
     let phys = phys_lock.as_mut();
-    let mut vecs = [const {[const{[const {Vec::<usize>::new()};COUNT]}; COUNT]};COUNT];
+    let mut boxes = BOXES.lock().unwrap();
+    let vecs:&mut [[[Vec<usize>;COUNT];COUNT];COUNT] = &mut boxes;
+    for x in 0..COUNT{
+        for y in 0..COUNT{
+            for z in 0..COUNT{
+                vecs[x][y][z].clear();
+            }
+        }
+    }
     let mut min_loc = Vector3::new(10000.0, 10000.0, 10000.0);
     let mut max_loc = -min_loc;
     let mut iter = Vec::new();
@@ -374,15 +424,19 @@ pub fn update(){
         }
     }
     for i in&iter{
-        let d = max_loc-min_loc;
-        let delt = 1;
+        let mut d = max_loc-min_loc;
+        if d.length()<10.{
+            d.normalize();
+            d*= 10.
+        }
+        let delt =((phys[*i].as_ref().unwrap().max()- phys[*i].as_ref().unwrap().min()).length()/d.length()) as i64;
         let del = trans[*i].as_ref().unwrap().trans.translation-min_loc;
-        let x = (del.x/d.x) as usize;
-        let y = (del.y/d.x) as usize;
-        let z = (del.z/d.x) as usize;
-        for dx in-delt..delt{
-            for dy  in -delt..delt{
-                for dz in -delt..delt{
+        let x = ((del.x/d.x)*COUNT as f32)  as usize;
+        let y =((del.y/d.y)*COUNT as f32)  as usize;
+        let z =((del.z/d.z)*COUNT as f32)  as usize;
+        for dx in-delt..delt+1{
+            for dy  in -delt..delt+1{
+                for dz in -delt..delt+1{
                     let x = x  as i64+dx;
                     let y = y as i64+dy;
                     let z = z as i64+dz;
@@ -400,12 +454,16 @@ pub fn update(){
             }
         }
     }
+
     for i in iter{
-        update_phys(i, phys, &mut trans, &vecs, min_loc, max_loc);
+        if !phys[i].as_ref().unwrap().can_ever_move{
+            continue;
+        }
+        update_phys(i, phys, &mut trans, vecs, min_loc, max_loc);
     }
     *get_level().transform_comps.list.write().unwrap() = trans
 }
-pub fn create_box(size:Vector3,location:Vector3,velocity:Vector3,tint:Color)->Entity{
+pub fn create_box_movable(size:Vector3,location:Vector3,velocity:Vector3,tint:Color)->Entity{
      let cube = create_entity().unwrap();
     add_model_comp(cube, ModelComp::new("box", tint));
     let mut trans =TransformComp{trans:Transform::default()};
@@ -418,10 +476,30 @@ pub fn create_box(size:Vector3,location:Vector3,velocity:Vector3,tint:Color)->En
     let bb = BoundingBox { min: -size/2., max:size/2. };
     let phys = PhysicsComp{
         collision: Collision::Box { collision: bb },
-        velocity: velocity,
+        velocity,
         offset: trans2,
-        did_collide: false,
+        can_ever_move:true,
     };
     add_physics_comp(cube, phys);
     cube
+}
+pub fn create_box(size:Vector3,location:Vector3,tint:Color)->Entity{
+    let cube = create_entity().unwrap();
+   add_model_comp(cube, ModelComp::new("box", tint));
+   let mut trans =TransformComp{trans:Transform::default()};
+   trans.trans.translation = location;
+   trans.trans.rotation = Vector4::new(0., 0. ,0., 1.);
+   add_transform_comp(cube, trans);
+   let mut trans2 = Transform::default();
+   trans2.translation= Vector3::new(0., 0., 0.);
+   trans2.rotation = Quaternion::new(0., 0., 0., 1.0);
+   let bb = BoundingBox { min: -size/2., max:size/2. };
+   let phys = PhysicsComp{
+       collision: Collision::Box { collision: bb },
+       velocity: Vector3::zero(),
+       offset: trans2,
+       can_ever_move:false,
+   };
+   add_physics_comp(cube, phys);
+   cube
 }

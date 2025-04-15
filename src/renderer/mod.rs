@@ -32,13 +32,13 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
         if let Some(v) = &l[i]{
             let trans = transforms[i].as_ref().unwrap();
             models.list.get_mut(&v.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
-            //rend.draw_model(&models.list[&v.model], trans.trans.translation, 1.0, v.tint);
-            if let Some(x) = &get_level().physics_comps.list.read().unwrap()[i]{
+            rend.draw_model(&models.list[&v.model], trans.trans.translation, 1.0, v.tint);
+            /*if let Some(x) = &get_level().physics_comps.list.read().unwrap()[i]{
                 let mut bb =BoundingBox{max:x.collision.max(), min:x.collision.min()};
                 bb.min += trans.trans.translation;
                 bb.max += trans.trans.translation;
                 rend.draw_bounding_box(bb, Color::GREEN);
-            }
+            }*/
         } 
     }
     drop(rend);
