@@ -1,11 +1,11 @@
-use std::{ops::{Deref, DerefMut}, sync::{RwLock, RwLockReadGuard, RwLockWriteGuard}};
-use raylib::math::Transform;
+use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{RwLock, RwLockReadGuard, RwLockWriteGuard}};
+use raylib::{math::Transform, models::RaylibMesh, RaylibHandle, RaylibThread};
 use serde::{Deserialize, Serialize};
 pub static mut LEVEL:Option<Level> = None;
 pub unsafe fn level_check_entity(ent:Entity)->bool{
     get_level().check_entity_ref(ent)
 }
-use crate::{physics::PhysicsComp, renderer::ModelComp};
+use crate::{physics::PhysicsComp, renderer::{ModelComp, ModelList}};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TransformComp{
     pub trans:Transform,
@@ -168,4 +168,21 @@ pub fn save_level(file_name:&str){
 pub fn load_level(file_name:&str)->Level{
     let level:Level = serde_json::from_slice(&std::fs::read(file_name).unwrap()).unwrap(); 
     level
+}
+pub fn init_level(entity_count:usize){
+    let level = Level::new(entity_count);
+    unsafe{
+        LEVEL = Some(level);
+    }
+}
+pub fn default_setup(thread:&RaylibThread, handle:&mut RaylibHandle, entity_count:usize)->ModelList{
+    let mut model_list = ModelList{list:HashMap::new()};
+    let sz = 0.1;
+    let ms =raylib::models::Mesh::gen_mesh_cube(thread, sz, sz,sz);
+    let box_mesh = handle.load_model_from_mesh(thread, unsafe {
+        ms.make_weak()  
+    }).unwrap();
+    model_list.list.insert("box".into(),box_mesh);
+    init_level(entity_count);
+    model_list
 }

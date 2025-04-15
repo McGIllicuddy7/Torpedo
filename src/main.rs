@@ -1,9 +1,9 @@
-use std::{collections::HashMap, f32::consts::TAU, sync::Mutex};
+use std::{f32::consts::TAU, sync::Mutex};
 
-use level::{add_transform_comp, create_entity, save_level, Level, TransformComp};
-use physics::{add_physics_comp, create_box, PhysicsComp};
+use level::{default_setup, save_level};
+use physics::create_box;
 use raylib::prelude::*;
-use renderer::{add_model_comp, ModelComp, ModelList};
+use renderer::ModelList;
 
 
 pub mod physics;
@@ -14,30 +14,35 @@ static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 #[allow(unused)]
 pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
-    let mut model_list = ModelList{list:HashMap::new()};
-    let sz = 0.1;
-    let ms =raylib::models::Mesh::gen_mesh_cube(thread, sz, sz,sz);
-    let box_mesh = handle.load_model_from_mesh(thread, unsafe {
-        ms.make_weak()  
-    }).unwrap();
-    model_list.list.insert("box".into(),box_mesh);
-    let level = Level::new(32);
-    unsafe{
-        level::LEVEL = Some(level);
-    }
-    let mut size = Vector3::new(0.2, 0.2, 0.2);
-    let count = 10;
-    let rad = 1.;
+    let out = default_setup(thread, handle, 4096);
+    let mut size = Vector3::new(0.1, 0.1, 0.1);
+    let count = 500;
+    let rad = 20.;
     let colors = [Color::RED, Color::BLUE, Color::GREEN, Color::WHITE, Color::BLACK, Color::PURPLE, Color::PINK, Color::CRIMSON, Color::CYAN, Color::DARKGREEN];
     for i in 0..count{
         let mut deg = i as f32 / count as f32*TAU;
         let x = deg.cos()*rad;
         let y= deg.sin()*rad;
         let location = Vector3::new(x,y, 0.);
-        let velocity = Vector3::new(-x, -y, 0.).normalized()/10.0;
-        create_box(size, location, velocity, colors[i as usize]);
+        let velocity = Vector3::new(-x, -y, 0.).normalized()/5.0;
+        create_box(size, location, velocity, colors[i as usize %colors.len()]);
     }
-    model_list
+    out
+}
+pub fn make_test_level2(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
+    let out =default_setup(thread, handle, 4096);
+    let size = Vector3::new(0.1, 0.1, 0.1);
+    let count:i32 = 5;
+    let rad = 20.;
+    let colors = [Color::RED, Color::BLUE, Color::GREEN, Color::WHITE, Color::BLACK, Color::PURPLE, Color::PINK, Color::CRIMSON, Color::CYAN, Color::DARKGREEN];
+    for x in -count..count{
+        for y in -count..count{
+            let p = Vector3::new(x as f32, y as f32, 0.)/2.0;
+            let v = -p/10.0;
+            create_box(size, p, v, colors[(x+y*count) as usize%colors.len()]);
+        }
+    }
+    out
 }
 static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::RaylibHandle)-> ModelList+Send+Sync>>> = Mutex::new(None);
 pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle){
@@ -64,7 +69,7 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
     }
 }
 pub fn main_loop(){
-    *LEVEL_TO_LOAD.lock().unwrap() = Some(Box::new(make_test_level));
+    *LEVEL_TO_LOAD.lock().unwrap() = Some(Box::new(make_test_level2));
     let (mut handle, thread) =raylib::init().title("hello window").size(1600,1000).msaa_4x().log_level(TraceLogLevel::LOG_ERROR).
     build();
     handle.disable_cursor();
