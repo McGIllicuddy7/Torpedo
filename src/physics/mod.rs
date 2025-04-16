@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 
-const COUNT:usize = 64;
+const COUNT:usize = 32;
 use crate::{level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, renderer::{add_model_comp, ModelComp}};
 
 pub fn min<T:PartialOrd>(a:T, b:T)->T{

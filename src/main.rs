@@ -32,14 +32,19 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
 pub fn make_test_level2(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
     let out =default_setup(thread, handle, 4096*8);
     let size = Vector3::new(0.1, 0.1, 0.1);
-    let count:i32 = 20;
+    let count:i32 = 10;
     let colors = [Color::RED, Color::BLUE, Color::GREEN, Color::WHITE, Color::BLACK, Color::PURPLE, Color::PINK, Color::CRIMSON, Color::CYAN, Color::DARKGREEN];
     for x in -count..count{
         for y in -count..count{
             for z in -count..count{
                 let p = Vector3::new(x as f32, y as f32, z as f32)/2.0;
-                let v = -p/10.0;
-                create_box_movable(size, p, v, colors[(x+y*count) as usize%colors.len()]);
+                let v = -p/2.;
+                if rand::random::<u64>()%10<9{
+                    create_box(size, p,colors[(x+y*count) as usize%colors.len()]);
+                } else{
+                    create_box_movable(size, p, v, colors[(x+y*count) as usize%colors.len()]);
+                }
+
             }
 
         }
