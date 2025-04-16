@@ -1,15 +1,16 @@
-use std::{f32::consts::TAU, sync::Mutex};
+use std::{f64::consts::TAU, sync::Mutex};
 
 use level::{default_setup, save_level};
 use physics::{create_box, create_box_movable};
-use raylib::prelude::*;
+use crate::math::*;
 use renderer::ModelList;
-
+use raylib::{camera::Camera3D, color::{self, Color}, ffi::TraceLogLevel, prelude::RaylibDraw};
 
 pub mod physics;
 pub mod renderer;
-
+pub mod game;
 pub mod level;
+pub mod math;
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 #[allow(unused)]
@@ -20,7 +21,7 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
     let rad = 20.;
     let colors = [Color::RED, Color::BLUE, Color::GREEN, Color::WHITE, Color::BLACK, Color::PURPLE, Color::PINK, Color::CRIMSON, Color::CYAN, Color::DARKGREEN];
     for i in 0..count{
-        let mut deg = i as f32 / count as f32*TAU;
+        let mut deg = i as f64 / count as f64*TAU;
         let x = deg.cos()*rad;
         let y= deg.sin()*rad;
         let location = Vector3::new(x,y, 0.);
@@ -37,9 +38,9 @@ pub fn make_test_level2(thread:&raylib::RaylibThread, handle:&mut raylib::Raylib
     for x in -count..count{
         for y in -count..count{
             for z in -count..count{
-                let p = Vector3::new(x as f32, y as f32, z as f32)/2.0;
+                let p = Vector3::new(x as f64, y as f64, z as f64)/2.0;
                 let v = -p/2.;
-                if rand::random::<u64>()%10<9{
+                if rand::random::<u64>()%100<99{
                     create_box(size, p,colors[(x+y*count) as usize%colors.len()]);
                 } else{
                     create_box_movable(size, p, v, colors[(x+y*count) as usize%colors.len()]);
@@ -54,7 +55,7 @@ pub fn make_test_level2(thread:&raylib::RaylibThread, handle:&mut raylib::Raylib
 static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::RaylibHandle)-> ModelList+Send+Sync>>> = Mutex::new(None);
 pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle){
     let mut model_list =LEVEL_TO_LOAD.lock().unwrap().as_ref().unwrap()(thread, handle);
-    let mut cam =  Camera3D::perspective(Vector3::new(-0.4, 0., 0.0) ,Vector3::new(1.0,0.,0.), Vector3::new(0.0, 0.0, 1.0,),90.0);
+    let mut cam =  Camera3D::perspective(Vector3::new(-0.4, 0., 0.0).as_rl_vec() ,Vector3::new(1.0,0.,0.).as_rl_vec(), Vector3::new(0.0, 0.0, 1.0,).as_rl_vec(),90.0);
     loop{
         let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue{

@@ -1,10 +1,13 @@
-
+/*
+todo optimize physics(more)
+*/
 use std::sync::Mutex;
 
-use raylib::prelude::*;
+use crate::math::*;
+use raylib::color::Color;
 use serde::{Deserialize, Serialize};
 
-const COUNT:usize = 32;
+const COUNT:usize = 40;
 use crate::{level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, renderer::{add_model_comp, ModelComp}};
 
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
@@ -87,7 +90,7 @@ impl PhysicsComp{
 pub struct Col{
     pub hit_ref:Entity,
     pub norm:Vector3,
-    pub depth:f32,
+    pub depth:f64,
 }
 crate::gen_comp_functions!(PhysicsComp, physics_comps, add_physics_comp,remove_physics_comp, get_physics_comp, get_physics_mut);
 fn get_vertices(a:BoundingBox,offset:Transform, a_trans:Transform)->[Vector3;8]{
@@ -137,7 +140,7 @@ fn get_normals(a_trans:Transform, a_off:Transform)->[Vector3;13]{
                         z+= 1;
                         continue;
                     }
-                    let v = Vector3::new(x as f32, y as f32, z as f32);
+                    let v = Vector3::new(x as f64, y as f64 ,z as f64);
                     if vec_contains(&norms, Vector3::new(-v.x, -v.y, -v.z)){
                         z+= 1;
                         continue;
@@ -343,9 +346,9 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
     }
     let delt =((phys[v].as_ref().unwrap().max()- phys[v].as_ref().unwrap().min()).length()/d.length()).ceil()as i64+1;
     let del = new.trans.translation-min_loc;
-    let x = ((del.x/d.x)*COUNT as f32)  as usize;
-    let y =((del.y/d.y)*COUNT as f32)  as usize;
-    let z =((del.z/d.z)*COUNT as f32)  as usize;
+    let x = ((del.x/d.x)*COUNT as f64)  as usize;
+    let y =((del.y/d.y)*COUNT as f64)  as usize;
+    let z =((del.z/d.z)*COUNT as f64)  as usize;
     for dx in-delt..delt+1{
         for dy  in -delt..delt+1{
             for dz in -delt..delt+1{
@@ -431,9 +434,9 @@ pub fn update(){
         }
         let delt =((phys[*i].as_ref().unwrap().max()- phys[*i].as_ref().unwrap().min()).length()/d.length()) as i64;
         let del = trans[*i].as_ref().unwrap().trans.translation-min_loc;
-        let x = ((del.x/d.x)*COUNT as f32)  as usize;
-        let y =((del.y/d.y)*COUNT as f32)  as usize;
-        let z =((del.z/d.z)*COUNT as f32)  as usize;
+        let x = ((del.x/d.x)*COUNT as f64)  as usize;
+        let y =((del.y/d.y)*COUNT as f64)  as usize;
+        let z =((del.z/d.z)*COUNT as f64)  as usize;
         for dx in-delt..delt+1{
             for dy  in -delt..delt+1{
                 for dz in -delt..delt+1{
