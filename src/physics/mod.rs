@@ -77,6 +77,7 @@ pub struct PhysicsComp{
     pub collision:Collision,
     pub velocity:Vector3,
     pub offset:Transform,
+    pub anglular_velocity:Quaternion,
     pub can_ever_move:bool,
 }
 impl PhysicsComp{
@@ -339,6 +340,7 @@ fn update_phys(v:usize,phys:&mut [Option<PhysicsComp>], trans:&mut [Option<Trans
     let old = trans[v].clone().unwrap();
     let mut new = old.clone();
     new.trans.translation += phys[v].as_ref().unwrap().velocity*1./60.;
+    new.trans.rotation += phys[v].as_ref().unwrap().anglular_velocity *1./60.;
     let mut d = max_loc-min_loc;
     if d.length()<10.{
         d.normalize();
@@ -481,6 +483,7 @@ pub fn create_box_movable(size:Vector3,location:Vector3,velocity:Vector3,tint:Co
         collision: Collision::Box { collision: bb },
         velocity,
         offset: trans2,
+        anglular_velocity:Quaternion::zero(),
         can_ever_move:true,
     };
     add_physics_comp(cube, phys);
@@ -500,6 +503,7 @@ pub fn create_box(size:Vector3,location:Vector3,tint:Color)->Entity{
    let phys = PhysicsComp{
        collision: Collision::Box { collision: bb },
        velocity: Vector3::zero(),
+       anglular_velocity:Quaternion::zero(),
        offset: trans2,
        can_ever_move:false,
    };

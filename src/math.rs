@@ -156,6 +156,37 @@ impl Mul for Vector4{
         Self{x:self.x*rhs.x, y:self.y*rhs.y,z:self.z*rhs.z, w:self.w*rhs.w }
     }
 }
+
+impl MulAssign for Vector4{
+
+    fn mul_assign(&mut self, rhs: Self) {   
+        *self = *self*rhs;
+    }
+}
+impl Add for Vector4{
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self{x:self.x+rhs.x, y:self.y+rhs.y, z:self.z+rhs.z, w:self.w+rhs.w}
+    }
+}
+impl Sub for Vector4{
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self{x:self.x-rhs.x, y:self.y-rhs.y, z:self.z-rhs.z, w:self.w+rhs.w}
+    }
+}
+impl AddAssign for Vector4{
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self+rhs;
+    }
+}
+impl SubAssign for Vector4{
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self-rhs;
+    }
+}
 impl Vector4{
     pub fn length(&self)->f64{
         (self.x*self.x+self.y*self.y+self.z*self.z+self.w*self.w).sqrt()
@@ -184,6 +215,9 @@ impl Vector4{
     }
     pub const fn new(x:f64, y:f64, z:f64, w:f64)->Self{
         Self { x,y,z,w}
+    }
+    pub const fn zero()->Self{
+        Self { x:0.,y:0., z:0., w:0.}
     }
 }
 
