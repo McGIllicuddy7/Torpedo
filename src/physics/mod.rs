@@ -7,7 +7,7 @@ use crate::math::*;
 use raylib::color::Color;
 use serde::{Deserialize, Serialize};
 
-const COUNT:usize = 40;
+const COUNT:usize = 64;
 use crate::{level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, renderer::{add_model_comp, ModelComp}};
 
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
@@ -79,6 +79,7 @@ pub struct PhysicsComp{
     pub offset:Transform,
     pub anglular_velocity:Quaternion,
     pub can_ever_move:bool,
+    pub parent:Option<Entity>
 }
 impl PhysicsComp{
     pub fn max(&self)->Vector3{
@@ -470,7 +471,7 @@ pub fn update(){
 }
 pub fn create_box_movable(size:Vector3,location:Vector3,velocity:Vector3,tint:Color)->Entity{
      let cube = create_entity().unwrap();
-    add_model_comp(cube, ModelComp::new("box", tint));
+    add_model_comp(cube, ModelComp::new("cylinder", tint));
     let mut trans =TransformComp{trans:Transform::default()};
     trans.trans.translation = location;
     trans.trans.rotation = Vector4::new(0., 0. ,0., 1.);
@@ -485,6 +486,7 @@ pub fn create_box_movable(size:Vector3,location:Vector3,velocity:Vector3,tint:Co
         offset: trans2,
         anglular_velocity:Quaternion::zero(),
         can_ever_move:true,
+        parent:None
     };
     add_physics_comp(cube, phys);
     cube
@@ -506,6 +508,7 @@ pub fn create_box(size:Vector3,location:Vector3,tint:Color)->Entity{
        anglular_velocity:Quaternion::zero(),
        offset: trans2,
        can_ever_move:false,
+       parent:None,
    };
    add_physics_comp(cube, phys);
    cube

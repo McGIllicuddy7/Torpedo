@@ -4,18 +4,23 @@ use std::collections::HashMap;
 
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
-
+pub mod particles;
 use crate::level::get_level;
 #[derive(Serialize, Deserialize, Clone)]
-pub struct ModelComp{
+pub struct ModelData{
     pub model:String,
     pub diffuse:String,
     pub normal:String,
     pub tint:Color,
+    pub offset:Transform,
+}
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ModelComp{
+    pub models:Vec<ModelData>
 }
 impl ModelComp{
     pub fn new(model:&str, tint:Color)->Self{
-        Self { model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint}
+        Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint, offset:Transform::default()}]}
     }
 }
 pub struct ModelList{
@@ -31,14 +36,10 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
     for i in 0..l.len(){
         if let Some(v) = &l[i]{
             let trans = transforms[i].as_ref().unwrap();
-            models.list.get_mut(&v.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
-            rend.draw_model(&models.list[&v.model], trans.trans.translation.as_rl_vec(), 1.0, v.tint);
-            /*if let Some(x) = &get_level().physics_comps.list.read().unwrap()[i]{
-                let mut bb =BoundingBox{max:x.collision.max(), min:x.collision.min()};
-                bb.min += trans.trans.translation;
-                bb.max += trans.trans.translation;
-                rend.draw_bounding_box(bb, Color::GREEN);
-            }*/
+            for model in &v.models{
+                models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
+                rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
+            }
         } 
     }
     drop(rend);

@@ -1,6 +1,8 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{RwLock, RwLockReadGuard, RwLockWriteGuard}};
-use raylib::{models::RaylibMesh, RaylibHandle, RaylibThread};
-use crate::math::Transform;
+use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
+use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
+use crate::{game::{handle_player, PlayerData}, math::{Transform, Vector3}, physics, renderer};
+static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
+static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
 pub static mut LEVEL:Option<Level> = None;
 pub unsafe fn level_check_entity(ent:Entity)->bool{
@@ -12,7 +14,7 @@ pub struct TransformComp{
     pub trans:Transform,
 }
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
-#[derive(Clone,Copy, Serialize)]
+#[derive(Clone,Copy, Serialize,Deserialize)]
 pub struct Entity{
     pub idx:u32, 
     pub generation:u32, 
@@ -64,6 +66,7 @@ impl <T:'static+Serialize+Send+Sync+for<'a> Deserialize<'a>+Clone> ComponentList
 
 #[derive(Serialize, Deserialize)]
 pub struct Level{
+    pub frame_time:f64,
     pub loaded_models:Vec<String>,
     pub existing_entities:RwLock<Box<[bool]>>,
     #[serde(with = "RwLock")]
@@ -71,6 +74,7 @@ pub struct Level{
     pub physics_comps:ComponentList<PhysicsComp>,
     pub transform_comps:ComponentList<TransformComp>,
     pub model_comps:ComponentList<ModelComp>,
+    pub player_entity:Entity,
 }
 impl Level{
     pub fn check_entity_ref(&self, ent:Entity)->bool{
@@ -86,7 +90,7 @@ impl Level{
             comp_idexs.push(0);
             existing_entities.push(false);
         }
-        Self { loaded_models:Vec::new(),existing_entities:RwLock::new(existing_entities.into()),component_indexes: RwLock::new(comp_idexs.into()), physics_comps: ComponentList::init(ent_size), transform_comps:  ComponentList::init(ent_size), model_comps:  ComponentList::init(ent_size) }
+        Self { loaded_models:Vec::new(),existing_entities:RwLock::new(existing_entities.into()),component_indexes: RwLock::new(comp_idexs.into()), physics_comps: ComponentList::init(ent_size), transform_comps:  ComponentList::init(ent_size), model_comps:  ComponentList::init(ent_size) ,frame_time:1./60. ,player_entity:Entity { idx: ent_size as u32+1, generation: ent_size as u32 +1}}
     }
 }
 pub fn get_level()->&'static Level{
@@ -184,6 +188,62 @@ pub fn default_setup(thread:&RaylibThread, handle:&mut RaylibHandle, entity_coun
         ms.make_weak()  
     }).unwrap();
     model_list.list.insert("box".into(),box_mesh);
+    let msh = raylib::models::Mesh::gen_mesh_sphere(thread, sz/2.,     32, 13);
+    let sphere_mesh = handle.load_model_from_mesh(thread, unsafe{msh.make_weak()}).unwrap();
+    model_list.list.insert("sphere".into(), sphere_mesh);
     init_level(entity_count);
+    let trs = raylib::models::Mesh::gen_mesh_torus(thread, sz/2., sz*2.,32,32);
+    let torus_mesh = handle.load_model_from_mesh(thread, unsafe{trs.make_weak()}).unwrap();
+    model_list.list.insert("torus".into(), torus_mesh);
+    let cyl = raylib::models::Mesh::gen_mesh_cylinder(thread, sz/4., sz, 32);
+    let cl_mesh = handle.load_model_from_mesh(thread, unsafe{cyl.make_weak()}).unwrap();
+    model_list.list.insert("cylinder".into(), cl_mesh);
     model_list
+}
+pub fn get_frame_time()->f64{
+    get_level().frame_time
+}
+static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::RaylibHandle)-> ModelList+Send+Sync>>> = Mutex::new(None);
+
+pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle){
+    let mut model_list =LEVEL_TO_LOAD.lock().unwrap().as_ref().unwrap()(thread, handle);
+    let mut cam =  Camera3D::perspective(crate::math::Vector3::new(-0.4, 0., 0.0).as_rl_vec() ,Vector3::new(1.0,0.,0.).as_rl_vec(), crate::math::Vector3::new(0.0, 0.0, 1.0,).as_rl_vec(),90.0);
+    let mut player_data = PlayerData{camera:cam};
+    loop{
+        let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
+        if !*should_continue{
+            break;
+        }
+        drop(should_continue);
+        if handle.window_should_close(){
+            *GAME_SHOULD_CONTINUE.lock().unwrap() = false;
+            break;
+        }
+        handle_player(&mut player_data, thread, handle);
+        let j = std::thread::spawn(|| physics::update());
+        let mut draw = handle.begin_drawing(thread);
+        draw.clear_background(color::Color::new(0,0, 20,255));
+        renderer::render(thread, &mut draw, &mut model_list,&mut cam);
+        j.join().unwrap();
+        //save_level("test.json");
+    }
+    unsafe{
+        crate::level::LEVEL = None;
+    }
+}
+pub fn main_loop(level_to_load:Box<dyn Fn(&raylib::RaylibThread, &mut raylib::RaylibHandle)->ModelList+Send+Sync+'static>){
+    *LEVEL_TO_LOAD.lock().unwrap() = Some(level_to_load);
+    let (mut handle, thread) =raylib::init().title("hello window").size(1600,1000).msaa_4x().log_level
+    (TraceLogLevel::LOG_ERROR).
+    build();
+    handle.set_target_fps(60);
+    handle.disable_cursor();
+    loop{
+        let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();
+        if !*should_continue{
+            break;
+        }
+        drop(should_continue);
+        level_loop(&thread, &mut handle);
+    }
 }
