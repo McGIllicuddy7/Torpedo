@@ -28,7 +28,7 @@ pub struct ModelList{
     pub list:HashMap<String, Model>
 }
 crate::gen_comp_functions!(ModelComp, model_comps, add_model_comp,remove_model_comp, get_model_comp, get_model_mut);
-pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera, oct:&Octree){
+pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera){
     let l = get_level().model_comps.list.read().unwrap();
     let transforms = get_level().transform_comps.list.read().unwrap();
     let physics = get_level().physics_comps.list.read().unwrap();
@@ -50,8 +50,6 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
             }
         } 
     }
-    let _ = oct;
-    //oct.draw(&mut rend);
     drop(rend);
     handle.draw_fps(1400, 200);
 }

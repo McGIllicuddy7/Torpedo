@@ -3,7 +3,7 @@ todo optimize physics(more)
 */
 use std::{collections::HashMap, process::exit};
 mod col;
-use crate::{level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
+use crate::{arena::Arena, level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
@@ -140,11 +140,11 @@ pub struct Col{
 crate::gen_comp_functions!(PhysicsComp, physics_comps, add_physics_comp,remove_physics_comp, get_physics_comp, get_physics_mut);
 
 #[derive(Debug)]
-pub enum Octree{
+pub enum Octree<'a>{
     Values{values:Vec<usize>, bx:BoundingBox},
-    Boxes{values:Box<[Octree;8]>, bx:BoundingBox},
+    Boxes{values:&'a [Octree<'a>;8], bx:BoundingBox},
 }
-impl Octree{
+impl <'a>Octree<'a>{
     pub fn draw<T>(&self,handle:&mut raylib::prelude::RaylibMode3D<'_, T>){
         match self{
             Octree::Values { values:_, bx } => {
@@ -199,7 +199,7 @@ impl Octree{
         }
     }
 }
-pub fn make_octree(values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<TransformComp>], bb:BoundingBox)->Octree{
+pub fn make_octree<'a>(arena:&'a Arena,values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<TransformComp>], bb:BoundingBox)->Octree<'a>{
     let mut quads = [const{Vec::new()};8];
     if values.len()<4 || (bb.max-bb.min).length()<0.000001{
         let mut vs = Vec::new();
@@ -223,19 +223,19 @@ pub fn make_octree(values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<T
         }
     }
     let values= [
-        make_octree(&quads[0], phys, trans, bbs[0]), 
-        make_octree(&quads[1], phys, trans, bbs[1]), 
-        make_octree(&quads[2], phys, trans, bbs[2]),
-        make_octree(&quads[3], phys, trans, bbs[3]),
-        make_octree(&quads[4], phys, trans, bbs[4]),
-        make_octree(&quads[5], phys, trans, bbs[5]), 
-        make_octree(&quads[6], phys, trans, bbs[6]),
-        make_octree(&quads[7], phys, trans, bbs[7])
+        make_octree(arena, &quads[0], phys, trans, bbs[0]), 
+        make_octree(arena,&quads[1], phys, trans, bbs[1]), 
+        make_octree(arena, &quads[2], phys, trans, bbs[2]),
+        make_octree(arena,&quads[3], phys, trans, bbs[3]),
+        make_octree(arena,&quads[4], phys, trans, bbs[4]),
+        make_octree(arena,&quads[5], phys, trans, bbs[5]), 
+        make_octree(arena,&quads[6], phys, trans, bbs[6]),
+        make_octree(arena,&quads[7], phys, trans, bbs[7])
     ];
-    Octree::Boxes { values: Box::new(values), bx:bb.scale(2.)}
+    Octree::Boxes { values: arena.alloc(values), bx:bb.scale(2.)}
 
 }
-pub fn make_octree_shallow(values:&[usize],_phys:&[Option<PhysicsComp>], _trans:&[Option<TransformComp>], bb:BoundingBox)->Octree{
+pub fn make_octree_shallow<'a>(values:&[usize],_phys:&[Option<PhysicsComp>], _trans:&[Option<TransformComp>], bb:BoundingBox)->Octree<'a>{
     Octree::Values { values:values.to_vec() , bx:bb }
 }
 pub fn check_collision_comps(phys_a:&PhysicsComp, a_trans:&TransformComp, phys_b:&PhysicsComp, b_trans:&TransformComp)->Option<Col>
@@ -249,7 +249,8 @@ pub fn check_collision_comps(phys_a:&PhysicsComp, a_trans:&TransformComp, phys_b
     }
     None
 }
-pub fn update()->Octree{
+pub fn update(){
+    let arena = Arena::new_sized(512*512);
     let mut phys_ref = get_level().physics_comps.list.write().unwrap().clone();
     let mut trans_ref = get_level().transform_comps.list.write().unwrap().clone();
     let phys = phys_ref.as_mut();
@@ -286,7 +287,7 @@ pub fn update()->Octree{
             iter.push(i);
         }
     }
-    let oct = make_octree(&iter, phys, trans, BoundingBox{min:min_v, max:max_v});
+    let oct = make_octree(&arena,&iter, phys, trans, BoundingBox{min:min_v, max:max_v});
     for i in &iter{
         let a_phys = phys[*i].as_ref().unwrap();
         let mut a_trans = trans[*i].as_ref().unwrap().clone();
@@ -312,7 +313,6 @@ pub fn update()->Octree{
     }
     *get_level().physics_comps.list.write().unwrap() = phys_ref;
     *get_level().transform_comps.list.write().unwrap() = trans_ref;
-    oct
 }
 pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();
