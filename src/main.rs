@@ -14,9 +14,9 @@ pub mod math;
 #[allow(unused)]
 pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
     let out = default_setup(thread, handle, 4096*8);
-    for x in 0..20{
-        for y in 0..20{
-            let t = create_box(Vector3::new(x as f64/5., y as f64/5., 0.0), Vector3::new(-x as f64, -y as f64, 0.)/100.0);
+    for x in 0..50{
+        for y in 0..50{
+            let t = create_box(Vector3::new(x as f64/5.+5., y as f64/5.+5., 0.0), Vector3::new(-x as f64+5., -y as f64+5., 0.)/100.0);
         }
     }
 
