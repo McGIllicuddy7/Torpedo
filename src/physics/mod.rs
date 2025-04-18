@@ -179,11 +179,11 @@ impl Octree{
     }
     pub fn query_box(&self, bb:BoundingBox)->Vec<&[usize]>{
         match self{
-            Octree::Values { values, bx } =>{
+            Octree::Values { values, bx:_ } =>{
                 return vec![values.as_ref()]
             }
             Octree::Boxes { values, bx } =>{
-                if !bx.check_collision(&bb.scale(8.0)){
+                if !bx.check_collision(&bb.scale(1.)){
                     return vec![];
                 }
                 let mut out = Vec::new();
@@ -201,7 +201,7 @@ impl Octree{
 }
 pub fn make_octree(values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<TransformComp>], bb:BoundingBox)->Octree{
     let mut quads = [const{Vec::new()};8];
-    if values.len()<8 || (bb.max-bb.min).length()<1.{
+    if values.len()<4 || (bb.max-bb.min).length()<0.000001{
         let mut vs = Vec::new();
         for i in values{
             vs.push(*i);
@@ -212,8 +212,8 @@ pub fn make_octree(values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<T
     for i in 0..phys.len(){
         if let Some(id) = phys[i].as_ref(){
             let trans = trans[i].as_ref().unwrap();
-            let b2 = BoundingBox{min:id.min(trans.trans), max:id.max(trans.trans)}.scale(2.);
-            let b3 = BoundingBox{min:id.min(trans.trans)+id.velocity*1./30., max:id.max(trans.trans)+id.velocity*1./30.}.scale(2.0);
+            let b2 = BoundingBox{min:id.min(trans.trans), max:id.max(trans.trans)}.scale(1.);
+            let b3 = BoundingBox{min:id.min(trans.trans)+id.velocity*1./60., max:id.max(trans.trans)+id.velocity*1./60.}.scale(1.0);
             for j in 0..bbs.len(){
                 if bbs[j].check_collision(&b2) ||  bbs[j].check_collision(&b3){
                     quads[j].push(i);
@@ -232,7 +232,7 @@ pub fn make_octree(values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<T
         make_octree(&quads[6], phys, trans, bbs[6]),
         make_octree(&quads[7], phys, trans, bbs[7])
     ];
-    Octree::Boxes { values: Box::new(values), bx:bb }
+    Octree::Boxes { values: Box::new(values), bx:bb.scale(2.)}
 
 }
 pub fn make_octree_shallow(values:&[usize],_phys:&[Option<PhysicsComp>], _trans:&[Option<TransformComp>], bb:BoundingBox)->Octree{
@@ -255,10 +255,33 @@ pub fn update()->Octree{
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
-    let  max_v = Vector3::new(10000.0, 10000.0, 10000.0)/10.;
-    let min_v = -max_v;
+    let  mut max_v = -Vector3::new(10000.0, 10000.0, 10000.0)/10.;
+    let mut min_v = -max_v;
     for i in 0..phys.len(){
         if let Some(k) = &mut phys[i]{
+            let t = trans[i].clone().unwrap();
+            let bb = k.bb(t.trans);
+            if bb.max.x>max_v.x{
+                max_v.x = bb.max.x;
+            }
+            if bb.max.y>max_v.y{
+                max_v.y = bb.max.y;
+            }
+            if bb.max.z>max_v.z{
+                max_v.z = bb.max.z;
+            }
+            if bb.min.x<min_v.x{
+                min_v.x = bb.min.x;
+            }
+            if bb.min.x<min_v.x{
+                min_v.x = bb.min.x;
+            }
+            if bb.min.y<min_v.y{
+                min_v.y = bb.min.y;
+            }
+            if bb.min.z<min_v.z{
+                min_v.z= bb.min.z;
+            }
             k.collided_this_frame  =false;
             iter.push(i);
         }
@@ -291,7 +314,7 @@ pub fn update()->Octree{
     *get_level().transform_comps.list.write().unwrap() = trans_ref;
     oct
 }
-pub fn create_box(pos:Vector3, vel:Vector3)->Entity{
+pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();
     let mut cmp = PhysicsComp::new();
     let sz =0.05;
@@ -301,6 +324,6 @@ pub fn create_box(pos:Vector3, vel:Vector3)->Entity{
     let mut trans  = TransformComp{trans:Transform::default()};
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
-    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint:Color::WHITE, offset:Transform::default()}], named:HashMap::new() });
+    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });
     out
 }

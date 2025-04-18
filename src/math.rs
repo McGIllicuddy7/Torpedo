@@ -278,7 +278,7 @@ impl BoundingBox{
     pub fn scale(&self, scale:f64)->Self{
         let mid = (self.max+self.min)/2.;
         let delt_max = (self.max-mid)*scale;
-        let delt_min = (self.max-mid)*scale;
+        let delt_min = (self.min-mid)*scale;
         let min = mid+delt_min;
         let max = mid+delt_max;
         Self { min, max}

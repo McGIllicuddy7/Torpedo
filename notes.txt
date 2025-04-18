@@ -1,0 +1,98 @@
+[
+    BoundingBox {
+        min: Vector3 {
+            x: -10000.0,
+            y: -10000.0,
+            z: -10000.0,
+        },
+        max: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: -10000.0,
+            y: -10000.0,
+            z: 0.0,
+        },
+        max: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 10000.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: -10000.0,
+            y: 0.0,
+            z: -10000.0,
+        },
+        max: Vector3 {
+            x: 0.0,
+            y: 10000.0,
+            z: 0.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: -10000.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        max: Vector3 {
+            x: 0.0,
+            y: 10000.0,
+            z: 10000.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: 0.0,
+            y: -10000.0,
+            z: -10000.0,
+        },
+        max: Vector3 {
+            x: 10000.0,
+            y: 0.0,
+            z: 0.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: 0.0,
+            y: -10000.0,
+            z: 0.0,
+        },
+        max: Vector3 {
+            x: 10000.0,
+            y: 0.0,
+            z: 10000.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: -10000.0,
+        },
+        max: Vector3 {
+            x: 10000.0,
+            y: 10000.0,
+            z: 0.0,
+        },
+    },
+    BoundingBox {
+        min: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        max: Vector3 {
+            x: 10000.0,
+            y: 10000.0,
+            z: 10000.0,
+        },
+    },
+]

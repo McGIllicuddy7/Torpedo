@@ -38,19 +38,20 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
     for i in 0..l.len(){
         if let Some(v) = &l[i]{
             let trans = transforms[i].as_ref().unwrap();
-            for _model in &v.models{
-               // models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
-                //rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
+            for model in &v.models{
+                models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
+                rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
             }
             if let Some(p) = &physics[i]{
                 let mut bb= p.collisions[0].col;
                 bb.max += trans.trans.translation;
                 bb.min += trans.trans.translation;
-                rend.draw_bounding_box(bb.as_rl_box(),if p.collided_this_frame{color::Color::RED} else{color::Color::GREEN});
+              //  rend.draw_bounding_box(bb.as_rl_box(),if p.collided_this_frame{color::Color::RED} else{color::Color::GREEN});
             }
         } 
     }
-    oct.draw(&mut rend);
+    let _ = oct;
+    //oct.draw(&mut rend);
     drop(rend);
     handle.draw_fps(1400, 200);
 }
