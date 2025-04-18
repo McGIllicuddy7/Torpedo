@@ -71,6 +71,7 @@ impl ArenaInternal{
         }
     }
     pub unsafe fn alloc_bytes(&mut self, count:usize)->&mut [u8]{
+        unsafe{
         let fia = if count %16 == 0 {count } else {count+(16-count%16)};
         let base:usize = self.next_ptr as usize;
         let end = self.end as usize;
@@ -85,7 +86,6 @@ impl ArenaInternal{
                 unreachable!()
             }
         } else{
-            unsafe {
                 let out = self.next_ptr;
                 self.next_ptr =self.next_ptr.add(fia);
                 self.previous_allocation = out;
@@ -94,16 +94,15 @@ impl ArenaInternal{
                     out[i] = 0;
                 }
                 out
-            }
-        } 
+        } }
     }
     pub unsafe fn realloc_bytes<'a>(&'a mut self, bytes:&[u8], new_count:usize)->&'a [u8]{
         let out = if bytes.as_ptr() == self.previous_allocation &&new_count >bytes.len(){
             self.next_ptr = self.previous_allocation;
-            let out = self.alloc_bytes(new_count);
+            let out = unsafe{self.alloc_bytes(new_count)};
             out
         } else{
-            self.alloc_bytes(new_count)
+            unsafe{self.alloc_bytes(new_count)}
         };
         let l = if bytes.len()>= new_count{bytes.len()} else{ new_count};
         for i in 0..l{
@@ -194,22 +193,29 @@ impl Arena{
         }
     }
     pub unsafe fn alloc_bytes(&self, count:usize)->&mut[u8]{
-        let s = self.lock();
-        let out = s.alloc_bytes(count);
-        self.unlock();
-        out
+        unsafe {
+            let s = self.lock();
+            let out = s.alloc_bytes(count);
+            self.unlock();
+            out
+        }
     }
     pub unsafe fn realloc_bytes<'a>(&'a self, bytes:&[u8], new_count:usize)->&'a [u8]{
-        let s = self.lock();
-        let out = s.realloc_bytes(bytes,new_count);
-        self.unlock();
-        out
+        unsafe{
+            let s = self.lock();
+            let out = s.realloc_bytes(bytes,new_count);
+            self.unlock();
+            out
+        }
+
     }
     pub unsafe fn alloc_no_drop<T>(&self, value:T)->&mut T{
-        let s = self.lock();
-        let out = s.alloc_no_drop(value);
-        self.unlock();
-        out
+        unsafe {
+            let s = self.lock();
+            let out = s.alloc_no_drop(value);
+            self.unlock();
+            out
+        }
     }
     pub fn alloc<'a,T>(&'a self, value:T)->&'a mut T{
         unsafe{
@@ -255,17 +261,19 @@ impl Arena{
         } 
     }
     pub unsafe fn queue_destroy<'a,T>(&'a self, object:&'a T){
-        let p = object as *const T;
-        let mut lck = self.destructors.lock().expect("msg");
-        if lck.contains(&(p as *const c_void)){
-            return;
+        unsafe{
+            let p = object as *const T;
+            let mut lck = self.destructors.lock().expect("msg");
+            if lck.contains(&(p as *const c_void)){
+                return;
+            }
+            lck.insert(p as *const c_void);
+            let void = p as *const c_void;
+            self.defer(Box::new(move ||{
+                let _:T = std::mem::transmute_copy(&*(void as *mut T));
+            }));
+            drop(lck);
         }
-        lck.insert(p as *const c_void);
-        let void = p as *const c_void;
-        self.defer(Box::new(move ||{
-            let _:T = std::mem::transmute_copy(&*(void as *mut T));
-        }));
-        drop(lck);
     }
 }
 

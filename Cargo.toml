@@ -6,6 +6,7 @@ edition = "2024"
 [profile.dev]
 opt-level = 2
 [dependencies]
+libc = "0.2.172"
 rand = "0.9.0"
 raylib = {version = "5.5.1", features = ["with_serde"]}
 serde = "1.0.219"
