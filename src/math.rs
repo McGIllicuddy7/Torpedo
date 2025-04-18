@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::{ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}, process::exit};
 
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -224,5 +224,63 @@ impl Vector4{
 impl Default for Transform{
     fn default() -> Self {
         Self { translation: Vector3::zero(), rotation:Quaternion::new(0., 0., 0., 1.), scale: Vector3::new(1., 1., 1.) }
+    }
+}
+impl BoundingBox{
+    pub fn as_rl_box(&self)->raylib::math::BoundingBox{
+        raylib::math::BoundingBox{min:self.min.as_rl_vec(), max:self.max.as_rl_vec()}
+    }
+    pub fn check_collision(&self ,other:&Self)->bool{
+        let t = self.as_rl_box();
+        let u = other.as_rl_box();
+        t.check_collision_boxes(u)
+    }
+    pub fn collides_point(&self, point:Vector3)->bool{
+        point.x <self.max.x  &&point.x>self.min.x && point.y <self.max.y && point.y >self.min.y && point.z <self.max.z && point.z >self.min.z
+    }
+    pub fn subdivide(&self)->[Self;8]{
+        let min = self.min;
+        let div_x =Vector3::new((self.max.x-self.min.x)/2., 0., 0.);
+        let div_y = Vector3::new(0., (self.max.y-self.min.y)/2., 0.);
+        let div_z  =Vector3::new(0., 0., (self.max.z-self.min.z)/2.);
+        let mut out = [const{Self{min:Vector3::zero(),max:Vector3::zero()}};8];
+        let mut count = 0;
+        for x in 0..2{
+            for y in 0..2{
+                for z in 0..2{
+                    let mut m = min;
+                    let mut m2 = min;
+                    if x == 0{
+                        m2+= div_x;
+                    } else{
+                        m += div_x;
+                        m2 += div_x*2.;
+                    }
+                    if y == 0{
+                        m2+= div_y;
+                    } else{
+                        m += div_y;
+                        m2 += div_y*2.;
+                    }
+                    if z == 0{
+                        m2+= div_z;
+                    } else{
+                        m += div_z;
+                        m2 += div_z*2.;
+                    }
+                    out[count] = Self{min:m, max:m2};
+                    count += 1;
+                }
+            }
+        }
+        out
+    }
+    pub fn scale(&self, scale:f64)->Self{
+        let mid = (self.max+self.min)/2.;
+        let delt_max = (self.max-mid)*scale;
+        let delt_min = (self.max-mid)*scale;
+        let min = mid+delt_min;
+        let max = mid+delt_max;
+        Self { min, max}
     }
 }

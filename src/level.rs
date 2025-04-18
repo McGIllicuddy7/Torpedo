@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
-use crate::{game::{handle_player, PlayerData}, math::{Transform, Vector3}, physics, renderer};
+use crate::{game::{handle_player, PlayerData}, math::{BoundingBox, Transform, Vector3}, physics::{self, Octree}, renderer};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
@@ -209,6 +209,7 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
     let mut model_list =LEVEL_TO_LOAD.lock().unwrap().as_ref().unwrap()(thread, handle);
     let mut cam =  Camera3D::perspective(crate::math::Vector3::new(-0.4, 0., 0.0).as_rl_vec() ,Vector3::new(1.0,0.,0.).as_rl_vec(), crate::math::Vector3::new(0.0, 0.0, 1.0,).as_rl_vec(),90.0);
     let mut player_data = PlayerData{camera:cam};
+    let mut oct = Octree::Values { values: vec![], bx: BoundingBox{min:Vector3::zero(), max:Vector3::zero()} };
     loop{
         let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue{
@@ -223,8 +224,8 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
         let j = std::thread::spawn(|| physics::update());
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0,0, 20,255));
-        renderer::render(thread, &mut draw, &mut model_list,&mut cam);
-        j.join().unwrap();
+        renderer::render(thread, &mut draw, &mut model_list,&mut cam, &oct);
+        oct = j.join().unwrap();
         //save_level("test.json");
     }
     unsafe{
