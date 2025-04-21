@@ -7,7 +7,7 @@ use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-pub const C:f64 = 10.;
+pub const C:f64 = 3_000_000.;
 pub const C2:f64 = C*C;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
@@ -323,8 +323,8 @@ pub fn update(dt:f64){
     }
     #[allow(static_mut_refs)]
     let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
-    let mut phys_ref = get_level().physics_comps.list.write().unwrap().clone();
-    let mut trans_ref = get_level().transform_comps.list.write().unwrap().clone();
+    let mut trans_ref = arena.array_clone_to(get_level().transform_comps.list.write().unwrap().as_ref());
+    let mut phys_ref = arena.array_clone_to(get_level().physics_comps.list.write().unwrap().as_ref());
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
@@ -389,13 +389,20 @@ pub fn update(dt:f64){
         }
         trans[*i].as_mut().unwrap().trans = a_trans.trans;
     }
-    for i in trans_ref.as_mut(){
-        if let Some(i) = i.as_mut(){
+    for i in &iter{
+        if let Some(i) = trans[*i].as_mut(){
             i.update();
         }
     }
-    *get_level().physics_comps.list.write().unwrap() =phys_ref;
-    *get_level().transform_comps.list.write().unwrap() = trans_ref;
+    let mut  phys = get_level().physics_comps.list.write().unwrap();
+    for i in 0..phys.len(){
+            std::mem::swap(&mut phys_ref[i], &mut phys[i]);
+    }
+    let mut trans = get_level().transform_comps.list.write().unwrap();
+    for i in 0..phys.len(){
+        std::mem::swap(&mut trans_ref[i], &mut trans[i]);
+    }
+
 }
 pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();

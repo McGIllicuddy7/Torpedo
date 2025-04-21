@@ -276,6 +276,21 @@ impl Arena{
             drop(lck);
         }
     }
+    pub fn array_clone_to<'a,T:Clone>(&'a self,v:&[T])->&'a mut [T]{
+        unsafe{
+            let buff = self.alloc_array_space(v.len());
+            let  buff = buff.assume_init();
+            for i in 0..v.len(){
+                let tmp = std::mem::replace(buff.get_unchecked_mut(i),v.get_unchecked(i).clone());
+                std::mem::forget(tmp);
+                self.queue_destroy(v.get_unchecked(i));
+            }
+            buff
+        }
+    }
+    pub fn clone_to<'a, T:Clone>(&'a self, v:&T)->&'a mut T{
+            self.alloc(v.clone())
+    }
 }
 unsafe impl Send for Arena{
 

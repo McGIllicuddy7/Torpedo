@@ -15,10 +15,10 @@ pub mod arena;
 
 #[allow(unused)]
 pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle)->ModelList{
-    let out = default_setup(thread, handle, 4096*8);
+    let out = default_setup(thread, handle, 16384);
     let colors = [Color::WHITE, Color::HOTPINK, Color::GREEN, Color::RED, Color::BLUE, Color::PURPLE, Color::DARKBLUE, Color::DARKGREEN, Color::YELLOW, Color::BLUEVIOLET];
     let mut count = 0;
-    let d =10;
+    let d =5;
     let div = 2.;
     for x in 0..d{
         for y in 0..d{
@@ -43,13 +43,13 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
 
 
 fn main() {
-   let guard = pprof::ProfilerGuardBuilder::default()
-    .frequency(10000)
+    let guard = pprof::ProfilerGuardBuilder::default()
+    .frequency(1000)
     .blocklist(&["libc", "libgcc", "pthread", "vdso"])
     .build()
     .unwrap();
     main_loop(Box::new(make_test_level));
-   if let Ok(report) = guard.report().build() {
-        let file = std::fs::File::create("flamegraph.svg").unwrap();                                                       
-        report.flamegraph(file).unwrap();}; 
+    if let Ok(report) = guard.report().build() {
+       let file = std::fs::File::create("flamegraph.svg").unwrap();                                                       
+    report.flamegraph(file).unwrap();}; 
 }

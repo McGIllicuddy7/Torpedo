@@ -49,14 +49,13 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
             continue;
         }
         let del = (trans.trans.translation- loc).length()/C;
-        if del>(i+2) as f64*1./60.0 {
+        if del>i as f64*1./60.0 && del>0.00001{
             continue;
         }
         for model in &v.models{
             if let Some(p) = &physics[i]{
                 let d = p.gamma_distort();
                 let d_trans =Matrix::scale(d.x as f32, d.y as f32, d.z as f32);
-    
                 let mut m_trans = Matrix::identity();
                 m_trans *= trans.trans.rotation.to_matrix();
                  m_trans*= d_trans;

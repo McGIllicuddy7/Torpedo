@@ -99,12 +99,6 @@ pub fn check_collision(a:BoundingBox, a_off:Transform,a_trans:TransformComp, b:B
     {
         let a_lock = a_off.translation.transform_with(a_trans.trans.rotation.to_matrix())+a_trans.trans.translation;
         let b_lock = b_off.translation.transform_with(b_trans.trans.rotation.to_matrix())+b_trans.trans.translation;
-        let d = (a_lock-b_lock).length_sqr();
-        let a_dim = (a.max-a.min).length();
-        let b_dim = (b.max-b.min).length();
-        if d>(a_dim+b_dim)*(a_dim+b_dim)/2.{
-            return None;
-        }
         let a = BoundingBox { min: a.min+a_lock, max: a.max+a_lock };
         let b= BoundingBox { min: b.min+b_lock, max: b.max+b_lock };
         if !a.check_collision(&b){
