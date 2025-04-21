@@ -18,7 +18,7 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
     let out = default_setup(thread, handle, 4096*8);
     let colors = [Color::WHITE, Color::HOTPINK, Color::GREEN, Color::RED, Color::BLUE, Color::PURPLE, Color::DARKBLUE, Color::DARKGREEN, Color::YELLOW, Color::BLUEVIOLET];
     let mut count = 0;
-    let d =15;
+    let d =10;
     let div = 2.;
     for x in 0..d{
         for y in 0..d{

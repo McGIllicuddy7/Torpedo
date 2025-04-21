@@ -23,7 +23,7 @@ impl Instant{
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TransformComp{
     pub trans:Transform,
-    pub previous:[Instant;30]
+    pub previous:[Instant;32],
 }
 impl TransformComp{
     pub fn update(&mut self){
@@ -42,6 +42,9 @@ impl TransformComp{
             idx = self.previous.len()-1;
         } 
         self.previous[idx] = Instant{trans:self.trans, is_valid:true};
+    }
+    pub fn new()->Self{
+        Self { trans: Transform::default(), previous: [const{Instant::new()}; 32] }
     }
 }
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
@@ -248,7 +251,7 @@ static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::
 
 pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle){
     let mut model_list =LEVEL_TO_LOAD.lock().unwrap().as_ref().unwrap()(thread, handle);
-    let mut cam =  Camera3D::perspective(crate::math::Vector3::new(-0.4, 0., 0.0).as_rl_vec() ,Vector3::new(1.0,0.,0.).as_rl_vec(), crate::math::Vector3::new(0.0, 0.0, 1.0,).as_rl_vec(),90.0);
+    let mut cam =  Camera3D::perspective(crate::math::Vector3::new(-10.0, 0., 0.0).as_rl_vec() ,Vector3::new(1.0,0.,0.).as_rl_vec(), crate::math::Vector3::new(0.0, 0.0, 1.0,).as_rl_vec(),90.0);
     let mut player_data = PlayerData{camera:cam};
     loop{
         let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
@@ -278,7 +281,7 @@ pub fn main_loop(level_to_load:Box<dyn Fn(&raylib::RaylibThread, &mut raylib::Ra
     let (mut handle, thread) =raylib::init().title("hello window").size(1600,1000).msaa_4x().log_level
     (TraceLogLevel::LOG_ERROR).
     build();
-    handle.set_target_fps(120);
+    handle.set_target_fps(60);
     handle.disable_cursor();
     loop{
         let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();

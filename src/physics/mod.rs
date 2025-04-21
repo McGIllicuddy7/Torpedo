@@ -7,7 +7,7 @@ use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-pub const C:f64 = 5.;
+pub const C:f64 = 10.;
 pub const C2:f64 = C*C;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
@@ -139,9 +139,9 @@ impl  PhysicsComp {
             Vector3::zero()
         };
         let delt = sv-rv;
-        let lx = delt.x.sqrt();
-        let ly = delt.y.sqrt();
-        let lz = delt.z.sqrt();
+        let lx = delt.x.abs().sqrt();
+        let ly = delt.y.abs().sqrt();
+        let lz = delt.z.abs().sqrt();
        let cx =  1./((1.-lx/C2).sqrt());
        let cy =  1./((1.-ly/C2).sqrt());
        let cz =  1./((1.-lz/C2).sqrt());
@@ -389,6 +389,11 @@ pub fn update(dt:f64){
         }
         trans[*i].as_mut().unwrap().trans = a_trans.trans;
     }
+    for i in trans_ref.as_mut(){
+        if let Some(i) = i.as_mut(){
+            i.update();
+        }
+    }
     *get_level().physics_comps.list.write().unwrap() =phys_ref;
     *get_level().transform_comps.list.write().unwrap() = trans_ref;
 }
@@ -399,7 +404,7 @@ pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     cmp.velocity = vel;
     cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
     add_physics_comp(out, cmp);
-    let mut trans  = TransformComp{trans:Transform::default(),previous:[const{Instant::new()}; 30]};
+    let mut trans  = TransformComp::new();
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
     add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });
