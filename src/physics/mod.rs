@@ -3,12 +3,12 @@ todo optimize physics(more)
 */
 use std::{collections::HashMap, process::exit};
 mod col;
-use crate::{arena::Arena, level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
+use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-
-
+pub const C:f64 = 5.;
+pub const C2:f64 = C*C;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
         a
@@ -120,6 +120,33 @@ impl  PhysicsComp {
     pub fn bb(&self, trans:Transform)->BoundingBox{
         BoundingBox { min: self.min(trans), max: self.max(trans)}
     }
+    pub fn gamma(&self)->f64{
+        let sv = self.velocity;
+        let rv = if let Some(t) = get_physics_comp(get_level().player_entity){
+            t.velocity
+        } else{
+            Vector3::zero()
+        };
+        let delt = sv-rv;
+        let l = delt.length_sqr();
+        return 1./((1.-l/C2).sqrt());
+    }
+    pub fn gamma_distort(&self)->Vector3{
+        let sv = self.velocity;
+        let rv = if let Some(t) = get_physics_comp(get_level().player_entity){
+            t.velocity
+        } else{
+            Vector3::zero()
+        };
+        let delt = sv-rv;
+        let lx = delt.x.sqrt();
+        let ly = delt.y.sqrt();
+        let lz = delt.z.sqrt();
+       let cx =  1./((1.-lx/C2).sqrt());
+       let cy =  1./((1.-ly/C2).sqrt());
+       let cz =  1./((1.-lz/C2).sqrt());
+       Vector3 { x: 1./cx, y:1./cy, z: 1./cz }
+    }
 }
 pub fn check_collision_pair(a:&PhysicsComp, a_trans:TransformComp, b:&PhysicsComp, b_trans:TransformComp)->Option<Col>{
     for i in &a.collisions{
@@ -141,7 +168,7 @@ crate::gen_comp_functions!(PhysicsComp, physics_comps, add_physics_comp,remove_p
 
 #[derive(Debug)]
 pub enum Octree<'a>{
-    Values{values:Vec<usize>, bx:BoundingBox},
+    Values{values:AVec<'a,usize>, bx:BoundingBox},
     Boxes{values:&'a [Octree<'a>;8], bx:BoundingBox},
 }
 impl <'a>Octree<'a>{
@@ -183,12 +210,13 @@ impl <'a>Octree<'a>{
                 return vec![values.as_ref()]
             }
             Octree::Boxes { values, bx } =>{
-                if !bx.check_collision(&bb.scale(1.)){
+                if !bx.check_collision(&bb){
                     return vec![];
                 }
                 let mut out = Vec::new();
                 for i in values.iter(){
                     let tmp = i.query_box(bb);
+                    out.reserve(tmp.len());
                     for j in tmp{
                         out.push(j);
                     }
@@ -199,44 +227,80 @@ impl <'a>Octree<'a>{
         }
     }
 }
-pub fn make_octree<'a>(arena:&'a Arena,values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<TransformComp>], bb:BoundingBox)->Octree<'a>{
+pub fn make_octree<'a>(arena:&'a Arena,values:&[usize],phys:&[Option<PhysicsComp>], trans:&[Option<TransformComp>], bb:BoundingBox, depth:usize)->Octree<'a>{
     let mut quads = [const{Vec::new()};8];
-    if values.len()<4 || (bb.max-bb.min).length()<0.000001{
-        let mut vs = Vec::new();
+    if values.len()<4|| (bb.max-bb.min).length()<0.1{
+        let mut vs = AVec::new(arena);
         for i in values{
             vs.push(*i);
         }
         return Octree::Values { values: vs ,bx:bb}
     }
     let bbs = bb.subdivide();
-    for i in 0..phys.len(){
-        if let Some(id) = phys[i].as_ref(){
-            let trans = trans[i].as_ref().unwrap();
-            let b2 = BoundingBox{min:id.min(trans.trans), max:id.max(trans.trans)}.scale(1.);
-            let b3 = BoundingBox{min:id.min(trans.trans)+id.velocity*1./60., max:id.max(trans.trans)+id.velocity*1./60.}.scale(1.0);
+    for i in values{
+        if let Some(id) = phys[*i].as_ref(){
+            let trans = trans[*i].as_ref().unwrap();
+            let b2 = BoundingBox{min:id.min(trans.trans), max:id.max(trans.trans)};
+            //let b3 = BoundingBox{min:id.min(trans.trans)+id.velocity*1./60., max:id.max(trans.trans)+id.velocity*1./60.}.scale(1.0);
+            if !bb.check_collision(&b2){
+                continue;
+            }
             for j in 0..bbs.len(){
-                if bbs[j].check_collision(&b2) ||  bbs[j].check_collision(&b3){
-                    quads[j].push(i);
+                if bbs[j].check_collision(&b2){
+                    quads[j].push(*i);
                 }
             }
-
         }
     }
+    let mlt = 2.0;
+    if depth  <1{
+        let should_thread = true;
+        if should_thread{
+            return std::thread::scope(|f|{
+                let p1 = f.spawn(||{
+                    (make_octree(arena, &quads[0], phys, trans, bbs[0], depth+1), make_octree(arena, &quads[1], phys, trans, bbs[1], depth+1))
+                });
+                let p2 = f.spawn(||{
+                    (make_octree(arena, &quads[2], phys, trans, bbs[2], depth+1), make_octree(arena, &quads[3], phys, trans, bbs[3], depth+1))
+                });
+                let p3 = f.spawn(||{
+                    (make_octree(arena, &quads[4], phys, trans, bbs[4], depth+1), make_octree(arena, &quads[5], phys, trans, bbs[5], depth+1))
+                });
+                let p4 = f.spawn(||{
+                    (make_octree(arena, &quads[6], phys, trans, bbs[6], depth+1), make_octree(arena, &quads[7], phys, trans, bbs[7], depth+1))
+                });
+                let p1s = p1.join().unwrap();
+                let p2s = p2.join().unwrap();
+                let p3s = p3.join().unwrap();
+                let p4s = p4.join().unwrap();
+                let vs = [p1s.0, p1s.1, p2s.0, p2s.1, p3s.0, p3s.1, p4s.0, p4s.1];
+                return Octree::Boxes { values: arena.alloc(vs), bx: bb.scale(mlt) };
+            });
+        } else{
+            let p1s =  (make_octree(arena, &quads[0], phys, trans, bbs[0], depth+1), make_octree(arena, &quads[1], phys, trans, bbs[1], depth+1));
+            let p2s =            (make_octree(arena, &quads[4], phys, trans, bbs[4], depth+1), make_octree(arena, &quads[5], phys, trans, bbs[5], depth+1));
+            let p3s =             (make_octree(arena, &quads[4], phys, trans, bbs[4], depth+1), make_octree(arena, &quads[5], phys, trans, bbs[5], depth+1));
+            let p4s =             (make_octree(arena, &quads[6], phys, trans, bbs[6], depth+1), make_octree(arena, &quads[7], phys, trans, bbs[7], depth+1));
+            let vs = [p1s.0, p1s.1, p2s.0, p2s.1, p3s.0, p3s.1, p4s.0, p4s.1];
+            return Octree::Boxes { values: arena.alloc(vs), bx: bb.scale(mlt) };
+        }
+
+    } 
     let values= [
-        make_octree(arena, &quads[0], phys, trans, bbs[0]), 
-        make_octree(arena,&quads[1], phys, trans, bbs[1]), 
-        make_octree(arena, &quads[2], phys, trans, bbs[2]),
-        make_octree(arena,&quads[3], phys, trans, bbs[3]),
-        make_octree(arena,&quads[4], phys, trans, bbs[4]),
-        make_octree(arena,&quads[5], phys, trans, bbs[5]), 
-        make_octree(arena,&quads[6], phys, trans, bbs[6]),
-        make_octree(arena,&quads[7], phys, trans, bbs[7])
+        make_octree(arena, &quads[0], phys, trans, bbs[0], depth+1), 
+        make_octree(arena,&quads[1], phys, trans, bbs[1],depth+1), 
+        make_octree(arena, &quads[2], phys, trans, bbs[2],depth+1),
+        make_octree(arena,&quads[3], phys, trans, bbs[3], depth+1),
+        make_octree(arena,&quads[4], phys, trans, bbs[4], depth+1),
+        make_octree(arena,&quads[5], phys, trans, bbs[5], depth+1), 
+        make_octree(arena,&quads[6], phys, trans, bbs[6], depth+1),
+        make_octree(arena,&quads[7], phys, trans, bbs[7], depth+1)
     ];
-    Octree::Boxes { values: arena.alloc(values), bx:bb.scale(2.)}
+    Octree::Boxes { values: arena.alloc(values), bx:bb.scale(mlt)}
 
 }
-pub fn make_octree_shallow<'a>(values:&[usize],_phys:&[Option<PhysicsComp>], _trans:&[Option<TransformComp>], bb:BoundingBox)->Octree<'a>{
-    Octree::Values { values:values.to_vec() , bx:bb }
+pub fn make_octree_shallow<'a>(arena:&'a Arena,values:&[usize],_phys:&[Option<PhysicsComp>], _trans:&[Option<TransformComp>], bb:BoundingBox)->Octree<'a>{
+   todo!()// Octree::Values { values:values.to_vec() , bx:bb }
 }
 pub fn check_collision_comps(phys_a:&PhysicsComp, a_trans:&TransformComp, phys_b:&PhysicsComp, b_trans:&TransformComp)->Option<Col>
 {
@@ -249,8 +313,16 @@ pub fn check_collision_comps(phys_a:&PhysicsComp, a_trans:&TransformComp, phys_b
     }
     None
 }
-pub fn update(){
-    let arena = Arena::new_sized(512*512);
+static mut PHYS_ARENA:Option<Box<Arena>> = None;
+pub fn update(dt:f64){
+    unsafe{
+        #[allow(static_mut_refs)]
+        if PHYS_ARENA.is_none(){
+            PHYS_ARENA = Some(Arena::new_sized(4096*4096*512));
+        }
+    }
+    #[allow(static_mut_refs)]
+    let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
     let mut phys_ref = get_level().physics_comps.list.write().unwrap().clone();
     let mut trans_ref = get_level().transform_comps.list.write().unwrap().clone();
     let phys = phys_ref.as_mut();
@@ -287,12 +359,16 @@ pub fn update(){
             iter.push(i);
         }
     }
-    let oct = make_octree(&arena,&iter, phys, trans, BoundingBox{min:min_v, max:max_v});
+    let oct = make_octree(&arena,&iter, phys, trans, BoundingBox{min:min_v, max:max_v},0);
     for i in &iter{
-        let a_phys = phys[*i].as_ref().unwrap();
+        let a_phys = phys[*i].as_mut().unwrap();
         let mut a_trans = trans[*i].as_ref().unwrap().clone();
         let old = a_trans.clone();
-        a_trans.trans.translation += a_phys.velocity*1./60.;
+        if a_phys.velocity.length()>=C{
+            a_phys.velocity = a_phys.velocity.normalized()*0.9999*C;
+        }
+        let a_phys = phys[*i].as_ref().unwrap();
+        a_trans.trans.translation += a_phys.velocity*dt/a_phys.gamma();
         let itr:Vec<&usize> = oct.query_box(a_phys.bb(a_trans.trans)).into_iter().flatten().collect();
         for j in itr{
             if *j == *i{
@@ -301,17 +377,19 @@ pub fn update(){
             let b_phys = phys[*j].as_ref().unwrap();
             let b_trans = trans[*j].as_ref().unwrap();
             if let Some (c) = check_collision_comps(&a_phys.clone(), &a_trans, b_phys, b_trans){
-                phys[*i].as_mut().unwrap().collided_this_frame = true;
-                phys[*i].as_mut().unwrap().velocity.reflect(c.norm);
-                phys[*j].as_mut().unwrap().velocity.reflect(c.norm);
-                phys[*j].as_mut().unwrap().collided_this_frame = true;
+                let p_i = phys[*i].as_mut().unwrap();
+                p_i.collided_this_frame = true;
+                p_i.velocity.reflect(c.norm);
+                let p_j = phys[*j].as_mut().unwrap();
+                p_j.velocity.reflect(c.norm);
+                p_j.collided_this_frame = true;
                 a_trans.trans.translation = old.trans.translation+c.norm.normalized()*c.depth;
                 break;
             }
         }
         trans[*i].as_mut().unwrap().trans = a_trans.trans;
     }
-    *get_level().physics_comps.list.write().unwrap() = phys_ref;
+    *get_level().physics_comps.list.write().unwrap() =phys_ref;
     *get_level().transform_comps.list.write().unwrap() = trans_ref;
 }
 pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{

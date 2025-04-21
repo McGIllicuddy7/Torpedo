@@ -5,6 +5,7 @@ static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
 pub static mut LEVEL:Option<Level> = None;
+
 pub unsafe fn level_check_entity(ent:Entity)->bool{
     get_level().check_entity_ref(ent)
 }
@@ -79,6 +80,9 @@ pub struct Level{
 impl Level{
     pub fn check_entity_ref(&self, ent:Entity)->bool{
         let p = self.component_indexes.read().unwrap();
+        if p.len()<= ent.idx as usize{
+            return false;
+        }
         return p[ent.idx as usize] == ent.generation
     }
     pub fn new(ent_size:usize)->Self{
@@ -119,7 +123,9 @@ macro_rules! gen_comp_functions {
         }
         pub fn $getter(ent:crate::level::Entity)->Option<crate::level::CompRef<$t>>{
             unsafe{
-                assert!(crate::level::level_check_entity(ent));
+                if !crate::level::level_check_entity(ent){
+                    return None;
+                }
                 let lock =  crate::level::get_level().$var_name.list.read().unwrap(); 
                 if lock[ent.idx as usize].is_some(){
                     Some(crate::level::CompRef{lock, idx:ent.idx as usize})
@@ -130,8 +136,13 @@ macro_rules! gen_comp_functions {
         }
         pub fn $getter_mut(ent:crate::level::Entity)->Option<crate::level::CompMut<$t>>{
             unsafe{
-                assert!(crate::level::level_check_entity(ent));
+                if !crate::level::level_check_entity(ent){
+                    return None;
+                }
                 let lock =  crate::level::get_level().$var_name.list.write().unwrap(); 
+                if lock.len()<=ent.idx as usize{
+                    return None;
+                }
                 if lock[ent.idx as usize].is_some(){
                     Some(crate::level::CompMut{lock, idx:ent.idx as usize})
                 } else{
@@ -219,8 +230,9 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
             *GAME_SHOULD_CONTINUE.lock().unwrap() = false;
             break;
         }
+        let dt = handle.get_frame_time() as f64;
         handle_player(&mut player_data, thread, handle);
-        let j = std::thread::spawn(|| physics::update());
+        let j = std::thread::spawn(move || physics::update(dt));
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0,0, 20,255));
         renderer::render(thread, &mut draw, &mut model_list,&mut cam);
@@ -236,7 +248,7 @@ pub fn main_loop(level_to_load:Box<dyn Fn(&raylib::RaylibThread, &mut raylib::Ra
     let (mut handle, thread) =raylib::init().title("hello window").size(1600,1000).msaa_4x().log_level
     (TraceLogLevel::LOG_ERROR).
     build();
-    handle.set_target_fps(60);
+    handle.set_target_fps(120);
     handle.disable_cursor();
     loop{
         let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();

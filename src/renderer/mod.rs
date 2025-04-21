@@ -39,15 +39,18 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
         if let Some(v) = &l[i]{
             let trans = transforms[i].as_ref().unwrap();
             for model in &v.models{
-                models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
+                if let Some(p) = &physics[i]{
+                    let d = p.gamma_distort();
+                  //  let mut m_trans =Matrix::scale(d.x as f32, d.y as f32, d.z as f32);
+                  let mut m_trans = Matrix::identity();
+                    m_trans *= trans.trans.rotation.to_matrix();
+                    models.list.get_mut(&model.model).unwrap().transform = m_trans.into();
+                } else{
+                    models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
+                }
                 rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
             }
-            if let Some(p) = &physics[i]{
-                let mut bb= p.collisions[0].col;
-                bb.max += trans.trans.translation;
-                bb.min += trans.trans.translation;
-              //  rend.draw_bounding_box(bb.as_rl_box(),if p.collided_this_frame{color::Color::RED} else{color::Color::GREEN});
-            }
+
         } 
     }
     drop(rend);

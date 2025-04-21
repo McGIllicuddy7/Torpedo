@@ -1,4 +1,4 @@
-use std::{cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashSet, ffi::c_void, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, Index, IndexMut}, sync::Mutex};
+use std::{cell::{Ref, RefCell, RefMut, UnsafeCell}, collections::HashSet, ffi::c_void, fmt::Debug, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, Index, IndexMut}, sync::Mutex};
 
 use libc::pthread_mutex_t;
 
@@ -243,6 +243,7 @@ impl Arena{
             let s = self.lock();
             let out = s.alloc_array_space(count);
             self.unlock();
+            assert!(out.as_ptr().is_aligned());
             out
         }
     }
@@ -276,12 +277,23 @@ impl Arena{
         }
     }
 }
+unsafe impl Send for Arena{
 
+}
+unsafe impl Sync for Arena{
+
+}
 pub struct AVec<'a, T:Clone>{
     items: *mut T,
     length:usize,
     capacity:usize,
     arena:&'a Arena,
+}
+unsafe impl<'a, T:Clone> Send for AVec<'a, T>{
+
+}
+unsafe impl<'a, T:Clone> Sync for AVec<'a, T>{
+
 }
 impl <'a, T:Clone> Clone for AVec<'a, T>{
     fn clone(&self) -> Self {
@@ -297,7 +309,14 @@ impl <'a, T:Clone> Clone for AVec<'a, T>{
 } 
 impl <'a, T:Clone> AsRef<[T]> for AVec<'a, T>{
     fn as_ref(&self) -> &[T] {
-        unsafe {std::slice::from_raw_parts(self.items, self.length)}
+        if self.length == 0{
+            unsafe{
+                std::slice::from_raw_parts(std::ptr::dangling(), 0) 
+            }
+        } else{
+            unsafe {std::slice::from_raw_parts(self.items, self.length)}
+        }
+
     }
 }
 impl <'a, T:Clone> AsMut<[T]> for AVec<'a, T>{
@@ -395,6 +414,15 @@ impl <'a, T:Clone>AVec<'a, T>{
             }
             self.items = new_items.as_mut_ptr();
         }
+    }
+}
+impl <T:Debug + std::clone::Clone> Debug for AVec<'_,T>{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut a = f.debug_list();
+        for i in self.as_ref(){
+            a.entry(i);
+        }
+        a.finish()
     }
 }
 
