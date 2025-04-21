@@ -3,7 +3,7 @@ todo optimize physics(more)
 */
 use std::{collections::HashMap, process::exit};
 mod col;
-use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get_level, Entity, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
+use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get_level, Entity, Instant, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
@@ -399,7 +399,7 @@ pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     cmp.velocity = vel;
     cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
     add_physics_comp(out, cmp);
-    let mut trans  = TransformComp{trans:Transform::default()};
+    let mut trans  = TransformComp{trans:Transform::default(),previous:[const{Instant::new()}; 30]};
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
     add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
-use crate::{arena, game::{handle_player, PlayerData}, math::{BoundingBox, Transform, Vector3}, physics::{self, Octree}, renderer};
+use crate::{arena, game::{handle_player, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, Octree}, renderer};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
@@ -11,8 +11,38 @@ pub unsafe fn level_check_entity(ent:Entity)->bool{
 }
 use crate::{physics::PhysicsComp, renderer::{ModelComp, ModelList}};
 #[derive(Serialize, Deserialize, Clone)]
+pub struct Instant{
+    pub trans:Transform, 
+    pub is_valid:bool,
+}
+impl Instant{
+    pub const fn new()->Self{
+        Self{trans:Transform{translation:Vector3::zero(), scale:Vector3::new(1., 1., 1.), rotation:Quaternion::new(0., 0., 0., 1.)}, is_valid:false}
+    }
+}
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TransformComp{
     pub trans:Transform,
+    pub previous:[Instant;30]
+}
+impl TransformComp{
+    pub fn update(&mut self){
+        let mut idx = 0;
+        for i in &self.previous{
+            if i.is_valid{
+                idx += 1;
+            } else{
+                break;
+            }
+        }
+        if idx >= self.previous.len(){
+            for i in 0..self.previous.len()-1{
+                self.previous[i] = self.previous[i+1].clone();
+            }
+            idx = self.previous.len()-1;
+        } 
+        self.previous[idx] = Instant{trans:self.trans, is_valid:true};
+    }
 }
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
 #[derive(Clone,Copy, Serialize,Deserialize)]
