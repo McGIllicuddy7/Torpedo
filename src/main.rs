@@ -31,7 +31,7 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
                 let dy =- d as f64/div/2.;
                 let dz =- d as f64/div/2.;
                 let t = create_box(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
-                    dx, -y as f64+dy, -z as f64+dz)/10.0, colors[count%colors.len()]);
+                    dx, -y as f64+dy, -z as f64+dz)/2.0, colors[count%colors.len()]);
                     count += 1;
             }
 
