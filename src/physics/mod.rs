@@ -323,8 +323,8 @@ pub fn update(dt:f64){
     }
     #[allow(static_mut_refs)]
     let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
-    let mut trans_ref = get_level().transform_comps.list.write().unwrap().clone();
-    let mut phys_ref = get_level().physics_comps.list.write().unwrap().clone();
+    let trans_ref = arena.alloc_array(get_level().transform_comps.list.write().unwrap().as_ref());
+    let phys_ref = arena.alloc_array(get_level().physics_comps.list.write().unwrap().as_ref());
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
