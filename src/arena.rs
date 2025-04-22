@@ -73,7 +73,7 @@ impl ArenaInternal{
     pub unsafe fn alloc_bytes(&mut self, count:usize)->&mut [u8]{
         unsafe{
         let fia = if count %16 == 0 {count } else {count+(16-count%16)};
-        let base:usize = self.next_ptr as usize;
+        let base= self.next_ptr as usize;
         let end = self.end as usize;
         if fia+base>end {
             if self.next.is_none(){
@@ -165,6 +165,18 @@ impl ArenaInternal{
         let data = unsafe{self.alloc_no_drop(func)} as *const Box<dyn FnOnce()> as *mut c_void;
         assert!(!data.is_null());
         self.defer_fn(defer_thunk, data);
+    }
+    pub fn reset(&mut self){
+        unsafe{
+            while !self.defer_que.is_null(){ 
+                let fc = (*self.defer_que).func;
+                fc((*self.defer_que).data);
+                self.defer_que = (*self.defer_que).next;
+            }
+            self.next_ptr = self.buffer;
+            self.previous_allocation = std::ptr::null_mut();
+            self.defer_que = std::ptr::null_mut();
+        }
     }
 }
 #[derive(Debug)]
@@ -276,20 +288,12 @@ impl Arena{
             drop(lck);
         }
     }
-    pub fn array_clone_to<'a,T:Clone>(&'a self,v:&[T])->&'a mut [T]{
+    pub fn reset(&self){
         unsafe{
-            let buff = self.alloc_array_space(v.len());
-            let  buff = buff.assume_init();
-            for i in 0..v.len(){
-                let tmp = std::mem::replace(buff.get_unchecked_mut(i),v.get_unchecked(i).clone());
-                std::mem::forget(tmp);
-                self.queue_destroy(v.get_unchecked(i));
-            }
-            buff
+            let p = self.lock();
+            p.reset();
+            self.unlock();
         }
-    }
-    pub fn clone_to<'a, T:Clone>(&'a self, v:&T)->&'a mut T{
-            self.alloc(v.clone())
     }
 }
 unsafe impl Send for Arena{

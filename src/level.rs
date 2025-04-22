@@ -265,11 +265,12 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
         }
         let dt = handle.get_frame_time() as f64;
         handle_player(&mut player_data, thread, handle);
-        let j = std::thread::spawn(move || physics::update(dt));
+        //let j = std::thread::spawn(move || physics::update(dt));
+        physics::update(dt);
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0,0, 20,255));
         renderer::render(thread, &mut draw, &mut model_list,&mut cam);
-        let _ = j.join();
+        //let _ = j.join();
         //save_level("test.json");
     }
     unsafe{

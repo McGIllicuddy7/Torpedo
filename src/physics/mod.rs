@@ -317,14 +317,14 @@ static mut PHYS_ARENA:Option<Box<Arena>> = None;
 pub fn update(dt:f64){
     unsafe{
         #[allow(static_mut_refs)]
-        if PHYS_ARENA.is_none(){
+        {
             PHYS_ARENA = Some(Arena::new_sized(4096*4096*512));
         }
     }
     #[allow(static_mut_refs)]
     let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
-    let mut trans_ref = arena.array_clone_to(get_level().transform_comps.list.write().unwrap().as_ref());
-    let mut phys_ref = arena.array_clone_to(get_level().physics_comps.list.write().unwrap().as_ref());
+    let mut trans_ref = get_level().transform_comps.list.write().unwrap().clone();
+    let mut phys_ref = get_level().physics_comps.list.write().unwrap().clone();
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
@@ -394,15 +394,11 @@ pub fn update(dt:f64){
             i.update();
         }
     }
-    let mut  phys = get_level().physics_comps.list.write().unwrap();
-    for i in 0..phys.len(){
-            std::mem::swap(&mut phys_ref[i], &mut phys[i]);
-    }
-    let mut trans = get_level().transform_comps.list.write().unwrap();
-    for i in 0..phys.len(){
-        std::mem::swap(&mut trans_ref[i], &mut trans[i]);
-    }
-
+    let mut  phys_ref = get_level().physics_comps.list.write().unwrap();
+    let mut trans_ref = get_level().transform_comps.list.write().unwrap();
+    *phys_ref = phys.to_vec().into_boxed_slice();
+    *trans_ref = trans.to_vec().into_boxed_slice();
+    arena.reset();
 }
 pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();
