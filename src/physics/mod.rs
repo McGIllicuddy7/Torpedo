@@ -7,7 +7,7 @@ use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-pub const C:f64 = 3_000_000.;
+pub const C:f64 = 20.;
 pub const C2:f64 = C*C;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
@@ -313,18 +313,19 @@ pub fn check_collision_comps(phys_a:&PhysicsComp, a_trans:&TransformComp, phys_b
     }
     None
 }
+
 static mut PHYS_ARENA:Option<Box<Arena>> = None;
 pub fn update(dt:f64){
     unsafe{
         #[allow(static_mut_refs)]
-        {
+        if PHYS_ARENA.is_none(){
             PHYS_ARENA = Some(Arena::new_sized(4096*4096*512));
         }
     }
     #[allow(static_mut_refs)]
     let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
-    let trans_ref = arena.alloc_array(get_level().transform_comps.list.write().unwrap().as_ref());
-    let phys_ref = arena.alloc_array(get_level().physics_comps.list.write().unwrap().as_ref());
+    let trans_ref = unsafe{arena.alloc_array_no_destructor(get_level().transform_comps.list.write().unwrap().as_ref())};
+    let phys_ref = unsafe{arena.alloc_array_no_destructor(get_level().physics_comps.list.write().unwrap().as_ref())};
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
@@ -332,6 +333,9 @@ pub fn update(dt:f64){
     let mut min_v = -max_v;
     for i in 0..phys.len(){
         if let Some(k) = &mut phys[i]{
+            if !k.can_ever_move{
+                continue;
+            }
             let t = trans[i].clone().unwrap();
             let bb = k.bb(t.trans);
             if bb.max.x>max_v.x{
@@ -396,15 +400,35 @@ pub fn update(dt:f64){
     }
     let mut  phys_ref = get_level().physics_comps.list.write().unwrap();
     let mut trans_ref = get_level().transform_comps.list.write().unwrap();
-    *phys_ref = phys.to_vec().into_boxed_slice();
-    *trans_ref = trans.to_vec().into_boxed_slice();
-    arena.reset();
+    unsafe{
+        for i in 0..phys_ref.len(){
+            phys_ref[i] = std::mem::transmute_copy(&phys[i]);
+        }
+        for i in 0..trans_ref.len(){
+            trans_ref[i]=  std::mem::transmute_copy(&trans[i]);
+        }
+        arena.reset();
+    }
 }
 pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();
     let mut cmp = PhysicsComp::new();
     let sz =0.05;
     cmp.velocity = vel;
+    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
+    add_physics_comp(out, cmp);
+    let mut trans  = TransformComp::new();
+    trans.trans.translation = pos;
+    add_transform_comp(out, trans);
+    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });
+    out
+}
+pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
+    let out = create_entity().unwrap();
+    let mut cmp = PhysicsComp::new();
+    let sz =0.05;
+    cmp.velocity = vel;
+    cmp.can_ever_move = false;
     cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
     add_physics_comp(out, cmp);
     let mut trans  = TransformComp::new();

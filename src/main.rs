@@ -2,7 +2,7 @@
 use level::{default_setup, main_loop};
 
 use math::Vector3;
-use physics::{create_box, Col};
+use physics::{create_box, create_box_stationary, Col};
 use raylib::color::Color;
 use renderer::ModelList;
 
@@ -30,8 +30,11 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
                 let dx =-d as f64/div/2.;
                 let dy =- d as f64/div/2.;
                 let dz =- d as f64/div/2.;
-                let t = create_box(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
-                    dx, -y as f64+dy, -z as f64+dz)/2.0, colors[count%colors.len()]);
+                let t = if rand::random::<u64>()%100<10 || true{create_box(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
+                    dx, -y as f64+dy, -z as f64+dz)/10.0, colors[count%colors.len()])} else{
+                        create_box_stationary(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
+                            dx, -y as f64+dy, -z as f64+dz)/2.0, colors[count%colors.len()])
+                    };
                     count += 1;
             }
 

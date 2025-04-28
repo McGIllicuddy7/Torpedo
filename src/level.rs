@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
-use crate::{arena, game::{handle_player, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, Octree}, renderer};
+use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, Octree}, renderer};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ pub unsafe fn level_check_entity(ent:Entity)->bool{
     get_level().check_entity_ref(ent)
 }
 use crate::{physics::PhysicsComp, renderer::{ModelComp, ModelList}};
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Instant{
     pub trans:Transform, 
     pub is_valid:bool,
@@ -23,7 +23,7 @@ impl Instant{
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TransformComp{
     pub trans:Transform,
-    pub previous:[Instant;32],
+    pub previous:Box<[Instant]>,
 }
 impl TransformComp{
     pub fn update(&mut self){
@@ -44,7 +44,13 @@ impl TransformComp{
         self.previous[idx] = Instant{trans:self.trans, is_valid:true};
     }
     pub fn new()->Self{
-        Self { trans: Transform::default(), previous: [const{Instant::new()}; 32] }
+        let count = 120;
+        let mut out = Vec::new();
+        out.reserve_exact(count);
+        for _ in 0..count{
+            out.push(Instant::new());
+        }
+        Self { trans: Transform::default(), previous: out.into_boxed_slice() }
     }
 }
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
@@ -109,6 +115,10 @@ pub struct Level{
     pub transform_comps:ComponentList<TransformComp>,
     pub model_comps:ComponentList<ModelComp>,
     pub player_entity:Entity,
+    pub health_comps:ComponentList<HealthComp>,
+    pub fuel_comps:ComponentList<FuelComp>, 
+    pub inventory_comps:ComponentList<InventoryComp>, 
+    pub ship_comps:ComponentList<ShipComp>
 }
 impl Level{
     pub fn check_entity_ref(&self, ent:Entity)->bool{
@@ -127,7 +137,10 @@ impl Level{
             comp_idexs.push(0);
             existing_entities.push(false);
         }
-        Self { loaded_models:Vec::new(),existing_entities:RwLock::new(existing_entities.into()),component_indexes: RwLock::new(comp_idexs.into()), physics_comps: ComponentList::init(ent_size), transform_comps:  ComponentList::init(ent_size), model_comps:  ComponentList::init(ent_size) ,frame_time:1./60. ,player_entity:Entity { idx: ent_size as u32+1, generation: ent_size as u32 +1}}
+        Self { loaded_models:Vec::new(),existing_entities:RwLock::new(existing_entities.into()),component_indexes: RwLock::new(comp_idexs.into()), physics_comps: ComponentList::init(ent_size), transform_comps:  ComponentList::init(ent_size), model_comps:  ComponentList::init(ent_size) ,frame_time:1./60. ,player_entity:Entity { idx: ent_size as u32+1, generation: ent_size as u32 +1}, health_comps:ComponentList::init(ent_size), 
+        fuel_comps:ComponentList::init(ent_size), 
+        inventory_comps:ComponentList::init(ent_size), 
+        ship_comps:ComponentList::init(ent_size)}
     }
 }
 pub fn get_level()->&'static Level{
@@ -265,12 +278,12 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
         }
         let dt = handle.get_frame_time() as f64;
         handle_player(&mut player_data, thread, handle);
-        //let j = std::thread::spawn(move || physics::update(dt));
-        physics::update(dt);
+        let j = std::thread::spawn(move || physics::update(dt));
+        //physics::update(dt);
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0,0, 20,255));
         renderer::render(thread, &mut draw, &mut model_list,&mut cam);
-        //let _ = j.join();
+        let _ = j.join();
         //save_level("test.json");
     }
     unsafe{

@@ -250,6 +250,14 @@ impl Arena{
             out
         }
     }
+    pub unsafe fn alloc_array_no_destructor<'a, T:Clone> (&'a self, value:&[T])->&'a mut [T]{
+        unsafe{
+            let s = self.lock();
+            let out = s.alloc_array(value);
+            self.unlock();
+            out
+        }
+    }
     pub unsafe fn alloc_array_space<T:Clone>(&self,count:usize)->MaybeUninit<&mut[T]>{
         unsafe{
             let s = self.lock();
@@ -288,7 +296,7 @@ impl Arena{
             drop(lck);
         }
     }
-    pub fn reset(&self){
+    pub unsafe fn reset(&self){
         unsafe{
             let p = self.lock();
             p.reset();
