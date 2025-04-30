@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
-use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, Octree}, renderer};
+use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision, Octree}, renderer::{self, get_model_comp, get_model_mut, remove_model_comp}};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
@@ -53,8 +53,19 @@ impl TransformComp{
         Self { trans: Transform::default(), previous: out.into_boxed_slice() }
     }
 }
+
+#[derive(Clone, Serialize,Deserialize)]
+pub struct ParentComp{
+    pub parent:Option<Entity>,
+}
+crate::gen_comp_functions!(ParentComp,parent_comps, add_parent_comp,remove_parent_comp, get_parent_comp, get_parent_mut);
+#[derive(Clone, Serialize,Deserialize)]
+pub struct ChildrenComp{
+    pub children:Vec<Entity>
+}
+crate::gen_comp_functions!(ChildrenComp,children_comps, add_children_comp,remove_children_comp, get_children_comp, get_children_mut);
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
-#[derive(Clone,Copy, Serialize,Deserialize)]
+#[derive(Clone,Copy, Serialize,Deserialize,PartialEq, Eq,Hash)]
 pub struct Entity{
     pub idx:u32, 
     pub generation:u32, 
@@ -118,7 +129,9 @@ pub struct Level{
     pub health_comps:ComponentList<HealthComp>,
     pub fuel_comps:ComponentList<FuelComp>, 
     pub inventory_comps:ComponentList<InventoryComp>, 
-    pub ship_comps:ComponentList<ShipComp>
+    pub ship_comps:ComponentList<ShipComp>, 
+    pub children_comps:ComponentList<ChildrenComp>, 
+    pub parent_comps:ComponentList<ParentComp>,
 }
 impl Level{
     pub fn check_entity_ref(&self, ent:Entity)->bool{
@@ -140,7 +153,10 @@ impl Level{
         Self { loaded_models:Vec::new(),existing_entities:RwLock::new(existing_entities.into()),component_indexes: RwLock::new(comp_idexs.into()), physics_comps: ComponentList::init(ent_size), transform_comps:  ComponentList::init(ent_size), model_comps:  ComponentList::init(ent_size) ,frame_time:1./60. ,player_entity:Entity { idx: ent_size as u32+1, generation: ent_size as u32 +1}, health_comps:ComponentList::init(ent_size), 
         fuel_comps:ComponentList::init(ent_size), 
         inventory_comps:ComponentList::init(ent_size), 
-        ship_comps:ComponentList::init(ent_size)}
+        ship_comps:ComponentList::init(ent_size),
+        parent_comps:ComponentList::init(ent_size),
+        children_comps:ComponentList::init(ent_size),
+    }
     }
 }
 pub fn get_level()->&'static Level{
@@ -219,6 +235,11 @@ pub fn destroy_entity(ent:Entity){
         let lv = get_level();
         let mut existing = lv.existing_entities.write().unwrap();
         let mut counts = lv.component_indexes.write().unwrap(); 
+        if let Some(children) = get_children_comp(ent){
+            for i in &children.children{
+                destroy_entity(*i);
+            }
+        }
         existing[ent.idx as usize] = false;
         counts[ent.idx as usize] += 1;
     }
@@ -278,6 +299,7 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
         }
         let dt = handle.get_frame_time() as f64;
         handle_player(&mut player_data, thread, handle);
+        *physics::SAFE_TO_TAKE.lock().unwrap() = false;
         let j = std::thread::spawn(move || physics::update(dt));
         //physics::update(dt);
         let mut draw = handle.begin_drawing(thread);
@@ -305,4 +327,109 @@ pub fn main_loop(level_to_load:Box<dyn Fn(&raylib::RaylibThread, &mut raylib::Ra
         drop(should_continue);
         level_loop(&thread, &mut handle);
     }
+}
+pub fn add_child_entity(parent:Entity, child:Entity){
+    assert!(parent != child);
+}
+pub fn remove_child_entity(parent:Entity, child:Entity){
+    if let Some(mut children) = get_children_mut (parent){
+        let mut idx =0;
+        let mut hit = false;
+        for i in 0..children.children.len(){
+            if children.children[i] == child{
+                idx = i;
+                hit = true;
+                break;
+            }
+        }
+        if hit{
+            children.children.remove(idx);
+            remove_parent_comp(child);
+        }
+    }
+}
+
+pub fn child_add_model(parent:Entity, child:Entity, comp:ModelComp){
+    let mut msh = get_model_mut(parent).unwrap();
+    if let Some(idx) = msh.named.get(&child).cloned(){
+        msh.models[idx] = comp.models[0].clone();
+    } else{
+        msh.models.push(comp.models[0].clone());
+        let len = msh.models.len()-1;
+        msh.named.insert(child, len);
+    }
+}
+pub fn child_add_physics(parent:Entity, child:Entity, mut comp:Collision){
+    let mut phys = get_physics_mut(parent).unwrap();
+    for i in &mut phys.collisions{
+        if let Some(k) = i.entity_ref{
+            if k == child{
+                i.col = comp.col;
+                i.offset = comp.offset;
+                return;
+            }
+        }
+    }
+    comp.entity_ref = Some(child);
+    phys.collisions.push(comp);
+}
+pub fn child_remove_model(parent:Entity, child:Entity){
+    if let Some(mut modle) = get_model_mut(parent){
+        if let Some(k) = modle.named.get(&child).cloned(){
+            modle.models.remove(k);
+            modle.named.remove(&child);
+        }
+    }
+}
+pub fn child_remove_physics(parent:Entity, child:Entity){
+    if let Some(mut phys) = get_physics_mut(parent){
+        let mut idx = 0;
+        let mut found = false;
+        for i in 0..phys.collisions.len(){
+            if let Some(k) = phys.collisions[i].entity_ref{
+                if k == child{
+                    found = true;
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        if !found{
+            return;
+        }
+        phys.collisions.remove(idx);
+    }
+}
+
+pub fn add_child_entity_with_objects(parent:Entity,child:Entity, ){
+    let ccmp = get_children_mut(parent).unwrap();
+    if ccmp.children.contains(&child){
+        return;
+    }
+    let mut phys = get_physics_comp(child).unwrap().clone();
+    let mesh = get_model_comp(child).unwrap().clone();
+    let trans = get_transform_comp(child).unwrap().clone().trans;
+    if phys.collisions.len() >1{
+        return;
+    }
+    if mesh.models.len()>1{
+        return;
+    }
+    let mut parent_phys = get_physics_mut(parent).unwrap();
+    for mut i in phys.collisions{
+        i.offset.translation += trans.translation;
+        i.offset.rotation *= trans.rotation;
+        i.entity_ref = Some(child);
+        parent_phys.collisions.push(i);
+    }
+    let mut parent_mod = get_model_mut(parent).unwrap();
+    for mut i in mesh.models{
+        i.offset.translation += trans.translation;
+        i.offset.rotation *= trans.rotation;
+
+    }
+    remove_transform_comp(child);
+    remove_physics_comp(child);
+    remove_model_comp(child);
+
 }

@@ -1,14 +1,16 @@
 /*
 todo optimize physics(more)
 */
-use std::{collections::HashMap, process::exit};
+use std::{collections::HashMap, process::exit, sync::Mutex};
 mod col;
 use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get_level, Entity, Instant, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-pub const C:f64 = 20.;
+pub const C:f64 = 10.;
 pub const C2:f64 = C*C;
+pub static SAFE_TO_TAKE:Mutex<bool> = Mutex::new(false);
+pub const UPDATE_FREQ:usize = 3;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
         a
@@ -71,13 +73,12 @@ pub struct PhysicsComp{
     pub velocity:Vector3,
     pub anglular_velocity:Quaternion,
     pub can_ever_move:bool,
-    pub parent:Option<Entity>,
     pub named:HashMap<String,usize>,
     pub collided_this_frame:bool,
 }
 impl  PhysicsComp {
     pub fn new()->Self{
-        Self { collisions: Vec::new(), velocity:Vector3::zero(), anglular_velocity: Vector4::zero(), can_ever_move:true, parent:None, named:HashMap::new() ,collided_this_frame:false}
+        Self { collisions: Vec::new(), velocity:Vector3::zero(), anglular_velocity: Vector4::zero(), can_ever_move:true,named:HashMap::new() ,collided_this_frame:false}
     }
     pub fn max(&self, trans:Transform)->Vector3{
         let mut max = Vector3::new(-10000., -10000., -10000.);
@@ -324,8 +325,10 @@ pub fn update(dt:f64){
     }
     #[allow(static_mut_refs)]
     let arena =unsafe{PHYS_ARENA.as_ref().unwrap()};
+    static UPDATE_TRANSFORMS:Mutex<usize> = Mutex::new(0);
     let trans_ref = unsafe{arena.alloc_array_no_destructor(get_level().transform_comps.list.write().unwrap().as_ref())};
     let phys_ref = unsafe{arena.alloc_array_no_destructor(get_level().physics_comps.list.write().unwrap().as_ref())};
+    *SAFE_TO_TAKE.lock().unwrap() = true;
     let phys = phys_ref.as_mut();
     let trans = trans_ref.as_mut();
     let mut iter:Vec<usize> = Vec::new();
@@ -393,11 +396,18 @@ pub fn update(dt:f64){
         }
         trans[*i].as_mut().unwrap().trans = a_trans.trans;
     }
-    for i in &iter{
-        if let Some(i) = trans[*i].as_mut(){
-            i.update();
+    let mut trans_lock = UPDATE_TRANSFORMS.lock().unwrap();
+    if *trans_lock == UPDATE_FREQ-1{
+        for i in &iter{
+            if let Some(i) = trans[*i].as_mut(){
+                i.update();
+            }
         }
+        *trans_lock = 0;
+    } else{
+        *trans_lock +=1;
     }
+
     let mut  phys_ref = get_level().physics_comps.list.write().unwrap();
     let mut trans_ref = get_level().transform_comps.list.write().unwrap();
     unsafe{

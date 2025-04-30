@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use raylib::color::Color;
 use serde::{Deserialize, Serialize};
 
-use crate::level::Entity;
+use crate::{level::{add_child_entity, add_child_entity_with_objects, add_transform_comp, create_entity, get_transform_comp, get_transform_mut, Entity, TransformComp}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{add_physics_comp, get_physics_mut, Collision, PhysicsComp}, renderer::{add_model_comp, get_model_mut, ModelComp}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HealthComp{
@@ -28,6 +29,13 @@ pub struct ShipComp{
     engines:Vec<Entity>,
 }
 crate::gen_comp_functions!(ShipComp, ship_comps, add_ship_comp, remove_ship_comp, get_ship_comp, get_ship_mut);
+
+pub struct ExplodeOnDestroyedComp{
+    pub damage:usize, 
+    pub damage_type:DamageType, 
+    pub exponent:f64, 
+    pub range:f64,
+}
 pub enum DamageType{
     Explosion, Bullet, Laser
 }
@@ -37,5 +45,52 @@ pub enum DamageType{
 pub fn apply_damage(ent_id:Entity, amount:usize, _damage_type:DamageType){
     if let Some(mut hc)=  get_health_mut(ent_id){
         hc.health -= amount;
+    }
+}
+
+pub struct ShipBuilder{
+    pub ref_entity:Entity
+}
+impl ShipComp{
+    pub const fn new()->Self{
+        Self { weapons: Vec::new(), fuel_tanks: Vec::new(), crew_compartments: Vec::new(), cargo_compartments: Vec::new(), engines:Vec::new() }
+    }
+}
+impl ShipBuilder{
+    pub fn new()->Self{
+        let  out =  create_entity().unwrap();
+        add_ship_comp(out,ShipComp::new());
+        add_transform_comp(out,TransformComp::new());
+        add_physics_comp(out, PhysicsComp::new());
+        Self { ref_entity:out}
+    }
+    pub fn location(self, location:Vector3)->Self{
+        get_transform_mut(self.ref_entity).unwrap().trans.translation = location;
+        return self;
+    }
+    pub fn rotation(self, rotation:Quaternion)->Self{
+        get_transform_mut(self.ref_entity).unwrap().trans.rotation=rotation;
+        return self;
+    }
+    pub fn body(self, path:&str,tint:Color, extents:Vector3)->Self{
+        if let Some(mut md) = get_model_mut(self.ref_entity){
+            *md = ModelComp::new(path, tint)
+        } else{
+            add_model_comp(self.ref_entity, ModelComp::new(path, tint));
+        }
+        
+        get_physics_mut(self.ref_entity).unwrap().collisions.push(Collision{col:BoundingBox{min:-extents/2., max:extents/2.}, offset:Transform::default(), entity_ref:None});
+        self
+    }
+    pub fn build(self)->Entity{
+        self.ref_entity
+    }
+    pub fn add_child(self,offset:Transform, entity:Entity)->Self{
+        if get_transform_comp(entity).is_none(){
+            add_transform_comp(entity,TransformComp::new());
+        }
+        get_transform_mut(entity).unwrap().trans = offset;
+        add_child_entity_with_objects(self.ref_entity, entity);
+        self
     }
 }

@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::RwLockReadGuard};
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 pub mod particles;
-use crate::{level::{get_level, get_transform_comp, Instant, TransformComp}, physics::{Octree, PhysicsComp, C}};
+use crate::{level::{get_level, get_transform_comp, Entity, Instant, TransformComp}, physics::{self, Octree, PhysicsComp, C}};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelData{
     pub model:String,
@@ -17,7 +17,7 @@ pub struct ModelData{
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelComp{
     pub models:Vec<ModelData>, 
-    pub named:HashMap<String, usize>,
+    pub named:HashMap<Entity, usize>,
 }
 impl ModelComp{
     pub fn new(model:&str, tint:Color)->Self{
@@ -49,7 +49,7 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
             continue;
         }
         let del = (trans.trans.translation- loc).length()/C;
-        if del>i as f64*1./60.0 && del>0.00001{
+        if del>i as f64*1./60.0*physics::UPDATE_FREQ as f64 && del>0.00001{
             continue;
         }
         for model in &v.models{
@@ -70,6 +70,14 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
 
 }
 pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera){
+    loop{
+        while physics::SAFE_TO_TAKE.try_lock().is_err(){
+            
+        }
+        if *physics::SAFE_TO_TAKE.lock().unwrap(){
+            break;
+        }
+    }
     let l = get_level().model_comps.list.read().unwrap();
     let transforms = get_level().transform_comps.list.read().unwrap();
     let physics = get_level().physics_comps.list.read().unwrap();
