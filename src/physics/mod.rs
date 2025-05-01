@@ -448,3 +448,16 @@ pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default(), parent:None}]});
     out
 }
+
+pub fn default_mesh(name:&str,pos:Vector3, tint:Color)->Entity{
+    let out = create_entity().unwrap();
+    let mut cmp = PhysicsComp::new();
+    let sz =0.05;
+    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
+    add_physics_comp(out, cmp);
+    let mut trans  = TransformComp::new();
+    trans.trans.translation = pos;
+    add_transform_comp(out, trans);
+    add_model_comp(out, ModelComp{models:vec![ModelData{model: name.to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default(), parent:None}]});
+    return out;
+}

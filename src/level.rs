@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
+use std::{any::type_name, collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
 use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision, Octree}, renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
@@ -65,7 +65,7 @@ pub struct ChildrenComp{
 }
 crate::gen_comp_functions!(ChildrenComp,children_comps, add_children_comp,remove_children_comp, get_children_comp, get_children_mut);
 crate::gen_comp_functions!(TransformComp, transform_comps, add_transform_comp,remove_transform_comp, get_transform_comp, get_transform_mut);
-#[derive(Clone,Copy, Serialize,Deserialize,PartialEq, Eq,Hash)]
+#[derive(Clone,Copy, Serialize,Deserialize,PartialEq, Eq,Hash, Debug)]
 pub struct Entity{
     pub idx:u32, 
     pub generation:u32, 
@@ -79,6 +79,11 @@ impl <T:'static>Deref for CompRef<T>{
 
     fn deref(&self) -> &Self::Target {
         self.lock[self.idx].as_ref().unwrap()
+    }
+}
+impl <T:'static> Drop for CompRef<T>{
+    fn drop(&mut self) {
+       // println!("dropped_ref:{} {}", self.idx,type_name::<T>() );
     }
 }
 
@@ -96,6 +101,11 @@ impl <T:'static>Deref for CompMut<T>{
 impl <T:'static>DerefMut for CompMut<T>{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.lock[self.idx].as_mut().unwrap()
+    }
+}
+impl <T:'static> Drop for CompMut<T>{
+    fn drop(&mut self) {
+       // println!("dropped_mut:{} {}", self.idx,type_name::<T>() );
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -184,6 +194,7 @@ macro_rules! gen_comp_functions {
             }
         }
         pub fn $getter(ent:crate::level::Entity)->Option<crate::level::CompRef<$t>>{
+          //  println!("got:{} {}", ent.idx, std::any::type_name::<$t>());
             unsafe{
                 if !crate::level::level_check_entity(ent){
                     return None;
@@ -198,6 +209,7 @@ macro_rules! gen_comp_functions {
         }
         pub fn $getter_mut(ent:crate::level::Entity)->Option<crate::level::CompMut<$t>>{
             unsafe{
+           //     println!("got_mut:{} {}", ent.idx, std::any::type_name::<$t>());
                 if !crate::level::level_check_entity(ent){
                     return None;
                 }
@@ -423,6 +435,9 @@ pub fn child_remove_physics(parent:Entity, child:Entity){
 }
 
 pub fn add_child_object(parent:Entity,child:Entity){
+    if get_children_comp(parent).is_none(){
+        add_children_comp(parent, ChildrenComp{children:Vec::new()});
+    }
     let mut ccmp = get_children_mut(parent).unwrap();
     if ccmp.children.contains(&child){
         return;
@@ -433,10 +448,14 @@ pub fn add_child_object(parent:Entity,child:Entity){
     } else{
         Transform::default()
     };
-    if let Some(mshs) = get_model_comp(child) {
+    if let Some(mshs) = get_model_comp(child).map(|i| i.clone()) {
         if mshs.models.len()!= 0 {
-            if get_model_comp(parent).is_none(){
+            let cmp = get_model_comp(parent);
+            if cmp.is_none(){
+                drop(cmp);
                 add_model_comp(parent, ModelComp::empty());
+            } else{
+                drop(cmp);
             }
             let mut models = get_model_mut(parent).unwrap();
             for i in &mshs.models{
@@ -447,12 +466,17 @@ pub fn add_child_object(parent:Entity,child:Entity){
                 models.models.push(md);
             }
         }
+        remove_model_comp(child);
     }
-    if let Some(phys) = get_physics_comp(child){
+    if let Some(phys) = get_physics_comp(child).map(|i| i.clone()){
         if phys.collisions.len() != 0{
-            if get_physics_comp(parent).is_none(){
+            let cmp = get_physics_comp(parent);
+            if cmp.is_none(){
+                drop(cmp);
                 add_physics_comp(parent, PhysicsComp::new());
-            }
+            } else{
+                drop(cmp);
+            }  
             let mut comps = get_physics_mut(parent).unwrap();
             for i in &phys.collisions{
                 let mut ps = i.clone();
@@ -461,7 +485,7 @@ pub fn add_child_object(parent:Entity,child:Entity){
                 ps.entity_ref = Some(child);
                 comps.collisions.push(ps);
             }
-
         }
+        remove_physics_comp(child);
     }
 }

@@ -52,7 +52,7 @@ fn main() {
     .blocklist(&["libc", "libgcc", "pthread", "vdso"])
     .build()
     .unwrap();
-    main_loop(Box::new(make_test_level));
+    main_loop(Box::new(game_create_level));
     if let Ok(report) = guard.report().build() {
        let file = std::fs::File::create("flamegraph.svg").unwrap();                                                       
     report.flamegraph(file).unwrap();}; 

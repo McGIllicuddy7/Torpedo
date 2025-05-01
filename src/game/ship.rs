@@ -86,10 +86,12 @@ impl ShipBuilder{
         self.ref_entity
     }
     pub fn add_child(self,offset:Transform, entity:Entity)->Self{
-        if get_transform_comp(entity).is_none(){
-            add_transform_comp(entity,TransformComp::new());
+        {
+            if get_transform_comp(entity).is_none(){
+                add_transform_comp(entity,TransformComp::new());
+            }
+            get_transform_mut(entity).unwrap().trans = offset;
         }
-        get_transform_mut(entity).unwrap().trans = offset;
         add_child_object(self.ref_entity, entity);
         self
     }
