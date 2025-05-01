@@ -351,13 +351,19 @@ pub fn remove_child_entity(parent:Entity, child:Entity){
 
 pub fn child_add_model(parent:Entity, child:Entity, comp:ModelComp){
     let mut msh = get_model_mut(parent).unwrap();
-    if let Some(idx) = msh.named.get(&child).cloned(){
-        msh.models[idx] = comp.models[0].clone();
-    } else{
-        msh.models.push(comp.models[0].clone());
-        let len = msh.models.len()-1;
-        msh.named.insert(child, len);
+    for mut i in comp.models{
+        i.parent = Some(child);
+        i.offset = if let Some(t) = get_transform_mut(child){
+           let mut  s = i.offset;
+           s.rotation *= t.trans.rotation;
+           s.translation += t.trans.translation;
+           s
+        } else{
+            i.offset
+        };
+        msh.models.push(i);
     }
+
 }
 pub fn child_add_physics(parent:Entity, child:Entity, mut comp:Collision){
     let mut phys = get_physics_mut(parent).unwrap();
@@ -374,31 +380,10 @@ pub fn child_add_physics(parent:Entity, child:Entity, mut comp:Collision){
     phys.collisions.push(comp);
 }
 pub fn child_remove_model(parent:Entity, child:Entity){
-    if let Some(mut modle) = get_model_mut(parent){
-        if let Some(k) = modle.named.get(&child).cloned(){
-            modle.models.remove(k);
-            modle.named.remove(&child);
-        }
-    }
+    todo!()
 }
 pub fn child_remove_physics(parent:Entity, child:Entity){
-    if let Some(mut phys) = get_physics_mut(parent){
-        let mut idx = 0;
-        let mut found = false;
-        for i in 0..phys.collisions.len(){
-            if let Some(k) = phys.collisions[i].entity_ref{
-                if k == child{
-                    found = true;
-                    idx = i;
-                    break;
-                }
-            }
-        }
-        if !found{
-            return;
-        }
-        phys.collisions.remove(idx);
-    }
+    todo!()
 }
 
 pub fn add_child_entity_with_objects(parent:Entity,child:Entity, ){
@@ -423,11 +408,7 @@ pub fn add_child_entity_with_objects(parent:Entity,child:Entity, ){
         parent_phys.collisions.push(i);
     }
     let mut parent_mod = get_model_mut(parent).unwrap();
-    for mut i in mesh.models{
-        i.offset.translation += trans.translation;
-        i.offset.rotation *= trans.rotation;
-
-    }
+    todo!();
     remove_transform_comp(child);
     remove_physics_comp(child);
     remove_model_comp(child);

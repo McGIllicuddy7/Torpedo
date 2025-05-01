@@ -13,15 +13,15 @@ pub struct ModelData{
     pub normal:String,
     pub tint:Color,
     pub offset:crate::math::Transform,
+    pub parent:Option<Entity>,
 }
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelComp{
     pub models:Vec<ModelData>, 
-    pub named:HashMap<Entity, usize>,
 }
 impl ModelComp{
     pub fn new(model:&str, tint:Color)->Self{
-        Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint, offset:crate::math::Transform::default()}], named:HashMap::new()}
+        Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint, offset:crate::math::Transform::default(), parent:None}]}
     }
 }
 pub struct ModelList{

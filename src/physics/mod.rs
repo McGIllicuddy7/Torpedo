@@ -430,7 +430,7 @@ pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let mut trans  = TransformComp::new();
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
-    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });
+    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default(), parent:None}]});
     out
 }
 pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
@@ -444,6 +444,6 @@ pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let mut trans  = TransformComp::new();
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
-    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default()}], named:HashMap::new() });
+    add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default(), parent:None}]});
     out
 }
