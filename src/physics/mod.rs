@@ -7,10 +7,11 @@ use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get
 use col::check_collision;
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
-pub const C:f64 = 10.;
+//1 meter = 1 km in this game
+pub const C:f64 = 299792.;
 pub const C2:f64 = C*C;
 pub static SAFE_TO_TAKE:Mutex<bool> = Mutex::new(false);
-pub const UPDATE_FREQ:usize = 3;
+pub const UPDATE_FREQ:usize = 2;
 pub fn min<T:PartialOrd>(a:T, b:T)->T{
     if a<b{
         a

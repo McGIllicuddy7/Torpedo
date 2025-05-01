@@ -23,6 +23,9 @@ impl ModelComp{
     pub fn new(model:&str, tint:Color)->Self{
         Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint, offset:crate::math::Transform::default(), parent:None}]}
     }
+    pub const fn empty()->Self{
+        Self { models: Vec::new() }
+    }
 }
 pub struct ModelList{
     pub list:HashMap<String, Model>
@@ -43,15 +46,7 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
     } else{
         trans.previous.as_ref()
     };
-    for i in (0..vs.len()).rev(){
-        let trans = &vs[i];
-        if !trans.is_valid{
-            continue;
-        }
-        let del = (trans.trans.translation- loc).length()/C;
-        if del>i as f64*1./60.0*physics::UPDATE_FREQ as f64 && del>0.00001{
-            continue;
-        }
+    if(trans.trans.translation-loc).length()<C*1./60.{
         for model in &v.models{
             if let Some(p) = &physics[i]{
                 let d = p.gamma_distort();
@@ -65,8 +60,34 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
             }
             rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
         }
-        break;
     }
+    else{
+        for i in (0..vs.len()).rev(){
+            let trans = &vs[i];
+            if !trans.is_valid{
+                continue;
+            }
+            let del = (trans.trans.translation- loc).length()/C;
+            if del>i as f64*1./60.0*physics::UPDATE_FREQ as f64 && del>0.00001{
+                continue;
+            }
+            for model in &v.models{
+                if let Some(p) = &physics[i]{
+                    let d = p.gamma_distort();
+                    let d_trans =Matrix::scale(d.x as f32, d.y as f32, d.z as f32);
+                    let mut m_trans = Matrix::identity();
+                    m_trans *= trans.trans.rotation.to_matrix();
+                     m_trans*= d_trans;
+                    models.list.get_mut(&model.model).unwrap().transform = m_trans.into();
+                } else{
+                    models.list.get_mut(&model.model).unwrap().transform = trans.trans.rotation.to_matrix().into();
+                }
+                rend.draw_model(&models.list[&model.model], trans.trans.translation.as_rl_vec(), 1.0, model.tint);
+            }
+            break;
+        }
+    }
+
 
 }
 pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera){

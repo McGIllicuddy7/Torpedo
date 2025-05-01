@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard}};
 use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, prelude::RaylibDraw, RaylibHandle, RaylibThread};
-use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision, Octree}, renderer::{self, get_model_comp, get_model_mut, remove_model_comp}};
+use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision, Octree}, renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 use serde::{Deserialize, Serialize};
@@ -380,37 +380,88 @@ pub fn child_add_physics(parent:Entity, child:Entity, mut comp:Collision){
     phys.collisions.push(comp);
 }
 pub fn child_remove_model(parent:Entity, child:Entity){
-    todo!()
+    if let Some(mut models) = get_model_mut(parent){
+        loop{
+            let mut found = false;
+            let mut idx = 0;
+            for i in 0..models.models.len(){
+                if let Some(id) = models.models[i].parent{
+                    if id == child{
+                        found = true;
+                        idx = i;
+                    }
+                }
+            }
+            if found{
+                models.models.remove(idx);
+            } else{
+                break;
+            }
+        }
+    }
 }
 pub fn child_remove_physics(parent:Entity, child:Entity){
-    todo!()
+    if let Some(mut phys ) = get_physics_mut(parent){
+        loop{
+            let mut found = false;
+            let mut idx = 0;
+            for i in 0..phys.collisions.len(){
+                if let Some(id) = phys.collisions[i].entity_ref{
+                    if id == child{
+                        found = true;
+                        idx = i;
+                    }
+                }
+            }
+            if found{
+                phys.collisions.remove(idx);
+            } else{
+                break;
+            }
+        }
+    }
 }
 
-pub fn add_child_entity_with_objects(parent:Entity,child:Entity, ){
-    let ccmp = get_children_mut(parent).unwrap();
+pub fn add_child_object(parent:Entity,child:Entity){
+    let mut ccmp = get_children_mut(parent).unwrap();
     if ccmp.children.contains(&child){
         return;
     }
-    let mut phys = get_physics_comp(child).unwrap().clone();
-    let mesh = get_model_comp(child).unwrap().clone();
-    let trans = get_transform_comp(child).unwrap().clone().trans;
-    if phys.collisions.len() >1{
-        return;
+    ccmp.children.push(child);
+    let ctrans = if let Some(trans) = get_transform_comp(child){
+        trans.trans
+    } else{
+        Transform::default()
+    };
+    if let Some(mshs) = get_model_comp(child) {
+        if mshs.models.len()!= 0 {
+            if get_model_comp(parent).is_none(){
+                add_model_comp(parent, ModelComp::empty());
+            }
+            let mut models = get_model_mut(parent).unwrap();
+            for i in &mshs.models{
+                let mut md = i.clone();
+                md.offset.translation +=ctrans.translation;
+                md.offset.rotation *= ctrans.rotation;
+                md.parent = Some(child);
+                models.models.push(md);
+            }
+        }
     }
-    if mesh.models.len()>1{
-        return;
-    }
-    let mut parent_phys = get_physics_mut(parent).unwrap();
-    for mut i in phys.collisions{
-        i.offset.translation += trans.translation;
-        i.offset.rotation *= trans.rotation;
-        i.entity_ref = Some(child);
-        parent_phys.collisions.push(i);
-    }
-    let mut parent_mod = get_model_mut(parent).unwrap();
-    todo!();
-    remove_transform_comp(child);
-    remove_physics_comp(child);
-    remove_model_comp(child);
+    if let Some(phys) = get_physics_comp(child){
+        if phys.collisions.len() != 0{
+            if get_physics_comp(parent).is_none(){
+                add_physics_comp(parent, PhysicsComp::new());
+            }
+            let mut comps = get_physics_mut(parent).unwrap();
+            for i in &phys.collisions{
+                let mut ps = i.clone();
+                ps.offset.translation += ctrans.translation;
+                ps.offset.rotation += ctrans.rotation;
+                ps.entity_ref = Some(child);
+                comps.collisions.push(ps);
+            }
 
+        }
+    }
 }

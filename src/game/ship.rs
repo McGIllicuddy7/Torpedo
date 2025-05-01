@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use raylib::color::Color;
 use serde::{Deserialize, Serialize};
 
-use crate::{level::{add_child_entity, add_child_entity_with_objects, add_transform_comp, create_entity, get_transform_comp, get_transform_mut, Entity, TransformComp}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{add_physics_comp, get_physics_mut, Collision, PhysicsComp}, renderer::{add_model_comp, get_model_mut, ModelComp}};
+use crate::{level::{add_child_entity, add_child_object, add_transform_comp, create_entity, get_transform_comp, get_transform_mut, Entity, TransformComp}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{add_physics_comp, get_physics_mut, Collision, PhysicsComp}, renderer::{add_model_comp, get_model_mut, ModelComp}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HealthComp{
@@ -90,7 +90,7 @@ impl ShipBuilder{
             add_transform_comp(entity,TransformComp::new());
         }
         get_transform_mut(entity).unwrap().trans = offset;
-        add_child_entity_with_objects(self.ref_entity, entity);
+        add_child_object(self.ref_entity, entity);
         self
     }
 }
