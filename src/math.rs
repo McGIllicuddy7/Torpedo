@@ -1,13 +1,13 @@
 use std::{ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}, process::exit};
 
 use serde::{Deserialize, Serialize};
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vector3{
     pub x:f64, 
     pub y:f64,
     pub z:f64,
 }
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Vector4{
     pub x:f64, 
     pub y:f64, 

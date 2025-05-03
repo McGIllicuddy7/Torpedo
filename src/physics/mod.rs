@@ -3,8 +3,8 @@ todo optimize physics(more)
 */
 use std::{collections::HashMap, process::exit, sync::Mutex};
 mod col;
-use crate::{arena::{AVec, Arena}, level::{add_transform_comp, create_entity, get_level, Entity, Instant, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
-use col::check_collision;
+use crate::{arena::{AVec, Arena}, game::ship::{add_health_comp, HealthComp}, level::{add_transform_comp, create_entity, get_level, Entity, Instant, TransformComp}, math::*, renderer::{add_model_comp, ModelComp, ModelData}};
+use col::{check_collision, collision_damage};
 use raylib::{color::Color, prelude::{RaylibDraw3D, RaylibDrawHandle}};
 use serde::{Deserialize, Serialize};
 //1 meter = 1 km in this game
@@ -31,6 +31,7 @@ pub struct Collision{
     pub col:BoundingBox, 
     pub offset:Transform,
     pub entity_ref:Option<Entity>,
+    pub mass:f64,
 }
 impl Collision{
     pub fn max(&self, trans:Transform)->Vector3{
@@ -76,6 +77,7 @@ pub struct PhysicsComp{
     pub can_ever_move:bool,
     pub named:HashMap<String,usize>,
     pub collided_this_frame:bool,
+
 }
 impl  PhysicsComp {
     pub fn new()->Self{
@@ -148,6 +150,13 @@ impl  PhysicsComp {
        let cy =  1./((1.-ly/C2).sqrt());
        let cz =  1./((1.-lz/C2).sqrt());
        Vector3 { x: 1./cx, y:1./cy, z: 1./cz }
+    }
+    pub fn mass(&self)->f64{
+        let mut out =0.0;
+        for i in &self.collisions{
+            out+= i.mass;
+        }
+        out
     }
 }
 pub fn check_collision_pair(a:&PhysicsComp, a_trans:TransformComp, b:&PhysicsComp, b_trans:TransformComp)->Option<Col>{
@@ -385,13 +394,20 @@ pub fn update(dt:f64){
             let b_phys = phys[*j].as_ref().unwrap();
             let b_trans = trans[*j].as_ref().unwrap();
             if let Some (c) = check_collision_comps(&a_phys.clone(), &a_trans, b_phys, b_trans){
-                let p_i = phys[*i].as_mut().unwrap();
-                p_i.collided_this_frame = true;
-                p_i.velocity.reflect(c.norm);
-                let p_j = phys[*j].as_mut().unwrap();
-                p_j.velocity.reflect(c.norm);
-                p_j.collided_this_frame = true;
+                let p_i = phys[*i].as_ref().unwrap();
+                let p_j = phys[*j].as_ref().unwrap();
                 a_trans.trans.translation = old.trans.translation+c.norm.normalized()*c.depth;
+                let (v1, v2) = col::collision_response(p_i.mass(), p_i.velocity, p_j.mass(), p_j.velocity,c.norm);
+                let _= p_i;
+                let _ = p_j;
+                let p_i = phys[*i].as_mut().unwrap();
+                collision_damage(*i, p_i.velocity, v1);
+                p_i.velocity = v1;
+                p_i.collided_this_frame = true;
+                let p_j = phys[*j].as_mut().unwrap(); 
+                collision_damage(*j, p_j.velocity, v1);
+                p_j.velocity = v2;
+                p_j.collided_this_frame = true;
                 break;
             }
         }
@@ -426,12 +442,13 @@ pub fn create_box(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let mut cmp = PhysicsComp::new();
     let sz =0.05;
     cmp.velocity = vel;
-    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
+    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None , mass:1.});
     add_physics_comp(out, cmp);
     let mut trans  = TransformComp::new();
     trans.trans.translation = pos;
     add_transform_comp(out, trans);
     add_model_comp(out, ModelComp{models:vec![ModelData{model: "box".to_string(), diffuse:"".to_string(), normal:"".to_string(), tint, offset:Transform::default(), parent:None}]});
+    add_health_comp(out, HealthComp{health:1});
     out
 }
 pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
@@ -440,7 +457,7 @@ pub fn create_box_stationary(pos:Vector3, vel:Vector3, tint:Color)->Entity{
     let sz =0.05;
     cmp.velocity = vel;
     cmp.can_ever_move = false;
-    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
+    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None , mass:1.});
     add_physics_comp(out, cmp);
     let mut trans  = TransformComp::new();
     trans.trans.translation = pos;
@@ -453,7 +470,7 @@ pub fn default_mesh(name:&str,pos:Vector3, tint:Color)->Entity{
     let out = create_entity().unwrap();
     let mut cmp = PhysicsComp::new();
     let sz =0.05;
-    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None });
+    cmp.collisions.push(Collision { col: BoundingBox{min:Vector3::new(-sz, -sz, -sz ), max:Vector3::new(sz, sz, sz)}, offset:Transform::default(), entity_ref: None , mass:1.});
     add_physics_comp(out, cmp);
     let mut trans  = TransformComp::new();
     trans.trans.translation = pos;

@@ -34,7 +34,7 @@ pub fn make_test_level(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibH
                 let t = if rand::random::<u64>()%100<10 || true{create_box(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
                     dx, -y as f64+dy, -z as f64+dz)/10.0, colors[count%colors.len()])} else{
                         create_box_stationary(Vector3::new(x as f64/div+dx, y as f64/div+dy, z as f64/div +dz), Vector3::new(-x as f64+
-                            dx, -y as f64+dy, -z as f64+dz)/2.0, colors[count%colors.len()])
+                            dx, -y as f64+dy, -z as f64+dz)/1.0, colors[count%colors.len()])
                     };
                     count += 1;
             }
@@ -52,7 +52,7 @@ fn main() {
     .blocklist(&["libc", "libgcc", "pthread", "vdso"])
     .build()
     .unwrap();
-    main_loop(Box::new(game_create_level));
+    main_loop(Box::new(make_test_level));
     if let Ok(report) = guard.report().build() {
        let file = std::fs::File::create("flamegraph.svg").unwrap();                                                       
     report.flamegraph(file).unwrap();}; 

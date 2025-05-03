@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use raylib::color::Color;
 use serde::{Deserialize, Serialize};
 
-use crate::{level::{add_child_entity, add_child_object, add_transform_comp, create_entity, get_transform_comp, get_transform_mut, Entity, TransformComp}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{add_physics_comp, get_physics_mut, Collision, PhysicsComp}, renderer::{add_model_comp, get_model_mut, ModelComp}};
+use crate::{level::{add_child_entity, add_child_object, add_transform_comp, create_entity, destroy_entity, get_transform_comp, get_transform_mut, Entity, TransformComp}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{add_physics_comp, get_physics_mut, Collision, PhysicsComp}, renderer::{add_model_comp, get_model_mut, ModelComp}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HealthComp{
@@ -44,7 +44,14 @@ pub enum DamageType{
 
 pub fn apply_damage(ent_id:Entity, amount:usize, _damage_type:DamageType){
     if let Some(mut hc)=  get_health_mut(ent_id){
-        hc.health -= amount;
+        if amount>=hc.health{
+            hc.health = 0;
+            destroy_entity(ent_id);
+        } else{
+            hc.health -= amount;
+        }
+
+    
     }
 }
 
@@ -79,7 +86,7 @@ impl ShipBuilder{
             add_model_comp(self.ref_entity, ModelComp::new(path, tint));
         }
         
-        get_physics_mut(self.ref_entity).unwrap().collisions.push(Collision{col:BoundingBox{min:-extents/2., max:extents/2.}, offset:Transform::default(), entity_ref:None});
+        get_physics_mut(self.ref_entity).unwrap().collisions.push(Collision{col:BoundingBox{min:-extents/2., max:extents/2.}, offset:Transform::default(), entity_ref:None, mass:1.});
         self
     }
     pub fn build(self)->Entity{

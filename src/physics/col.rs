@@ -1,4 +1,4 @@
-use crate::{level::{Entity, TransformComp}, math::{BoundingBox, Transform, Vector3}};
+use crate::{game::ship::apply_damage, level::{get_level, Entity, TransformComp}, math::{BoundingBox, Transform, Vector3}};
 
 use super::Col;
 #[allow(unused)]
@@ -197,4 +197,23 @@ pub fn check_collision(a:BoundingBox, a_off:Transform,a_trans:TransformComp, b:B
     }
 
     Some(Col{hit_ref:Entity{idx:0, generation:0}, norm:col_norm.normalized(), depth:col_depth})
+}
+pub fn collision_response(m1:f64, v1:Vector3,m2:f64, v2:Vector3, normal:Vector3 )->(Vector3, Vector3){
+    let center_momentum = v1*m1 + v2*m2;
+    let mut momentum_1 = v1*m1 -center_momentum;
+    let mut momentum_2 = v2*m2 -center_momentum;
+    momentum_1.reflect(-normal);
+    momentum_2.reflect(normal);
+    let out1 = -momentum_2/m1+center_momentum/(m1+m2);
+    let out2 = -momentum_1/m2+center_momentum/(m1+m2);
+    (out1*0.7, out2*0.7)
+}
+pub fn collision_damage(idx:usize, v_initial:Vector3, v_final:Vector3){
+    let generation = get_level().component_indexes.read().unwrap()[idx];
+    let ent = Entity{idx:idx as u32, generation};
+    let delt = (v_initial-v_final).length();
+    if delt>1.0{
+        let damage = delt.sqrt().floor() as usize;
+        apply_damage(ent, damage, crate::game::ship::DamageType::Bullet);
+    }
 }

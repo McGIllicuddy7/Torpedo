@@ -3,6 +3,7 @@ use raylib::{camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh, pr
 use crate::{arena, game::{handle_player, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData}, math::{BoundingBox, Quaternion, Transform, Vector3}, physics::{self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision, Octree}, renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}};
 static LEVEL_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE:Mutex<bool> = Mutex::new(true);
+static DESTROY_QUEUE:Mutex<Vec<Entity>> = Mutex::new(Vec::new());
 use serde::{Deserialize, Serialize};
 pub static mut LEVEL:Option<Level> = None;
 
@@ -239,22 +240,36 @@ pub fn create_entity()->Option<Entity>{
         }
         None
 }
-pub fn destroy_entity(ent:Entity){
+
+pub fn destroy_entity_actual(ent:Entity){
     unsafe{
         if !level_check_entity(ent){
             return;
         }
         let lv = get_level();
-        let mut existing = lv.existing_entities.write().unwrap();
-        let mut counts = lv.component_indexes.write().unwrap(); 
         if let Some(children) = get_children_comp(ent){
             for i in &children.children{
                 destroy_entity(*i);
             }
         }
+        let mut existing = lv.existing_entities.try_write().unwrap();
         existing[ent.idx as usize] = false;
+        drop(existing);
+        let mut counts = lv.component_indexes.try_write().unwrap(); 
         counts[ent.idx as usize] += 1;
+        lv.children_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.fuel_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.health_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.inventory_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.model_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.parent_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.physics_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.ship_comps.list.write().unwrap()[ent.idx as usize] = None;
+        lv.transform_comps.list.write().unwrap()[ent.idx as usize] = None;
     }
+}
+pub fn destroy_entity(ent:Entity){
+    DESTROY_QUEUE.lock().unwrap().push(ent);
 }
 pub fn save_level(file_name:&str){
     let bytes = serde_json::to_string_pretty(get_level()).unwrap();
@@ -293,6 +308,19 @@ pub fn default_setup(thread:&RaylibThread, handle:&mut RaylibHandle, entity_coun
 pub fn get_frame_time()->f64{
     get_level().frame_time
 }
+fn run_destructions(){
+    loop{
+        let queu = DESTROY_QUEUE.lock().unwrap().clone();
+        DESTROY_QUEUE.lock().unwrap().clear();
+        if queu.is_empty(){
+            break;
+        }
+        for i in queu{
+            destroy_entity_actual(i);
+        }
+    }
+
+}
 static LEVEL_TO_LOAD:Mutex<Option<Box<dyn Fn(&raylib::RaylibThread,&mut raylib::RaylibHandle)-> ModelList+Send+Sync>>> = Mutex::new(None);
 
 pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle){
@@ -318,7 +346,7 @@ pub fn level_loop(thread:&raylib::RaylibThread, handle:&mut raylib::RaylibHandle
         draw.clear_background(color::Color::new(0,0, 20,255));
         renderer::render(thread, &mut draw, &mut model_list,&mut cam);
         let _ = j.join();
-        //save_level("test.json");
+        run_destructions();
     }
     unsafe{
         crate::level::LEVEL = None;
