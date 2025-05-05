@@ -316,7 +316,9 @@ pub fn create_entity() -> Option<Entity> {
                 idx: i as u32,
                 generation: counts[i] as u32,
             };
-            add_tag_comp(out, TagComp{tags:Vec::new()});
+            let mut lock = lv.tag_comps.list.write().unwrap();
+            lock[i] = Some(TagComp { tags: Vec::new() });
+            return Some(out);
         }
     }
     None
@@ -663,21 +665,21 @@ impl TagComp {
         true
     }
 }
-pub fn get_entities() -> Vec<Entity> { 
+pub fn get_entities() -> Vec<Entity> {
     let mut out = Vec::new();
-        let lv = get_level();
-        let ents = lv.existing_entities.read().unwrap();
-        let generations = lv.component_indexes.read().unwrap();
-        for i in 0..ents.len() {
-            if ents[i] {
-                let et = Entity {
-                    idx: i as u32,
-                    generation: generations[i],
-                };
-                out.push(et);
-            }
+    let lv = get_level();
+    let ents = lv.existing_entities.read().unwrap();
+    let generations = lv.component_indexes.read().unwrap();
+    for i in 0..ents.len() {
+        if ents[i] {
+            let et = Entity {
+                idx: i as u32,
+                generation: generations[i],
+            };
+            out.push(et);
         }
-        return out;
+    }
+    return out;
 }
 pub fn entities_with_tagset<T: AsRef<str>>(set: &[T]) -> Vec<Entity> {
     let mut out = Vec::new();
@@ -703,20 +705,20 @@ pub fn entities_with_tag(tag: &str) -> Vec<Entity> {
     }
     out
 }
-pub fn set_tags(entity:Entity, tags:Vec<String>){
-    if let Some(mut et) = get_tag_mut(entity){
+pub fn set_tags(entity: Entity, tags: Vec<String>) {
+    if let Some(mut et) = get_tag_mut(entity) {
         et.tags = tags;
     }
 }
-pub fn add_tag(entity:Entity, tag:&str){
-    if let Some(mut et ) = get_tag_mut(entity){
-        if !et.matches_single(tag){
+pub fn add_tag(entity: Entity, tag: &str) {
+    if let Some(mut et) = get_tag_mut(entity) {
+        if !et.matches_single(tag) {
             et.tags.push(tag.to_string());
         }
     }
 }
-pub fn add_tags(entity:Entity, tags:Vec<String>){
-    for i in tags{
+pub fn add_tags(entity: Entity, tags: Vec<String>) {
+    for i in tags {
         add_tag(entity, i.as_ref());
     }
 }

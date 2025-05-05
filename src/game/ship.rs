@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     level::{
-        Entity, TransformComp, add_child_entity, add_child_object, add_transform_comp,
+        Entity, TransformComp, add_child_entity, add_child_object, add_tag, add_transform_comp,
         create_entity, destroy_entity, get_transform_comp, get_transform_mut,
     },
     math::{BoundingBox, Quaternion, Transform, Vector3},
@@ -109,6 +109,7 @@ impl ShipBuilder {
         add_ship_comp(out, ShipComp::new());
         add_transform_comp(out, TransformComp::new());
         add_physics_comp(out, PhysicsComp::new());
+        add_tag(out, "ship");
         Self { ref_entity: out }
     }
     pub fn location(self, location: Vector3) -> Self {
@@ -156,4 +157,12 @@ impl ShipBuilder {
         add_child_object(self.ref_entity, entity);
         self
     }
+}
+
+pub fn create_basic_ship(location: Vector3) -> Entity {
+    let out = ShipBuilder::new()
+        .location(location)
+        .body("cylinder", Color::BLUE, Vector3::new(0.5, 0.25, 0.25))
+        .build();
+    out
 }
