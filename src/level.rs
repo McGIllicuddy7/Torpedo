@@ -1,13 +1,12 @@
 use crate::{
     game::{
-        PlayerData, handle_player,
-        ship::{FuelComp, HealthComp, InventoryComp, ShipComp},
+        handle_player, run_game_systems, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData
     },
     math::{Quaternion, Transform, Vector3},
     physics::{
-        self, Collision, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp,
+        self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision
     },
-    renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp},
+    renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}, ui,
 };
 use raylib::{
     RaylibHandle, RaylibThread, camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh,
@@ -430,6 +429,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
         crate::math::Vector3::new(0.0, 0.0, 1.0).as_rl_vec(),
         90.0,
     );
+    let mut ui = ui::UI::new(0, 0,handle.get_render_height(), handle.get_render_width());
     let mut player_data = PlayerData { camera: cam };
     loop {
         let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
@@ -442,7 +442,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
             break;
         }
         let dt = handle.get_frame_time() as f64;
-        handle_player(&mut player_data, thread, handle);
+        run_game_systems(&mut player_data, thread, handle,dt,&mut ui);
         *physics::SAFE_TO_TAKE.lock().unwrap() = false;
         let j = std::thread::spawn(move || physics::update(dt));
         //physics::update(dt);
@@ -472,7 +472,7 @@ pub fn main_loop(
         .log_level(TraceLogLevel::LOG_ERROR)
         .build();
     handle.set_target_fps(60);
-    handle.disable_cursor();
+   // handle.disable_cursor();
     loop {
         let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue {

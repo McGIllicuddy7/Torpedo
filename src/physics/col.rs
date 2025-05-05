@@ -271,3 +271,7 @@ pub fn collision_damage(idx: usize, v_initial: Vector3, v_final: Vector3) {
     }
 }
 
+pub fn entities_in_sphere(location: Vector3) -> Vec<Entity> {
+    let mut out = Vec::new();
+    return out;
+}

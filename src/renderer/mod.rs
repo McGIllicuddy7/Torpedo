@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::RwLockReadGuard};
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 pub mod particles;
-use crate::{level::{get_level, get_transform_comp, Entity, Instant, TransformComp}, physics::{self, Octree, PhysicsComp, C}};
+use crate::{draw_call, level::{get_level, get_transform_comp, Entity, Instant, TransformComp}, physics::{self, Octree, PhysicsComp, C}};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelData{
     pub model:String,
@@ -111,5 +111,6 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
         }
     }
     drop(rend);
+    draw_call::run_draw_calls(handle);
     handle.draw_fps(1400, 200);
 }
