@@ -31,7 +31,6 @@ pub fn game_create_level(
     get_transform_mut(s).unwrap().trans.translation = Vector3::new(-C, 0., 0.);
     out
 }
-pub fn ship_system() {}
 pub fn player_system() {}
 pub fn ai_system() {}
 

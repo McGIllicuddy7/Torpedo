@@ -15,7 +15,7 @@ use raylib::{
 };
 use std::{
     collections::HashMap,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, Index},
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 static LEVEL_SHOULD_CONTINUE: Mutex<bool> = Mutex::new(true);
@@ -312,10 +312,11 @@ pub fn create_entity() -> Option<Entity> {
         if !existing[i] {
             existing[i] = true;
             *ENTITY_LIST_MODIFIED.lock().unwrap() = true;
-            return Some(Entity {
+            let out = Entity {
                 idx: i as u32,
                 generation: counts[i] as u32,
-            });
+            };
+            add_tag_comp(out, TagComp{tags:Vec::new()});
         }
     }
     None
@@ -701,4 +702,21 @@ pub fn entities_with_tag(tag: &str) -> Vec<Entity> {
         }
     }
     out
+}
+pub fn set_tags(entity:Entity, tags:Vec<String>){
+    if let Some(mut et) = get_tag_mut(entity){
+        et.tags = tags;
+    }
+}
+pub fn add_tag(entity:Entity, tag:&str){
+    if let Some(mut et ) = get_tag_mut(entity){
+        if !et.matches_single(tag){
+            et.tags.push(tag.to_string());
+        }
+    }
+}
+pub fn add_tags(entity:Entity, tags:Vec<String>){
+    for i in tags{
+        add_tag(entity, i.as_ref());
+    }
 }
