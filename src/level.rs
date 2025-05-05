@@ -662,16 +662,8 @@ impl TagComp {
         true
     }
 }
-pub fn get_entities() -> &'static Vec<Entity> {
-    todo!();
-    #[allow(static_mut_refs)]
-    unsafe {
-        static mut ENTITIES: Vec<Entity> = Vec::new();
-        let mut lock = ENTITY_LIST_MODIFIED.lock().unwrap();
-        if !*lock {
-            return &ENTITIES;
-        }
-        ENTITIES.clear();
+pub fn get_entities() -> Vec<Entity> { 
+    let mut out = Vec::new();
         let lv = get_level();
         let ents = lv.existing_entities.read().unwrap();
         let generations = lv.component_indexes.read().unwrap();
@@ -681,20 +673,18 @@ pub fn get_entities() -> &'static Vec<Entity> {
                     idx: i as u32,
                     generation: generations[i],
                 };
-                ENTITIES.push(et);
+                out.push(et);
             }
         }
-        *lock = false;
-        return &ENTITIES;
-    }
+        return out;
 }
 pub fn entities_with_tagset<T: AsRef<str>>(set: &[T]) -> Vec<Entity> {
     let mut out = Vec::new();
     let entities = get_entities();
     for i in entities {
-        if let Some(tg) = get_tag_comp(*i) {
+        if let Some(tg) = get_tag_comp(i) {
             if tg.matches_set(set) {
-                out.push(*i)
+                out.push(i)
             }
         }
     }
@@ -704,9 +694,9 @@ pub fn entities_with_tag(tag: &str) -> Vec<Entity> {
     let mut out = Vec::new();
     let entities = get_entities();
     for i in entities {
-        if let Some(tg) = get_tag_comp(*i) {
+        if let Some(tg) = get_tag_comp(i) {
             if tg.matches_single(tag) {
-                out.push(*i);
+                out.push(i);
             }
         }
     }
