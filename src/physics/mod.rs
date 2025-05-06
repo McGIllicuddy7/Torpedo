@@ -1,19 +1,19 @@
 /*
 todo optimize physics(more)
 */
-use std::{collections::HashMap, process::exit, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex};
 mod col;
 use crate::{
     arena::{AVec, Arena},
     game::ship::{add_health_comp, HealthComp},
-    level::{add_transform_comp, create_entity, get_level, Entity, Instant, TransformComp},
+    level::{add_transform_comp, create_entity, get_level, Entity, TransformComp},
     math::*,
     renderer::{add_model_comp, ModelComp, ModelData},
 };
 use col::{check_collision, collision_damage};
 use raylib::{
     color::Color,
-    prelude::{RaylibDraw3D, RaylibDrawHandle},
+    prelude::RaylibDraw3D,
 };
 use serde::{Deserialize, Serialize};
 //1 meter = 1 km in this game
@@ -87,6 +87,12 @@ pub struct PhysicsComp {
     pub named: HashMap<String, usize>,
     pub collided_this_frame: bool,
 }
+impl Default for PhysicsComp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PhysicsComp {
     pub fn new() -> Self {
         Self {
@@ -100,7 +106,7 @@ impl PhysicsComp {
     }
     pub fn max(&self, trans: Transform) -> Vector3 {
         let mut max = Vector3::new(-10000., -10000., -10000.);
-        if self.collisions.len() == 0 {
+        if self.collisions.is_empty() {
             return trans.translation;
         }
         for i in &self.collisions {
@@ -119,7 +125,7 @@ impl PhysicsComp {
     }
     pub fn min(&self, trans: Transform) -> Vector3 {
         let mut max = -Vector3::new(-10000., -10000., -10000.);
-        if self.collisions.len() == 0 {
+        if self.collisions.is_empty() {
             return trans.translation;
         }
         for i in &self.collisions {
@@ -151,7 +157,7 @@ impl PhysicsComp {
         };
         let delt = sv - rv;
         let l = delt.length_sqr();
-        return 1. / ((1. - l / C2).sqrt());
+        1. / ((1. - l / C2).sqrt())
     }
     pub fn gamma_distort(&self) -> Vector3 {
         let sv = self.velocity;
@@ -198,7 +204,7 @@ pub fn check_collision_pair(
                 b_trans.clone(),
             );
             if let Some(t) = t {
-                Some(t);
+                return Some(t);
             }
         }
     }
@@ -229,7 +235,7 @@ pub enum Octree<'a> {
         bx: BoundingBox,
     },
 }
-impl<'a> Octree<'a> {
+impl Octree<'_> {
     pub fn draw<T>(&self, handle: &mut raylib::prelude::RaylibMode3D<'_, T>) {
         match self {
             Octree::Values { values: _, bx } => {
@@ -247,9 +253,9 @@ impl<'a> Octree<'a> {
         match self {
             Octree::Values { values, bx } => {
                 if bx.collides_point(point) {
-                    return Some(values.as_ref());
+                    Some(values.as_ref())
                 } else {
-                    return None;
+                    None
                 }
             }
             Octree::Boxes { values, bx: _ } => {
@@ -258,13 +264,13 @@ impl<'a> Octree<'a> {
                         return Some(out);
                     }
                 }
-                return None;
+                None
             }
         }
     }
     pub fn query_box(&self, bb: BoundingBox) -> Vec<&[usize]> {
         match self {
-            Octree::Values { values, bx: _ } => return vec![values.as_ref()],
+            Octree::Values { values, bx: _ } => vec![values.as_ref()],
             Octree::Boxes { values, bx } => {
                 if !bx.check_collision(&bb) {
                     return vec![];
@@ -277,7 +283,7 @@ impl<'a> Octree<'a> {
                         out.push(j);
                     }
                 }
-                return out;
+                out
             }
         }
     }
@@ -351,10 +357,10 @@ pub fn make_octree<'a>(
                 let p3s = p3.join().unwrap();
                 let p4s = p4.join().unwrap();
                 let vs = [p1s.0, p1s.1, p2s.0, p2s.1, p3s.0, p3s.1, p4s.0, p4s.1];
-                return Octree::Boxes {
+                Octree::Boxes {
                     values: arena.alloc(vs),
                     bx: bb.scale(mlt),
-                };
+                }
             });
         } else {
             let p1s = (
@@ -395,6 +401,7 @@ pub fn make_octree<'a>(
         bx: bb.scale(mlt),
     }
 }
+#[allow(unused)]
 pub fn make_octree_shallow<'a>(
     arena: &'a Arena,
     values: &[usize],
@@ -445,8 +452,8 @@ pub fn update(dt: f64) {
         arena.alloc_array_no_destructor(get_level().physics_comps.list.write().unwrap().as_ref())
     };
     *SAFE_TO_TAKE.lock().unwrap() = true;
-    let phys = phys_ref.as_mut();
-    let trans = trans_ref.as_mut();
+    let phys = phys_ref;
+    let trans = trans_ref;
     let mut iter: Vec<usize> = Vec::new();
     let mut max_v = -Vector3::new(10000.0, 10000.0, 10000.0) / 10.;
     let mut min_v = -max_v;
@@ -483,7 +490,7 @@ pub fn update(dt: f64) {
         }
     }
     let oct = make_octree(
-        &arena,
+        arena,
         &iter,
         phys,
         trans,
@@ -662,6 +669,6 @@ pub fn default_mesh(name: &str, pos: Vector3, tint: Color) -> Entity {
             }],
         },
     );
-    return out;
+    out
 }
 

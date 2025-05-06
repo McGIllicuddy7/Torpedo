@@ -1,19 +1,18 @@
-use game::game_create_level;
 use level::{default_setup, main_loop};
 
 use math::Vector3;
-use physics::{Col, create_box, create_box_stationary};
-use raylib::{color::Color, ffi::GamepadAxis};
+use physics::{create_box, create_box_stationary};
+use raylib::color::Color;
 use renderer::ModelList;
 
 pub mod arena;
+pub mod draw_call;
 pub mod game;
 pub mod level;
 pub mod math;
 pub mod physics;
 pub mod renderer;
 pub mod ui;
-pub mod draw_call;
 #[allow(unused)]
 pub fn make_test_level(
     thread: &raylib::RaylibThread,
@@ -77,7 +76,7 @@ fn main() {
         .blocklist(&["libc", "libgcc", "pthread", "vdso"])
         .build()
         .unwrap();
-    main_loop(Box::new(game_create_level));
+    main_loop(Box::new(game::game_create_level));
     if let Ok(report) = guard.report().build() {
         let file = std::fs::File::create("flamegraph.svg").unwrap();
         report.flamegraph(file).unwrap();

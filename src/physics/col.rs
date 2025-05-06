@@ -270,8 +270,9 @@ pub fn collision_damage(idx: usize, v_initial: Vector3, v_final: Vector3) {
         apply_damage(ent, damage, crate::game::ship::DamageType::Bullet);
     }
 }
-
+#[allow(unused)]
 pub fn entities_in_sphere(location: Vector3) -> Vec<Entity> {
-    let mut out = Vec::new();
-    return out;
+    let out = Vec::new();
+    todo!();
+    out
 }

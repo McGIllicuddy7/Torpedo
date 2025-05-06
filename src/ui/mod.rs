@@ -1,6 +1,6 @@
 use raylib::{color::Color, ffi::MouseButton};
 
-use crate::draw_call::{self, draw_box, draw_rounded_box, draw_text};
+use crate::draw_call::{self, draw_box, draw_rounded_box};
 pub type Void = ();
 #[derive(Debug)]
 pub struct UI{
@@ -28,7 +28,6 @@ impl Frame{
     fn add_child(&mut self,extent:i32)->Option<(i32, i32, i32, i32)>{
         if self.is_vertical{
             let out = (self.bx+self.offset, self.next_v+self.offset, self.bwidth -self.offset, extent);
-            println!("v:{},{}", self.bheight, self.bwidth);
             self.next_v+= extent+self.offset;
             if extent<self.offset || self.next_v>self.by+self.bheight{
                 return None;
@@ -36,7 +35,6 @@ impl Frame{
             Some(out)
         } else{
            let out =(self.next_v+self.offset, self.by+self.offset,  extent, self.bheight-self.offset);
-           println!("h:{},{}", self.bheight,self.bwidth);
             self.next_v+= extent;
            if extent<self.offset || self.next_v>self.by+self.bheight{
                return None;
@@ -47,8 +45,8 @@ impl Frame{
 }
 impl UI{
     pub fn new(x:i32, y:i32, h:i32, w:i32)->Self{
-       let out = Self { selected_item: -1, frames: Vec::new(), x, y, w,h, ever_selected:false };
-       out
+       
+       Self { selected_item: -1, frames: Vec::new(), x, y, w,h, ever_selected:false }
     }
     pub fn new_frame(&mut self, vertical:bool, extent:i32, offset:i32)->Option<Void>{
         if let Some(prev) = self.frames.get_mut(0){
@@ -97,21 +95,13 @@ impl UI{
             let pos = raylib::ffi::GetMousePosition();
             let vx = pos.x as i32;
             let vy = pos.y as i32;
-            if vx>= x && vy>= y && vx< x+w && vy<y+h{
-                true
-            } else{
-                false
-            }
+            vx>= x && vy>= y && vx< x+w && vy<y+h
         } ;
         let mouse_down = unsafe{
             raylib::ffi::IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT as i32)
         };
         let out = if self.selected_item == id as i32{
-            if !mouse_down && colliding{
-                true
-            } else{
-                false
-            }
+            !mouse_down && colliding
         } else{
             false
         };
@@ -120,7 +110,7 @@ impl UI{
             self.ever_selected = true;
         }
         draw_box(x, y, h,w , selected_color(color, mouse_down && colliding));
-        return out;
+        out
     }
     pub fn new_botton_text(&mut self, extent:i32, id:u16, color:Color, text:String, text_color:Color)->bool{
         let (x, y, w, h) = self.current_frame().add_child(extent).unwrap(); 
@@ -128,21 +118,13 @@ impl UI{
             let pos = raylib::ffi::GetMousePosition();
             let vx = pos.x as i32;
             let vy = pos.y as i32;
-            if vx>= x && vy>= y && vx< x+w && vy<y+h{
-                true
-            } else{
-                false
-            }
+            vx>= x && vy>= y && vx< x+w && vy<y+h
         } ;
         let mouse_down = unsafe{
             raylib::ffi::IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT as i32)
         };
         let out = if self.selected_item == id as i32{
-            if !mouse_down && colliding{
-                true
-            } else{
-                false
-            }
+            !mouse_down && colliding
         } else{
             false
         };
@@ -152,7 +134,7 @@ impl UI{
         }
         draw_box(x, y, h,w , selected_color(color, mouse_down && colliding));
         draw_text_inside_box(x, y, h, w,text,text_color);
-        return out;
+        out
     }
     pub fn new_text_box(&mut self,text:String, extent:i32, text_color:Color, bg:Color){
         let (x,y,w,h) = self.current_frame().add_child(extent).unwrap();
@@ -183,11 +165,11 @@ fn selected_color(color:Color, selected:bool)->Color{
     }
     let clen = color.r as i32+color.g as i32+color.b as i32;
     if clen>=128{
-        let out = Color{r:color.r/2, g:color.g/2, b:color.b/2, a:color.a};
-        out
+        
+        Color{r:color.r/2, g:color.g/2, b:color.b/2, a:color.a}
     } else{
-        let out = Color{r:color.r*2+10, g:color.g*2+10, b:color.b*2+10, a:color.a};
-        out
+        
+        Color{r:color.r*2+10, g:color.g*2+10, b:color.b*2+10, a:color.a}
     }
 }
 pub fn draw_text_inside_box(x:i32, y:i32, height:i32, width:i32, text:String, color:Color){

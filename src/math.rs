@@ -1,4 +1,4 @@
-use std::{ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}, process::exit};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -103,7 +103,7 @@ impl Vector3{
         *self/self.length()
     }
     pub fn normalize(&mut self){
-        *self = *self/self.length()
+        *self /= self.length()
     }
     pub fn transform_with(&self,mat:raylib::math::Matrix)->Self{
         let s = self.as_rl_vec();
@@ -201,7 +201,7 @@ impl Vector4{
         *self/self.length()
     }
     pub fn normalize(&mut self){
-        *self = *self/self.length()
+        *self /= self.length()
     }
     pub const fn as_rl_vec(&self)->raylib::math::Vector4{
         raylib::math::Vector4{x:self.x as f32, y:self.y as f32, z:self.z as f32, w:self.w as f32}

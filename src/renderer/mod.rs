@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::RwLockReadGuard};
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 pub mod particles;
-use crate::{draw_call, level::{get_level, get_transform_comp, Entity, Instant, TransformComp}, physics::{self, Octree, PhysicsComp, C}};
+use crate::{draw_call, level::{get_level, get_transform_comp, Entity, Instant, TransformComp}, physics::{self, PhysicsComp, C}};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ModelData{
     pub model:String,
@@ -21,7 +21,7 @@ pub struct ModelComp{
 }
 impl ModelComp{
     pub fn new(model:&str, tint:Color)->Self{
-        Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint: tint, offset:crate::math::Transform::default(), parent:None}]}
+        Self { models:vec![ModelData{model: model.to_string(), diffuse: "".to_string(), normal: "".to_string(), tint, offset:crate::math::Transform::default(), parent:None}]}
     }
     pub const fn empty()->Self{
         Self { models: Vec::new() }
@@ -103,7 +103,6 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
     let transforms = get_level().transform_comps.list.read().unwrap();
     let physics = get_level().physics_comps.list.read().unwrap();
     let dt = handle.get_frame_time() as f64;
-    handle.update_camera(cam, CameraMode::CAMERA_FREE);
     let mut rend = handle.begin_mode3D(*cam);
     for i in 0..l.len(){
         if let Some(v) = &l[i]{

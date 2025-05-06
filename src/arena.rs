@@ -107,8 +107,8 @@ impl ArenaInternal {
                 self.next_ptr = self.next_ptr.add(fia);
                 self.previous_allocation = out;
                 let out = std::slice::from_raw_parts_mut(out as *mut u8, count);
-                for i in 0..out.len() {
-                    out[i] = 0;
+                for i in out.iter_mut() {
+                    *i = 0;
                 }
                 out
             }
@@ -127,9 +127,7 @@ impl ArenaInternal {
         } else {
             new_count
         };
-        for i in 0..l {
-            out[i] = bytes[i];
-        }
+        out[..l].copy_from_slice(&bytes[..l]);
         out
     }
     pub unsafe fn alloc_no_drop<T>(&mut self, value: T) -> &mut T {
@@ -158,16 +156,14 @@ impl ArenaInternal {
         unsafe {
             let ptr = self.alloc_bytes(std::mem::size_of_val(value)).as_ptr() as *mut T;
             let out = std::slice::from_raw_parts_mut(ptr, value.len());
-            for i in 0..value.len() {
-                out[i] = value[i].clone();
-            }
+            out[..value.len()].clone_from_slice(value);
             out
         }
     }
     pub unsafe fn alloc_array_space<T: Clone>(&mut self, count: usize) -> MaybeUninit<&mut [T]> {
         unsafe {
             let ptr = self.alloc_bytes(count * size_of::<T>()).as_ptr() as *mut T;
-            let out = MaybeUninit::new(std::slice::from_raw_parts_mut(ptr as *mut T, count));
+            let out = MaybeUninit::new(std::slice::from_raw_parts_mut(ptr, count));
             out
         }
     }
@@ -228,6 +224,8 @@ impl Arena {
             destructors: Mutex::new(HashSet::new()),
         })
     }
+    //safety call this to lock
+    #[allow(clippy::mut_from_ref)]
     unsafe fn lock(&self) -> &mut ArenaInternal {
         unsafe {
             let tmp = self.internal.get().as_mut().expect("msg");
@@ -235,12 +233,15 @@ impl Arena {
             tmp
         }
     }
+    //safety, call this after locking to unlock, ONCE
     unsafe fn unlock(&self) {
         unsafe {
             let tmp = self.internal.get().as_mut().expect("msg");
             libc::pthread_mutex_unlock(&mut tmp.lock as *mut pthread_mutex_t);
         }
-    }
+    }  
+    //saftety, this returns bytes, these bytes are fine but casting them to not bytes isn't
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_bytes(&self, count: usize) -> &mut [u8] {
         unsafe {
             let s = self.lock();
@@ -249,6 +250,7 @@ impl Arena {
             out
         }
     }
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn realloc_bytes<'a>(&'a self, bytes: &[u8], new_count: usize) -> &'a [u8] {
         unsafe {
             let s = self.lock();
@@ -257,6 +259,7 @@ impl Arena {
             out
         }
     }
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_no_drop<T>(&self, value: T) -> &mut T {
         unsafe {
             let s = self.lock();
@@ -265,7 +268,8 @@ impl Arena {
             out
         }
     }
-    pub fn alloc<'a, T>(&'a self, value: T) -> &'a mut T {
+    #[allow(clippy::mut_from_ref)]
+    pub fn alloc<T>(&self, value: T) -> &mut T {
         unsafe {
             let s = self.lock();
             let out = s.alloc(value);
@@ -274,17 +278,19 @@ impl Arena {
             out
         }
     }
+    #[allow(clippy::mut_from_ref)]
     pub fn alloc_array<'a, T: Clone>(&'a self, value: &[T]) -> &'a mut [T] {
         unsafe {
             let s = self.lock();
             let out = s.alloc_array(value);
             self.unlock();
-            for i in out.as_ref() {
+            for i in out.iter() {
                 self.queue_destroy(i);
             }
             out
         }
     }
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_array_no_destructor<'a, T: Clone>(&'a self, value: &[T]) -> &'a mut [T] {
         unsafe {
             let s = self.lock();
@@ -293,6 +299,7 @@ impl Arena {
             out
         }
     }
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_array_space<T: Clone>(&self, count: usize) -> MaybeUninit<&mut [T]> {
         unsafe {
             let s = self.lock();
@@ -347,9 +354,9 @@ pub struct AVec<'a, T: Clone> {
     capacity: usize,
     arena: &'a Arena,
 }
-unsafe impl<'a, T: Clone> Send for AVec<'a, T> {}
-unsafe impl<'a, T: Clone> Sync for AVec<'a, T> {}
-impl<'a, T: Clone> Clone for AVec<'a, T> {
+unsafe impl<T: Clone> Send for AVec<'_, T> {}
+unsafe impl<T: Clone> Sync for AVec<'_, T> {}
+impl<T: Clone> Clone for AVec<'_, T> {
     fn clone(&self) -> Self {
         unsafe {
             let new_items: &mut [T] = self
@@ -369,7 +376,7 @@ impl<'a, T: Clone> Clone for AVec<'a, T> {
         }
     }
 }
-impl<'a, T: Clone> AsRef<[T]> for AVec<'a, T> {
+impl<T: Clone> AsRef<[T]> for AVec<'_, T> {
     fn as_ref(&self) -> &[T] {
         if self.length == 0 {
             unsafe { std::slice::from_raw_parts(std::ptr::dangling(), 0) }
@@ -378,23 +385,23 @@ impl<'a, T: Clone> AsRef<[T]> for AVec<'a, T> {
         }
     }
 }
-impl<'a, T: Clone> AsMut<[T]> for AVec<'a, T> {
+impl<T: Clone> AsMut<[T]> for AVec<'_, T> {
     fn as_mut(&mut self) -> &mut [T] {
         unsafe { std::slice::from_raw_parts_mut(self.items, self.length) }
     }
 }
-impl<'a, T: Clone> Index<usize> for AVec<'a, T> {
+impl<T: Clone> Index<usize> for AVec<'_, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
-        return &self.as_ref()[index];
+        &self.as_ref()[index]
     }
 }
-impl<'a, T: Clone> IndexMut<usize> for AVec<'a, T> {
+impl<T: Clone> IndexMut<usize> for AVec<'_, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        return &mut self.as_mut()[index];
+        &mut self.as_mut()[index]
     }
 }
-impl<'a, T: Clone> Drop for AVec<'a, T> {
+impl<T: Clone> Drop for AVec<'_, T> {
     fn drop(&mut self) {
         for i in 0..self.length {
             unsafe {
@@ -419,17 +426,17 @@ impl<'a, T: Clone> AVec<'a, T> {
                 items,
                 length: 0,
                 capacity: cap,
-                arena: arena,
+                arena,
             }
         }
     }
     pub fn get(&self, id: usize) -> &T {
         assert!(id < self.length);
-        return unsafe { &*(self.items.add(id)) };
+        unsafe { &*(self.items.add(id)) }
     }
     pub fn get_mut(&mut self, id: usize) -> &mut T {
         assert!(id < self.length);
-        return unsafe { &mut *(self.items.add(id)) };
+        unsafe { &mut *(self.items.add(id)) }
     }
     pub fn push(&mut self, v: T) {
         if self.length < self.capacity {
@@ -512,11 +519,11 @@ pub struct AStr<'a> {
     s: &'a str,
     arena: &'a Arena,
 }
-impl<'a> Deref for AStr<'a> {
+impl Deref for AStr<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        return self.s;
+        self.s
     }
 }
 
@@ -524,28 +531,22 @@ impl<'a> AStr<'a> {
     pub fn new(arena: &'a Arena, s: &str) -> Self {
         let b = s.as_bytes();
         let bytes = unsafe { arena.alloc_bytes(b.len()) };
-        for i in 0..b.len() {
-            bytes[i] = b[i];
-        }
+        bytes[..b.len()].copy_from_slice(b);
         Self {
             s: unsafe { std::str::from_utf8_unchecked(bytes) },
-            arena: arena,
+            arena,
         }
     }
     pub fn extend(&'a self, s: &str) -> Self {
         let bytes = unsafe {
             self.arena
-                .alloc_bytes(self.as_bytes().len() + s.as_bytes().len())
+                .alloc_bytes(self.len() + s.len())
         };
         let b0 = self.as_bytes();
         let b1 = s.as_bytes();
-        for i in 0..b0.len() {
-            bytes[i] = b0[i];
-        }
+        bytes[..b0.len()].copy_from_slice(b0);
         let l = b0.len();
-        for i in 0..b1.len() {
-            bytes[i + l] = b1[i];
-        }
+        bytes[l..(b1.len() + l)].copy_from_slice(b1);
         let st = std::str::from_utf8_mut(bytes).expect("msg");
         Self {
             s: st,
@@ -553,13 +554,13 @@ impl<'a> AStr<'a> {
         }
     }
     pub fn split_by(&self, delim: &str) -> AVec<'a, Self> {
-        let mut out = AVec::new(&self.arena);
+        let mut out = AVec::new(self.arena);
         for i in self.s.split_inclusive(delim) {
             if let Some(v) = i.strip_suffix(delim) {
-                out.push(Self::new(&self.arena, v));
-                out.push(Self::new(&self.arena, delim));
+                out.push(Self::new(self.arena, v));
+                out.push(Self::new(self.arena, delim));
             } else {
-                out.push(Self::new(&self.arena, i));
+                out.push(Self::new(self.arena, i));
             }
         }
         out
@@ -589,10 +590,10 @@ impl<'a, T> LLNode<'a, T> {
         })
     }
     pub fn get_mut(&'a self) -> RefMut<'a, LLInternal<'a, T>> {
-        return self.v.borrow_mut();
+        self.v.borrow_mut()
     }
     pub fn get(&'a self) -> Ref<'a, LLInternal<'a, T>> {
-        return self.v.borrow();
+        self.v.borrow()
     }
     pub fn push(&'a self, value: T) {
         {
@@ -602,7 +603,7 @@ impl<'a, T> LLNode<'a, T> {
             }
         }
         {
-            let next = Self::new(&self.arena, value);
+            let next = Self::new(self.arena, value);
             next.get_mut().prev = Some(self);
             self.get_mut().next = Some(next);
         }
@@ -648,7 +649,11 @@ impl<'a, T> GraphNode<'a, T> {
     pub fn get_mut(&'a self) -> RefMut<'a, GraphInternal<'a, T>> {
         self.v.borrow_mut()
     }
-    pub fn link(&'a self, other: &'a Self) {}
-    pub fn unlink(&'a self, other: &'a Self) {}
+    pub fn link(&'a self, _other: &'a Self) {
+        todo!()
+    }
+    pub fn unlink(&'a self, _other: &'a Self) {
+        todo!()
+    }
 }
 

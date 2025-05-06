@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 
-use pprof::flamegraph::color;
-use raylib::{color::Color, prelude::{RaylibDraw, RaylibDrawHandle}, text::{Font, WeakFont}};
+use raylib::{color::Color, prelude::{RaylibDraw, RaylibDrawHandle}, text::WeakFont};
 #[allow(unused)]
 static DRAWCALLS:Mutex<Vec<DrawCall>> = Mutex::new(Vec::new());
 
@@ -86,7 +85,6 @@ pub fn render_text_bounded(_handle:&mut RaylibDrawHandle, font:&WeakFont, x:i32,
         let bx = (w as f32-(bounds.x-font_size*6./15.)*scaler)/2.;
         let by = (h as f32-bounds.y*scaler)/2.;
         let pos = raylib::ffi::Vector2{ x: x as f32+bx, y: y as f32+by};
-       // println!("{}, {}, {h}, {w}", pos.x, pos.y);
         raylib::ffi::DrawTextEx(**font, ptxt.as_ptr() as *const i8, pos, font_size*scaler, 1.0, color.into());
     }
 

@@ -1,12 +1,14 @@
 use crate::{
     game::{
-        handle_player, run_game_systems, ship::{FuelComp, HealthComp, InventoryComp, ShipComp}, PlayerData
+        PlayerData, run_game_systems,
+        ship::{FuelComp, HealthComp, InventoryComp, ShipComp},
     },
     math::{Quaternion, Transform, Vector3},
     physics::{
-        self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision
+        self, Collision, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp,
     },
-    renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}, ui,
+    renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp},
+    ui,
 };
 use raylib::{
     RaylibHandle, RaylibThread, camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh,
@@ -14,8 +16,8 @@ use raylib::{
 };
 use std::{
     collections::HashMap,
-    ops::{Deref, DerefMut, Index},
-    sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    ops::{Deref, DerefMut},
+    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 static LEVEL_SHOULD_CONTINUE: Mutex<bool> = Mutex::new(true);
 static GAME_SHOULD_CONTINUE: Mutex<bool> = Mutex::new(true);
@@ -36,6 +38,12 @@ pub struct Instant {
     pub trans: Transform,
     pub is_valid: bool,
 }
+impl Default for Instant {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Instant {
     pub const fn new() -> Self {
         Self {
@@ -53,6 +61,12 @@ pub struct TransformComp {
     pub trans: Transform,
     pub previous: Box<[Instant]>,
 }
+impl Default for TransformComp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TransformComp {
     pub fn update(&mut self) {
         let mut idx = 0;
@@ -65,7 +79,7 @@ impl TransformComp {
         }
         if idx >= self.previous.len() {
             for i in 0..self.previous.len() - 1 {
-                self.previous[i] = self.previous[i + 1].clone();
+                self.previous[i] = self.previous[i + 1];
             }
             idx = self.previous.len() - 1;
         }
@@ -207,7 +221,7 @@ impl Level {
         if p.len() <= ent.idx as usize {
             return false;
         }
-        return p[ent.idx as usize] == ent.generation;
+        p[ent.idx as usize] == ent.generation
     }
     pub fn new(ent_size: usize) -> Self {
         let mut comp_idexs = Vec::new();
@@ -250,29 +264,29 @@ pub fn get_level() -> &'static Level {
 #[macro_export]
 macro_rules! gen_comp_functions {
     ($t:ty, $var_name:ident,$adder:ident, $remover:ident, $getter:ident, $getter_mut:ident) => {
-        pub fn $adder(ent: crate::level::Entity, value: $t) {
+        pub fn $adder(ent: $crate::level::Entity, value: $t) {
             unsafe {
-                assert!(crate::level::level_check_entity(ent));
-                let mut lock = crate::level::get_level().$var_name.list.write().unwrap();
+                assert!($crate::level::level_check_entity(ent));
+                let mut lock = $crate::level::get_level().$var_name.list.write().unwrap();
                 lock[ent.idx as usize] = Some(value);
             }
         }
-        pub fn $remover(ent: crate::level::Entity) {
+        pub fn $remover(ent: $crate::level::Entity) {
             unsafe {
-                assert!(crate::level::level_check_entity(ent));
-                let mut lock = crate::level::get_level().$var_name.list.write().unwrap();
+                assert!($crate::level::level_check_entity(ent));
+                let mut lock = $crate::level::get_level().$var_name.list.write().unwrap();
                 lock[ent.idx as usize] = None;
             }
         }
-        pub fn $getter(ent: crate::level::Entity) -> Option<crate::level::CompRef<$t>> {
-            //  println!("got:{} {}", ent.idx, std::any::type_name::<$t>());
+        pub fn $getter(ent: $crate::level::Entity) -> Option<$crate::level::CompRef<$t>> {
+         //   println!("got:{} {}", ent.idx, std::any::type_name::<$t>());
             unsafe {
-                if !crate::level::level_check_entity(ent) {
+                if !$crate::level::level_check_entity(ent) {
                     return None;
                 }
-                let lock = crate::level::get_level().$var_name.list.read().unwrap();
+                let lock = $crate::level::get_level().$var_name.list.read().unwrap();
                 if lock[ent.idx as usize].is_some() {
-                    Some(crate::level::CompRef {
+                    Some($crate::level::CompRef {
                         lock,
                         idx: ent.idx as usize,
                     })
@@ -281,18 +295,18 @@ macro_rules! gen_comp_functions {
                 }
             }
         }
-        pub fn $getter_mut(ent: crate::level::Entity) -> Option<crate::level::CompMut<$t>> {
+        pub fn $getter_mut(ent: $crate::level::Entity) -> Option<$crate::level::CompMut<$t>> {
             unsafe {
-                //     println!("got_mut:{} {}", ent.idx, std::any::type_name::<$t>());
-                if !crate::level::level_check_entity(ent) {
+               // println!("got_mut:{} {}", ent.idx, std::any::type_name::<$t>());
+                if !$crate::level::level_check_entity(ent) {
                     return None;
                 }
-                let lock = crate::level::get_level().$var_name.list.write().unwrap();
+                let lock = $crate::level::get_level().$var_name.list.write().unwrap();
                 if lock.len() <= ent.idx as usize {
                     return None;
                 }
                 if lock[ent.idx as usize].is_some() {
-                    Some(crate::level::CompMut {
+                    Some($crate::level::CompMut {
                         lock,
                         idx: ent.idx as usize,
                     })
@@ -306,7 +320,7 @@ macro_rules! gen_comp_functions {
 pub fn create_entity() -> Option<Entity> {
     let lv = get_level();
     let mut existing = lv.existing_entities.write().unwrap();
-    let counts = lv.component_indexes.write().unwrap();
+    let counts = lv.component_indexes.read().unwrap();
     for i in 0..existing.len() {
         if !existing[i] {
             existing[i] = true;
@@ -429,7 +443,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
         crate::math::Vector3::new(0.0, 0.0, 1.0).as_rl_vec(),
         90.0,
     );
-    let mut ui = ui::UI::new(0, 0,1000,1600);
+    let mut ui = ui::UI::new(0, 0, 1000, 1600);
     let mut player_data = PlayerData { camera: cam };
     loop {
         let font = handle.get_font_default();
@@ -443,14 +457,14 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
             break;
         }
         let dt = handle.get_frame_time() as f64;
-        run_game_systems(&mut player_data, thread, handle,dt,&mut ui);
+        run_game_systems(&mut player_data, thread, handle, dt, &mut ui);
         *physics::SAFE_TO_TAKE.lock().unwrap() = false;
         let j = std::thread::spawn(move || physics::update(dt));
+        let _ = j.join();
         //physics::update(dt);
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0, 0, 20, 255));
-        renderer::render(thread, &mut draw, &mut model_list, &mut cam, &font);
-        let _ = j.join();
+        renderer::render(thread, &mut draw, &mut model_list, &mut player_data.camera, &font);
         run_destructions();
     }
     unsafe {
@@ -473,7 +487,7 @@ pub fn main_loop(
         .log_level(TraceLogLevel::LOG_ERROR)
         .build();
     handle.set_target_fps(60);
-   // handle.disable_cursor();
+    // handle.disable_cursor();
     loop {
         let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue {
@@ -596,7 +610,7 @@ pub fn add_child_object(parent: Entity, child: Entity) {
         Transform::default()
     };
     if let Some(mshs) = get_model_comp(child).map(|i| i.clone()) {
-        if mshs.models.len() != 0 {
+        if !mshs.models.is_empty() {
             let cmp = get_model_comp(parent);
             if cmp.is_none() {
                 drop(cmp);
@@ -616,7 +630,7 @@ pub fn add_child_object(parent: Entity, child: Entity) {
         remove_model_comp(child);
     }
     if let Some(phys) = get_physics_comp(child).map(|i| i.clone()) {
-        if phys.collisions.len() != 0 {
+        if !phys.collisions.is_empty() {
             let cmp = get_physics_comp(parent);
             if cmp.is_none() {
                 drop(cmp);
@@ -680,7 +694,7 @@ pub fn get_entities() -> Vec<Entity> {
             out.push(et);
         }
     }
-    return out;
+    out
 }
 pub fn entities_with_tagset<T: AsRef<str>>(set: &[T]) -> Vec<Entity> {
     let mut out = Vec::new();
@@ -722,4 +736,8 @@ pub fn add_tags(entity: Entity, tags: Vec<String>) {
     for i in tags {
         add_tag(entity, i.as_ref());
     }
+}
+
+pub fn get_player_entity() -> Entity {
+    get_level().player_entity
 }

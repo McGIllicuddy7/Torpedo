@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     level::{
-        Entity, TransformComp, add_child_entity, add_child_object, add_tag, add_transform_comp,
-        create_entity, destroy_entity, get_transform_comp, get_transform_mut,
+        Entity, TransformComp, add_child_object, add_tag, add_transform_comp, create_entity,
+        destroy_entity, get_transform_comp, get_transform_mut,
     },
     math::{BoundingBox, Quaternion, Transform, Vector3},
     physics::{Collision, PhysicsComp, add_physics_comp, get_physics_mut},
@@ -92,6 +92,12 @@ pub fn apply_damage(ent_id: Entity, amount: usize, _damage_type: DamageType) {
 pub struct ShipBuilder {
     pub ref_entity: Entity,
 }
+impl Default for ShipComp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ShipComp {
     pub const fn new() -> Self {
         Self {
@@ -103,6 +109,12 @@ impl ShipComp {
         }
     }
 }
+impl Default for ShipBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ShipBuilder {
     pub fn new() -> Self {
         let out = create_entity().unwrap();
@@ -117,11 +129,11 @@ impl ShipBuilder {
             .unwrap()
             .trans
             .translation = location;
-        return self;
+        self
     }
     pub fn rotation(self, rotation: Quaternion) -> Self {
         get_transform_mut(self.ref_entity).unwrap().trans.rotation = rotation;
-        return self;
+        self
     }
     pub fn body(self, path: &str, tint: Color, extents: Vector3) -> Self {
         if let Some(mut md) = get_model_mut(self.ref_entity) {
@@ -160,9 +172,8 @@ impl ShipBuilder {
 }
 
 pub fn create_basic_ship(location: Vector3) -> Entity {
-    let out = ShipBuilder::new()
+    ShipBuilder::new()
         .location(location)
         .body("cylinder", Color::BLUE, Vector3::new(0.5, 0.25, 0.25))
-        .build();
-    out
+        .build()
 }

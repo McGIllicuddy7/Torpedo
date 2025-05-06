@@ -1,11 +1,13 @@
-use libc::exit;
-use pprof::flamegraph::color;
-use raylib::{RaylibHandle, RaylibThread, camera::Camera3D, color::Color, ffi::CameraMode};
-use ship::ShipBuilder;
+use raylib::{RaylibHandle, RaylibThread, camera::Camera3D, ffi::CameraMode};
 
 use crate::{
-    draw_call::draw_rounded_box, level::{add_child_object, default_setup, get_transform_mut}, math::{Transform, Vector3}, physics::{default_mesh, get_physics_comp, get_physics_mut, C}, renderer::ModelList, ui::{show_mouse, UI}
+    level::get_transform_comp,
+    level::{default_setup, get_player_entity},
+    math::Vector3,
+    renderer::ModelList,
+    ui::UI,
 };
+
 pub mod ship;
 pub struct PlayerData {
     pub camera: Camera3D,
@@ -15,32 +17,38 @@ pub fn handle_player(
     _thread: &RaylibThread,
     handle: &mut RaylibHandle,
 ) {
-    handle.update_camera(&mut player_data.camera, CameraMode::CAMERA_ORBITAL);
+    let et = get_player_entity();
+    let trans = get_transform_comp(et).unwrap().trans;
+   // handle.update_camera(&mut player_data.camera, CameraMode::CAMERA_ORBITAL);
+    player_data.camera.position = trans.translation.as_rl_vec();
+    let mat = trans.rotation.to_matrix();
+    player_data.camera.target = raylib::prelude::Vector3::forward().transform_with( mat);
+    player_data.camera.up = raylib::prelude::Vector3::up().transform_with(mat);
 }
 pub fn game_create_level(
     thread: &raylib::RaylibThread,
     handle: &mut raylib::RaylibHandle,
 ) -> ModelList {
     let out = default_setup(thread, handle, 16384);
-    ship::create_basic_ship(Vector3::new(5.0, 0.0, 0.0));
+    let player = ship::create_basic_ship(Vector3::new(5.0, 0.0, 0.0));
     ship::create_basic_ship(Vector3::new(-5.0, 0.0, 0.0));
+    #[allow(static_mut_refs)]
+    unsafe {
+        crate::level::LEVEL.as_mut().unwrap().player_entity = player;
+    }
     out
 }
-pub fn run_game_systems(player_data: &mut PlayerData,
+pub fn run_game_systems(
+    player_data: &mut PlayerData,
     thread: &RaylibThread,
     handle: &mut RaylibHandle,
-    _dt:f64,
-    ui:&mut UI){
-        handle_player(player_data, thread, handle);
-        ui.new_frame_v(400, 20);
-        ui.new_text_rounded("testing 123".to_string(), 20, Color::BLACK, Color::WHITE);
-        ui.new_botton_text(50, 1, Color::WHITE, "hello world".to_string(), Color::BLACK);
-        ui.new_botton_text(50, 2, Color::WHITE, "hello".to_owned(), Color::BLACK); 
-        ui.end_frame();
-        ui.new_frame_h(300, 20);
-        if ui.new_botton_text(500, 3, Color::WHITE, "Hi Toast :3".to_string(), Color::WHEAT){
-            unsafe{exit(0)};
-        }
-        ui.end_frame();
-        ui.end_drawing();
+    _dt: f64,
+    _ui: &mut UI,
+) {
+    handle_player(player_data, thread, handle);
+}
+
+pub fn run_ai() {}
+pub fn run_ships(){
+
 }
