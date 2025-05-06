@@ -429,7 +429,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
         crate::math::Vector3::new(0.0, 0.0, 1.0).as_rl_vec(),
         90.0,
     );
-    let mut ui = ui::UI::new(0, 0,handle.get_render_height(), handle.get_render_width());
+    let mut ui = ui::UI::new(0, 0,1000,1600);
     let mut player_data = PlayerData { camera: cam };
     loop {
         let font = handle.get_font_default();

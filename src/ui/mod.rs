@@ -28,24 +28,27 @@ impl Frame{
     fn add_child(&mut self,extent:i32)->Option<(i32, i32, i32, i32)>{
         if self.is_vertical{
             let out = (self.bx+self.offset, self.next_v+self.offset, self.bwidth -self.offset, extent);
+            println!("v:{},{}", self.bheight, self.bwidth);
             self.next_v+= extent+self.offset;
             if extent<self.offset || self.next_v>self.by+self.bheight{
                 return None;
             }
             Some(out)
         } else{
-           let out =(self.next_v+self.offset, self.by+self.offset,  extent, self.bheight-self.offset,);
+           let out =(self.next_v+self.offset, self.by+self.offset,  extent, self.bheight-self.offset);
+           println!("h:{},{}", self.bheight,self.bwidth);
             self.next_v+= extent;
-           // if extent<self.offset || self.next_v>self.by+self.bheight{
-              //  return None;
-           // }
+           if extent<self.offset || self.next_v>self.by+self.bheight{
+               return None;
+            }
             Some(out)
         }
     }
 }
 impl UI{
     pub fn new(x:i32, y:i32, h:i32, w:i32)->Self{
-        Self { selected_item: -1, frames: Vec::new(), x, y, w,h, ever_selected:false }
+       let out = Self { selected_item: -1, frames: Vec::new(), x, y, w,h, ever_selected:false };
+       out
     }
     pub fn new_frame(&mut self, vertical:bool, extent:i32, offset:i32)->Option<Void>{
         if let Some(prev) = self.frames.get_mut(0){

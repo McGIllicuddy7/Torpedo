@@ -73,13 +73,20 @@ pub fn draw_rounded_box_lines(x:i32, y:i32, height:i32, width:i32, color:Color, 
 
 pub fn render_text_bounded(_handle:&mut RaylibDrawHandle, font:&WeakFont, x:i32, y:i32, h:i32, w:i32, text:&str, color:Color){
     unsafe{
+
         let font_size = 12.0;
         let ptxt = text.to_string() +"\0";
         let bounds = raylib::ffi::MeasureTextEx(**font, ptxt.as_ptr() as *const i8, font_size, 1.0);
-        let scaler = h as f32/bounds.y;
+        let mut scaler = h as f32/bounds.y;
+
+        let scaler2 = w as f32/bounds.x;
+        if scaler2<scaler{
+            scaler = scaler2;
+        }
         let bx = (w as f32-(bounds.x-font_size*6./15.)*scaler)/2.;
         let by = (h as f32-bounds.y*scaler)/2.;
         let pos = raylib::ffi::Vector2{ x: x as f32+bx, y: y as f32+by};
+       // println!("{}, {}, {h}, {w}", pos.x, pos.y);
         raylib::ffi::DrawTextEx(**font, ptxt.as_ptr() as *const i8, pos, font_size*scaler, 1.0, color.into());
     }
 

@@ -37,8 +37,8 @@ pub fn run_game_systems(player_data: &mut PlayerData,
         ui.new_botton_text(50, 1, Color::WHITE, "hello world".to_string(), Color::BLACK);
         ui.new_botton_text(50, 2, Color::WHITE, "hello".to_owned(), Color::BLACK); 
         ui.end_frame();
-        ui.new_frame_v(1000, 20);
-        if ui.new_botton_text(100, 3, Color::WHITE, "Hi Toast :3".to_string(), Color::WHEAT){
+        ui.new_frame_h(300, 20);
+        if ui.new_botton_text(500, 3, Color::WHITE, "Hi Toast :3".to_string(), Color::WHEAT){
             unsafe{exit(0)};
         }
         ui.end_frame();
