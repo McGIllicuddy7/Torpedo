@@ -1,6 +1,6 @@
 use raylib::{color::Color, ffi::MouseButton};
 
-use crate::draw_call::{draw_box, draw_text};
+use crate::draw_call::{self, draw_box, draw_rounded_box, draw_text};
 pub type Void = ();
 #[derive(Debug)]
 pub struct UI{
@@ -71,16 +71,17 @@ impl UI{
     }
     pub fn end_frame(&mut self)->Void{
         self.frames.pop();
-        if self.frames.len() == 0{
-            let mouse_down = unsafe{
-                raylib::ffi::IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT as i32)
-            };
-            if !mouse_down{
-                self.selected_item = -1;
-            }
-            if !self.ever_selected{
-                self.selected_item = -1;
-            }
+    }
+    pub fn end_drawing(&mut self)->Void{
+        self.frames.clear();
+        let mouse_down = unsafe{
+            raylib::ffi::IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT as i32)
+        };
+        if !mouse_down{
+            self.selected_item = -1;
+        }
+        if !self.ever_selected{
+            self.selected_item = -1;
         }
     }
     pub fn current_frame(&mut self)->&mut Frame{
@@ -115,7 +116,7 @@ impl UI{
             self.selected_item = id as i32;
             self.ever_selected = true;
         }
-        draw_box(x, y, h,w , selected_color(color, out));
+        draw_box(x, y, h,w , selected_color(color, mouse_down && colliding));
         return out;
     }
     pub fn new_botton_text(&mut self, extent:i32, id:u16, color:Color, text:String, text_color:Color)->bool{
@@ -146,9 +147,19 @@ impl UI{
             self.selected_item = id as i32;
             self.ever_selected = true;
         }
-        draw_box(x, y, h,w , selected_color(color, out));
-        draw_text(x, y, h, text,text_color);
+        draw_box(x, y, h,w , selected_color(color, mouse_down && colliding));
+        draw_text_inside_box(x, y, h, w,text,text_color);
         return out;
+    }
+    pub fn new_text_box(&mut self,text:String, extent:i32, text_color:Color, bg:Color){
+        let (x,y,w,h) = self.current_frame().add_child(extent).unwrap();
+        draw_box(x, y, h,w, bg);
+        draw_text_inside_box(x, y, h,w, text, text_color);
+    }
+    pub fn new_text_rounded(&mut self,text:String, extent:i32, text_color:Color, bg:Color){
+        let (x,y,w,h) = self.current_frame().add_child(extent).unwrap();
+        draw_rounded_box(x, y, h,w, bg,0.5, 100, );
+        draw_text_inside_box(x, y, h,w, text, text_color);
     }
 }
 pub fn show_mouse(){
@@ -172,7 +183,11 @@ fn selected_color(color:Color, selected:bool)->Color{
         let out = Color{r:color.r/2, g:color.g/2, b:color.b/2, a:color.a};
         out
     } else{
-        let out = Color{r:color.r*2, g:color.g*2, b:color.b*2, a:color.a};
+        let out = Color{r:color.r*2+10, g:color.g*2+10, b:color.b*2+10, a:color.a};
         out
     }
+}
+pub fn draw_text_inside_box(x:i32, y:i32, height:i32, width:i32, text:String, color:Color){
+    draw_call::draw_text_bounded(x, y, height, width, text, color);
+    
 }

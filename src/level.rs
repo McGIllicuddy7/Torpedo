@@ -432,6 +432,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
     let mut ui = ui::UI::new(0, 0,handle.get_render_height(), handle.get_render_width());
     let mut player_data = PlayerData { camera: cam };
     loop {
+        let font = handle.get_font_default();
         let should_continue = LEVEL_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue {
             break;
@@ -448,7 +449,7 @@ pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHand
         //physics::update(dt);
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(color::Color::new(0, 0, 20, 255));
-        renderer::render(thread, &mut draw, &mut model_list, &mut cam);
+        renderer::render(thread, &mut draw, &mut model_list, &mut cam, &font);
         let _ = j.join();
         run_destructions();
     }

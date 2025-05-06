@@ -90,7 +90,7 @@ pub fn render_object<T>(dt:f64,i:usize,transforms:&RwLockReadGuard<'_,Box<[Optio
 
 
 }
-pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera){
+pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut ModelList, cam:&mut Camera, font:&WeakFont){
     loop{
         while physics::SAFE_TO_TAKE.try_lock().is_err(){
             
@@ -111,6 +111,6 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
         }
     }
     drop(rend);
-    draw_call::run_draw_calls(handle);
+    draw_call::run_draw_calls(handle, font);
     handle.draw_fps(1400, 200);
 }

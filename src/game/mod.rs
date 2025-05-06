@@ -1,3 +1,5 @@
+use libc::exit;
+use pprof::flamegraph::color;
 use raylib::{RaylibHandle, RaylibThread, camera::Camera3D, color::Color, ffi::CameraMode};
 use ship::ShipBuilder;
 
@@ -30,11 +32,15 @@ pub fn run_game_systems(player_data: &mut PlayerData,
     _dt:f64,
     ui:&mut UI){
         handle_player(player_data, thread, handle);
-     //   show_mouse();
-        ui.new_frame_v(300, 20);
-        ui.new_botton(50, 1, Color::WHITE);
-        ui.new_botton(50, 2, Color::WHITE); 
-       // println!("{:#?}", ui);
+        ui.new_frame_v(400, 20);
+        ui.new_text_rounded("testing 123".to_string(), 20, Color::BLACK, Color::WHITE);
+        ui.new_botton_text(50, 1, Color::WHITE, "hello world".to_string(), Color::BLACK);
+        ui.new_botton_text(50, 2, Color::WHITE, "hello".to_owned(), Color::BLACK); 
         ui.end_frame();
+        ui.new_frame_v(1000, 20);
+        if ui.new_botton_text(100, 3, Color::WHITE, "Hi Toast :3".to_string(), Color::WHEAT){
+            unsafe{exit(0)};
+        }
         ui.end_frame();
+        ui.end_drawing();
 }
