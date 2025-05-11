@@ -1,5 +1,5 @@
 
-use std::{any::type_name, collections::HashMap, ffi::c_void, sync::{ LazyLock, Mutex}};
+use std::{any::{type_name, Any}, collections::HashMap, error::Error, ffi::c_void, fmt::{Debug, Display}, ops::{Deref, DerefMut}, sync::{ LazyLock, Mutex}};
 
 use serde::{Deserialize, Serialize};
 use serde_derive::{Deserialize, Serialize};
@@ -15,7 +15,58 @@ pub trait DynSer{
 pub struct Obj<T:?Sized +'static>{
     pub v:Box<T>,
 }
+impl<T:?Sized+'static> From<Box<T>> for Obj<T>{
+    fn from(value: Box<T>) -> Self {
+        Self { v: value }
+    }
+}
+impl<T:?Sized+'static> Deref for Obj<T>{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.v.as_ref()
+    }
+}
+impl<T:?Sized+'static> DerefMut for Obj<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.v.as_mut()
+    }
+}
+impl<T:?Sized+'static> AsRef<T> for Obj<T>{
+    fn as_ref(&self) -> &T {
+        self.v.as_ref()
+    }
+}
+impl<T:?Sized+'static> AsMut<T> for Obj<T> {
+    fn as_mut(&mut self) -> &mut T {
+        self.v.as_mut()
+    }
+}
+impl <T:?Sized+'static+Clone> Clone for Obj<T>{
+    fn clone(&self) -> Self {
+        Self { v: self.v.clone() }
+    }
+}
+impl <T:'static> Obj<T> {
+    pub fn new(v:T)->Self{
+        Self { v: Box::new(v) }
+    }
 
+}
+impl <T:'static+?Sized> Obj<T>{
+    pub fn from_box(v:Box<T>)->Self{
+        Self { v }
+    }
+}
+impl <T:Debug+'static> Debug for Obj<T>{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Obj").field("v", &self.v).finish()
+    }
+} 
+impl <T:Display+'static> Display for Obj<T>{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.v.fmt(f)
+    }
+}
 #[derive(Serialize, Deserialize)]
 struct SerializeablObj{
     pub name:String, 
