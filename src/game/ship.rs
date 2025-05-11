@@ -72,6 +72,10 @@ pub struct ExplodeOnDestroyedComp {
     pub exponent: f64,
     pub range: f64,
 }
+pub struct InputComp{
+    pub linear_input:Vector3, 
+    pub rotational_input:Vector3,
+}
 pub enum DamageType {
     Explosion,
     Bullet,

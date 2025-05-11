@@ -1,0 +1,1 @@
+Result<MutexGuard<'_, Vec<(std::string::String, fn(Vec<u8>) -> Box<T>)>>, PoisonError<MutexGuard<'_, Vec<(std::string::String, fn(Vec<u8>) -> Box<T>)>>>>

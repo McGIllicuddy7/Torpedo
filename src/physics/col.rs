@@ -1,6 +1,6 @@
 use crate::{
     game::ship::apply_damage,
-    level::{Entity, TransformComp, get_level},
+    level::{get_level, Entity, TransformComp},
     math::{BoundingBox, Transform, Vector3},
 };
 
