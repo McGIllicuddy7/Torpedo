@@ -1,5 +1,5 @@
 
-use std::{any::{type_name, Any}, collections::HashMap, error::Error, ffi::c_void, fmt::{Debug, Display}, ops::{Deref, DerefMut}, sync::{ LazyLock, Mutex}};
+use std::{any::type_name, collections::{HashMap, LinkedList}, ffi::c_void, fmt::{Debug, Display}, ops::{Deref, DerefMut}, sync::{ LazyLock, Mutex}};
 
 use serde::{Deserialize, Serialize};
 use serde_derive::{Deserialize, Serialize};
@@ -128,5 +128,123 @@ impl <'de,T:?Sized+'static + DynSer> Deserialize<'de> for Obj<T>{
         let v = (functions[&obj.name])(obj.data);
         return Ok(Self{v})
 
+    }
+}
+
+pub trait Event:Send+Sync{
+    fn target(&self)->Option<(u32, u32)>{
+        None
+    }
+    fn initiator(&self)->Option<(u32, u32)>{
+        None
+    }
+    fn tname(&self)->&'static str{
+        std::any::type_name::<Self>()
+    }
+}
+
+static EVENTS:Mutex<LinkedList<Box<dyn Event>>> = Mutex::new(LinkedList::new());
+pub struct EventHandler{
+    pub expected_target:Option<(u32, u32)>,
+    pub id:u64, 
+    pub expected_type:&'static str, 
+    pub function:Box<dyn Fn(Box<dyn Event>)->Option<Box<dyn Event>>+Send+Sync>,
+}
+static EVENT_HANDLERS:Mutex<Vec<EventHandler>> = Mutex::new(Vec::new());
+pub fn subscribe_to_event<T:Event+'static>(subscriber_id:u64, func:Box<dyn Fn(&T)+Send+Sync>){
+    let mut events = EVENT_HANDLERS.lock().unwrap();
+    let to_func = Box::new(move |a:Box<dyn Event>|{
+        if type_name::<T>() != a.tname(){
+            return Some(a);
+        }
+        let eve_ptr = a.as_ref() as *const (dyn Event+ 'static);
+        let ptr = eve_ptr as *const T;
+        unsafe{
+            func(ptr.as_ref().unwrap());
+        }
+        return None;
+    });
+    let handler = EventHandler{
+        expected_target:None,id:subscriber_id, expected_type:type_name::<T>(), function:to_func,
+    };
+    let mut found = false;
+    let mut idx = 0;
+    for i in 0..events.len(){
+        if events[i].id ==subscriber_id{
+            found = true;
+            idx = i;
+            break;
+        }
+    }
+    if found{
+        events[idx] = handler;
+    } else{
+        events.push(handler);
+    }
+
+}
+pub fn target_subscribe_to_event<T:Event+'static>(target:(u32, u32),subscriber_id:u64, func:Box<dyn Fn(&T)+Send+Sync>){
+    let mut events = EVENT_HANDLERS.lock().unwrap();
+    let to_func = Box::new(move |a:Box<dyn Event>|{
+        if type_name::<T>() != a.tname(){
+            return Some(a);
+        }
+        let eve_ptr = a.as_ref() as *const (dyn Event+ 'static);
+        let ptr = eve_ptr as *const T;
+        unsafe{
+            func(ptr.as_ref().unwrap());
+        }
+        return None;
+    });
+    let handler = EventHandler{
+        expected_target:Some(target),id:subscriber_id, expected_type:type_name::<T>(), function:to_func,
+    };
+    let mut found = false;
+    let mut idx = 0;
+    for i in 0..events.len(){
+        if events[i].id ==subscriber_id{
+            found = true;
+            idx = i;
+            break;
+        }
+    }
+    if found{
+        events[idx] = handler;
+    } else{
+        events.push(handler);
+    }
+
+}
+pub fn new_event<T:Event+Send+Sync+'static>(e:T){
+    let mut lock = EVENTS.lock().unwrap();
+    lock.push_back(Box::new(e));
+}
+fn process_event(event:Box<dyn Event+'static>){
+let mut event = event;
+   let handlers = EVENT_HANDLERS.lock().unwrap();
+        for i in 0..handlers.len(){
+            if let Some(t) = event.target(){
+                if handlers[i].expected_target != Some(t){
+                    continue;
+                }
+            }
+            if event.tname() == handlers[i].expected_type{
+                if let Some(a) = (handlers[i].function)(event){
+                    event = a;
+                } else{
+                    break;
+                }
+            }
+        }
+}     
+pub fn process_events(){
+    loop{
+        let mut lock = EVENTS.lock().unwrap();
+        if lock.is_empty(){
+            break;
+        }
+        let event = lock.pop_front().unwrap();
+        drop(lock);
+        process_event(event);
     }
 }

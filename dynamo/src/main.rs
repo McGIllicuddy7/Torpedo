@@ -1,5 +1,4 @@
 
-use std::any::Any;
 
 use dynamo::{register_deserializer, DynSer, Obj};
 use serde_derive::{Deserialize, Serialize};
@@ -38,6 +37,8 @@ pub fn load_obj(){
     let v2:Obj<dyn TestTrait> = serde_json::from_str(&p).unwrap();
     v2.v.print();
 }
+
+
 fn main() {
     register_deserializer::<Test, dyn TestTrait>();
     let a:Obj<dyn TestTrait> = Obj::from_box(Box::new(Test{v:"hello world".to_string()}));
