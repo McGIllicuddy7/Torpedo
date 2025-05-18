@@ -65,17 +65,35 @@ crate::gen_comp_functions!(
     get_ship_comp,
     get_ship_mut
 );
-
+#[derive(Clone,Serialize, Deserialize)]
 pub struct ExplodeOnDestroyedComp {
     pub damage: usize,
     pub damage_type: DamageType,
     pub exponent: f64,
     pub range: f64,
 }
+crate::gen_comp_functions!(
+    ExplodeOnDestroyedComp,
+    explode_on_destroyed_comps,
+    add_explode_on_destroyed_comp,
+    remove_explode_on_destroyed_comp,
+    get_explode_on_destroyed_comp,
+    get_explode_on_destroyed_mut
+);
+#[derive(Clone, Serialize, Deserialize)]
 pub struct InputComp{
     pub linear_input:Vector3, 
     pub rotational_input:Vector3,
 }
+crate::gen_comp_functions!(
+    InputComp, 
+    input_comps, 
+    add_input_comp, 
+    remove_input_comp, 
+    get_input_comp, 
+    get_input_mut
+);
+#[derive(Clone, Copy,Serialize, Deserialize)]
 pub enum DamageType {
     Explosion,
     Bullet,
@@ -126,6 +144,7 @@ impl ShipBuilder {
         add_transform_comp(out, TransformComp::new());
         add_physics_comp(out, PhysicsComp::new());
         add_tag(out, "ship");
+        add_input_comp(out, InputComp{linear_input:Vector3::zero(),  rotational_input:Vector3::zero()});
         Self { ref_entity: out }
     }
     pub fn location(self, location: Vector3) -> Self {

@@ -1,14 +1,9 @@
 use crate::{
     game::{
-        PlayerData, run_game_systems,
-        ship::{FuelComp, HealthComp, InventoryComp, ShipComp},
-    },
-    math::{Quaternion, Transform, Vector3},
-    physics::{
-        self, Collision, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp,
-    },
-    renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp},
-    ui,
+        run_game_systems, ship::{ExplodeOnDestroyedComp, FuelComp, HealthComp, InputComp, InventoryComp, ShipComp}, PlayerData
+    }, math::{Quaternion, Transform, Vector3}, physics::{
+        self, add_physics_comp, get_physics_comp, get_physics_mut, remove_physics_comp, Collision
+    }, renderer::{self, add_model_comp, get_model_comp, get_model_mut, remove_model_comp}, script::ScriptComp, ui
 };
 use raylib::{
     RaylibHandle, RaylibThread, camera::Camera3D, color, ffi::TraceLogLevel, models::RaylibMesh,
@@ -178,12 +173,12 @@ impl<T: 'static> Drop for CompMut<T> {
     }
 }
 #[derive(Serialize, Deserialize)]
-pub struct ComponentList<T: 'static + Serialize + Send + Sync + for<'a> Deserialize<'a> + Clone> {
+pub struct ComponentList<T: 'static + Serialize + Send + Sync + for<'a> Deserialize<'a>> {
     #[serde(with = "RwLock")]
     pub list: RwLock<Box<[Option<T>]>>,
 }
 
-impl<T: 'static + Serialize + Send + Sync + for<'a> Deserialize<'a> + Clone> ComponentList<T> {
+impl<T: 'static + Serialize + Send + Sync + for<'a> Deserialize<'a>> ComponentList<T> {
     pub fn init(size: usize) -> Self {
         let mut list = Vec::new();
         list.reserve_exact(size);
@@ -214,6 +209,9 @@ pub struct Level {
     pub children_comps: ComponentList<ChildrenComp>,
     pub parent_comps: ComponentList<ParentComp>,
     pub tag_comps: ComponentList<TagComp>,
+    pub explode_on_destroyed_comps :ComponentList<ExplodeOnDestroyedComp>,
+    pub input_comps:ComponentList<InputComp>,
+    pub script_comps:ComponentList<ScriptComp>,
 }
 impl Level {
     pub fn check_entity_ref(&self, ent: Entity) -> bool {
@@ -251,6 +249,9 @@ impl Level {
             parent_comps: ComponentList::init(ent_size),
             children_comps: ComponentList::init(ent_size),
             tag_comps: ComponentList::init(ent_size),
+            explode_on_destroyed_comps:ComponentList::init(ent_size), 
+            input_comps:ComponentList::init(ent_size),
+            script_comps:ComponentList::init(ent_size),
         }
     }
 }
@@ -437,7 +438,7 @@ static LEVEL_TO_LOAD: Mutex<
 
 pub fn level_loop(thread: &raylib::RaylibThread, handle: &mut raylib::RaylibHandle) {
     let mut model_list = LEVEL_TO_LOAD.lock().unwrap().as_ref().unwrap()(thread, handle);
-    let mut cam = Camera3D::perspective(
+    let cam = Camera3D::perspective(
         crate::math::Vector3::new(-10.0, 0., 0.0).as_rl_vec(),
         Vector3::new(1.0, 0., 0.).as_rl_vec(),
         crate::math::Vector3::new(0.0, 0.0, 1.0).as_rl_vec(),
@@ -487,7 +488,7 @@ pub fn main_loop(
         .log_level(TraceLogLevel::LOG_ERROR)
         .build();
     handle.set_target_fps(60);
-    // handle.disable_cursor();
+    handle.disable_cursor();
     loop {
         let should_continue = GAME_SHOULD_CONTINUE.lock().unwrap();
         if !*should_continue {

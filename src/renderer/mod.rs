@@ -103,7 +103,11 @@ pub fn render(_thread:&RaylibThread, handle:&mut RaylibDrawHandle, models:&mut M
     let transforms = get_level().transform_comps.list.read().unwrap();
     let physics = get_level().physics_comps.list.read().unwrap();
     let dt = handle.get_frame_time() as f64;
+        unsafe{
+        raylib::ffi::rlSetClipPlanes(0.001, 100000.0);
+    }
     let mut rend = handle.begin_mode3D(*cam);
+
     for i in 0..l.len(){
         if let Some(v) = &l[i]{
             render_object(dt, i, &transforms, v,&physics, models,&mut rend, crate::math::Vector3::from_rl_vec(cam.position));

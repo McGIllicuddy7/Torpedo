@@ -13,12 +13,14 @@ pub mod math;
 pub mod physics;
 pub mod renderer;
 pub mod ui;
+pub mod dynamo;
+pub mod script;
 #[allow(unused)]
 pub fn make_test_level(
     thread: &raylib::RaylibThread,
     handle: &mut raylib::RaylibHandle,
 ) -> ModelList {
-    let out = default_setup(thread, handle, 16384);
+    let out = default_setup(thread, handle, 16384*2);
     let colors = [
         Color::WHITE,
         Color::HOTPINK,

@@ -1,2 +1,0 @@
-cargo:rustc-link-lib=static=bridget
-cargo:rustc-link-search=native=/Users/bridget/torpedo/dynamo/
