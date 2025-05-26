@@ -1,0 +1,7 @@
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/lib/libraylib.a
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/include/raylib.h
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/include/rlgl.h
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/include/raymath.h
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/lib/pkgconfig/raylib.pc
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/lib/cmake/raylib/raylib-config-version.cmake
+/Users/bridget/torpedo/target/debug/build/raylib-sys-42a4eea1fbbbfd0a/out/lib/cmake/raylib/raylib-config.cmake
