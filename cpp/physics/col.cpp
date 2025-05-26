@@ -1,0 +1,274 @@
+#include "physics.hpp"
+#include <string.h>
+typedef struct{
+    Vector3 vertices[8];
+}Cube;
+Cube get_vertices(BoundingBox a,Transform offset, Transform a_trans) {
+    Vector3 verts[] = {
+        Vector3{1., 1., 1.},
+        Vector3{1., -1., 1.},
+        Vector3{1., 1., 1.},
+        Vector3{1., -1., 1.0},
+        Vector3{1., 1., -1.},
+        Vector3{1., -1., -1.},
+        Vector3{-1., 1., -1.},
+        Vector3{-1., -1., -1.0},
+    };
+    double dx = a.max.x - a.min.x;
+    double dy = a.max.y - a.min.y;
+    double dz = a.max.z - a.min.z;
+    for(auto &i: verts) {
+        double x = i.x * dx / 2.;
+        double y = i.y * dy / 2.;
+        double z = i.z * dz / 2.;
+        i.x = x;
+        i.y = y; 
+        i.z = z;
+    }
+    for(auto &i:verts){
+        Vector3 tmp = i;
+        tmp += a_trans.translation;
+        tmp += Vector3Transform(offset
+            .translation,QuaternionToMatrix(a_trans.rotation * offset.rotation));
+        i = tmp;
+    }
+    Cube out;
+    memcpy(out.vertices, verts, sizeof(out.vertices))
+}
+bool vec_contains(a: &[Vector3], v: Vector3){
+    let mut idx = 0;
+    while(idx < a.len()){
+        if a[idx].x == v.x && a[idx].y == v.y && a[idx].z == v.z {
+            return true;
+        }
+        idx += 1;
+        assert!(idx != 0);
+    }
+    false
+}
+
+fn get_normals(a_trans: Transform, a_off: Transform) -> [Vector3; 13] {
+    let mut normals = const {
+        let mut norms = [const { Vector3::new(0., 0., 0.) }; 13];
+        let mut count = 0;
+        let mut x = -1;
+        let mut y = -1;
+        let mut z = -1;
+        while x < 2 {
+            while y < 2 {
+                while z < 2 {
+                    if x == 0 && y == 0 && z == 0 {
+                        z += 1;
+                        continue;
+                    }
+                    let v = Vector3::new(x as f64, y as f64, z as f64);
+                    if vec_contains(&norms, Vector3::new(-v.x, -v.y, -v.z)) {
+                        z += 1;
+                        continue;
+                    }
+                    norms[count] = v;
+                    count += 1;
+                    z += 1;
+                }
+                z = -1;
+                y += 1;
+            }
+            y = -1;
+            x += 1;
+        }
+        let mut idx = 0;
+        while idx < norms.len() {
+            let l = norms[idx].x * norms[idx].x
+                + norms[idx].y * norms[idx].y
+                + norms[idx].z * norms[idx].z;
+            norms[idx].x /= l;
+            norms[idx].y /= l;
+            norms[idx].x /= l;
+            idx += 1;
+        }
+        norms
+    };
+    let rot = (a_trans.rotation * a_off.rotation).to_matrix();
+    for i in &mut normals {
+        i.transform(rot);
+    }
+    normals
+}
+#[allow(unused)]
+fn get_normals_basic(a_trans: Transform, a_off: Transform) -> [Vector3; 6] {
+    let mut normals = [
+        Vector3::new(1.0, 0., 0.),
+        Vector3::new(-1., 0., 0.),
+        Vector3::new(0., 1., 0.),
+        Vector3::new(0., -1., 0.),
+        Vector3::new(0., 0., 1.),
+        Vector3::new(0., 0., -1.0),
+    ];
+    let rot = (a_trans.rotation * a_off.rotation).to_matrix();
+    for i in &mut normals {
+        i.transform(rot);
+    }
+    for i in &mut normals {
+        i.normalize();
+    }
+    normals
+}
+#[allow(unused)]
+pub fn check_collision(
+    a: BoundingBox,
+    a_off: Transform,
+    a_trans: TransformComp,
+    b: BoundingBox,
+    b_off: Transform,
+    b_trans: TransformComp,
+) -> Option<Col> {
+    {
+        let a_lock = a_off
+            .translation
+            .transform_with(a_trans.trans.rotation.to_matrix())
+            + a_trans.trans.translation;
+        let b_lock = b_off
+            .translation
+            .transform_with(b_trans.trans.rotation.to_matrix())
+            + b_trans.trans.translation;
+        let a = BoundingBox {
+            min: a.min + a_lock,
+            max: a.max + a_lock,
+        };
+        let b = BoundingBox {
+            min: b.min + b_lock,
+            max: b.max + b_lock,
+        };
+        if !a.check_collision(&b) {
+            return None;
+        }
+    }
+    let a_verts = get_vertices(a, a_off, a_trans.trans);
+    let b_verts = get_vertices(b, b_off, b_trans.trans);
+    let a_norms = get_normals(a_trans.trans, a_off);
+    let b_norms = get_normals(b_trans.trans, b_off);
+    let mut norms = [const { Vector3::new(0., 0., 0.) }; 26];
+    let mut idx = 0;
+    for i in a_norms {
+        norms[idx] = i;
+        idx += 1;
+    }
+    for i in b_norms {
+        norms[idx] = i;
+        idx += 1;
+    }
+    let mut col_norm = Vector3::new(0., 0., 0.);
+    let mut col_depth = 1000000.0;
+    for i in norms {
+        let mut a_max = -1000000.0;
+        let mut a_min = -a_max;
+        let mut b_max = a_max;
+        let mut b_min = -b_max;
+        for j in a_verts {
+            let a_dot = j.dot(i);
+            if a_dot > a_max {
+                a_max = a_dot;
+            }
+            if a_dot < a_min {
+                a_min = a_dot;
+            }
+        }
+        for j in b_verts {
+            let b_dot = j.dot(i);
+            if b_dot > b_max {
+                b_max = b_dot;
+            }
+            if b_dot < b_min {
+                b_min = b_dot;
+            }
+        }
+        if a_min > b_max + 0.0001 || b_min > a_max + 0.0001 {
+            return None;
+        }
+    }
+    idx = 0;
+    let a_norms = get_normals_basic(a_trans.trans, a_off);
+    let b_norms = get_normals_basic(b_trans.trans, a_off);
+    let mut trans = [const { crate::math::Vector3::new(0., 0., 0.) }; 12];
+    for i in a_norms {
+        trans[idx] = i;
+        idx += 1;
+    }
+    for i in b_norms {
+        trans[idx] = i;
+        idx += 1;
+    }
+    for i in trans {
+        let mut a_max = -1000000.0;
+        let mut a_min = -a_max;
+        let mut b_max = a_max;
+        let mut b_min = -b_max;
+        for j in a_verts {
+            let a_dot = j.dot(i);
+            if a_dot > a_max {
+                a_max = a_dot;
+            }
+            if a_dot < a_min {
+                a_min = a_dot;
+            }
+        }
+        for j in b_verts {
+            let b_dot = j.dot(i);
+            if b_dot > b_max {
+                b_max = b_dot;
+            }
+            if b_dot < b_min {
+                b_min = b_dot;
+            }
+        }
+        let da = (b_min - a_max).abs();
+        let db = (a_min - b_max).abs();
+        let del = if da > db { db } else { da };
+        if del < col_depth {
+            col_depth = del;
+            col_norm = i;
+        }
+    }
+
+    Some(Col {
+        hit_ref: Entity {
+            idx: 0,
+            generation: 0,
+        },
+        norm: col_norm.normalized(),
+        depth: col_depth,
+    })
+}
+pub fn collision_response(
+    m1: f64,
+    v1: Vector3,
+    m2: f64,
+    v2: Vector3,
+    normal: Vector3,
+) -> (Vector3, Vector3) {
+    let center_momentum = v1 * m1 + v2 * m2;
+    let mut momentum_1 = v1 * m1 - center_momentum;
+    let mut momentum_2 = v2 * m2 - center_momentum;
+    momentum_1.reflect(-normal);
+    momentum_2.reflect(normal);
+    let out1 = -momentum_2 / m1 + center_momentum / (m1 + m2);
+    let out2 = -momentum_1 / m2 + center_momentum / (m1 + m2);
+    (out1 * 0.7, out2 * 0.7)
+}
+pub fn collision_damage(idx: usize, v_initial: Vector3, v_final: Vector3) {
+    let generation = get_level().component_indexes.read().unwrap()[idx];
+    let ent = Entity {
+        idx: idx as u32,
+        generation,
+    };
+    let delt = (v_initial - v_final).length();
+    if delt > 1.0 {
+        let damage = delt.sqrt().floor() as usize;
+        apply_damage(ent, damage, crate::game::ship::DamageType::Bullet);
+    }
+}
+pub fn entities_in_sphere(location: Vector3) -> Vec<Entity> {
+    let out = Vec::new();
+    todo!();
+    out
+}
