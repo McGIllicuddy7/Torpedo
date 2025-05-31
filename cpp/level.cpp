@@ -75,12 +75,12 @@ Level & get_level(){
 }
 
 void load_level(const char * path){
-//    #define MULT
+    #define MULT
 
     runtime.level = std::make_unique<Level>(Level{});
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
     #ifdef MULT
-    int count = 1;
+    int count =10;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
@@ -89,7 +89,7 @@ void load_level(const char * path){
                 v.x = x == 0 ? 0 : (x> 0 ? -1 : 1);
                 v.y = y == 0 ? 0 : (y> 0 ? -1 : 1);
                 v.z = z == 0 ? 0 : (z> 0 ? -1 : 1);
-                v*= 0.25;
+                v;
                 create_cube(point,Vec3{0.5, 0.5, 0.5}, v, WHITE);
             }
         }

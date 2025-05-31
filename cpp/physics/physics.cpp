@@ -1,9 +1,74 @@
 #include "physics.hpp"
 #include "../level.hpp"
 using namespace Torpedo;
+
 static vector<PhysicsComp> comps;
 static vector<uint32_t> indexs;
 static vector<Entity *> ptrs;
+static std::unordered_map<uint64_t, vector<uint32_t>> grid;
+static double square_size = 1.0;
+static double min_x = 0.0;
+static double min_y = 0.0;
+static double min_z = 0.0;
+static double max_x = 0.0;
+static double max_y = 0.0;
+static double max_z = 0.0;
+static int64_t compute_position(Vector3 v){
+    int64_t dx =(max_x -min_x)/square_size;
+    int64_t dz = (max_z-min_z)/square_size;
+    int64_t dy = (max_y -min_y)/square_size;
+    int64_t px = (v.x-min_x)/square_size;
+    int64_t py =(v.y-min_y)/square_size;
+    int64_t pz =(v.z-min_z)/square_size;
+//    printf("%lld, %lld, %lld dx:%lld, dy:%lld, dz:%lld\n",px, py, pz,dx,dy,dz);
+    if(px>dx|| px<0 || py>dy || py<0 || pz>dz || pz<0){
+        return -1;
+    }
+    int64_t x = px+py*dy+pz*dz*dy;
+ //   printf("%lld\n",x);
+    return x;
+}
+static void setup_grid(){
+    grid.clear();
+    for(const auto &i:comps){
+        auto pos = i.trans.trans.translation;
+        if(pos.x<min_x){
+            min_x = pos.x;
+        }
+        if(pos.y<min_y){
+            min_y = pos.y;
+        }
+        if(pos.z<min_z){
+            min_z = pos.z;
+        }
+        if(pos.x>max_x){
+            max_x = pos.x;
+        }
+        if(pos.y>max_y){
+            max_y = pos.y;
+        }
+        if(pos.z>max_z){
+            max_z = pos.z;
+        }
+    }
+    for(size_t i =0; i<comps.size(); ++i){
+        int64_t p =compute_position(comps[i].trans.trans.translation); 
+        if(grid.contains(p)){
+            grid[p].push_back(i);
+        } else{
+            vector<uint32_t> v= {(uint32_t)i};
+            grid[p] = v;
+        }
+    }
+    size_t count = 0;
+    size_t lengths= 0;
+    for(auto &i : grid){
+        count += 1;
+        lengths+=i.second.size();
+    }
+   // printf("average vec size:%f\n", (double)lengths/(double)count);
+}
+
 std::array<Vec3, 2> collision_response(
     double m1,
     Vec3 v1,
@@ -37,21 +102,65 @@ std::optional<Col>physics_comp_check_collision(const PhysicsComp & a, const Phys
     }
     return std::optional<Col>{};
 }
-void update_physics(){
-    for(size_t i =0; i<comps.size(); i++){ 
-        comps[i].trans.trans.translation += comps[i].velocity*1./60.;
-        for(size_t j = i+1; j<comps.size(); j++){
-            if(auto col = physics_comp_check_collision(comps[i], comps[j])){
-                comps[i].trans.trans.translation += col->norm*col->depth*3.0;
-                auto v = collision_response(comps[i].mass, comps[i].velocity, comps[j].mass, comps[j].velocity, Vec3::from(Vector3Normalize(col->norm)));
-                auto m_0 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
-                comps[i].velocity = v[0];
-                comps[j].velocity = v[1];
-                auto m_1 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
-                printf("m_0:{%f,%f,%f}, m_1: {%f, %f, %f}\n",m_0.x, m_0.y, m_0.z, m_1.x, m_1.y, m_1.z); 
+[[gnu::always_inline]]
+static void update_pair(size_t i, size_t j){
+        if(auto col = physics_comp_check_collision(comps[i], comps[j])){
+            comps[i].trans.trans.translation += col->norm*col->depth*3.0;
+            auto v = collision_response(comps[i].mass, comps[i].velocity, comps[j].mass, comps[j].velocity, Vec3::from(Vector3Normalize(col->norm)));
+            auto m_0 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
+            comps[i].velocity = v[0];
+            comps[j].velocity = v[1];
+            auto m_1 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
            }
+}
+uint64_t update_obj(size_t i){
+        size_t count = 0;
+        Vec3 v = comps[i].trans.trans.translation;
+        for(int x = -1; x<2; x++){
+            for(int y =-1; y<2; y++){
+                for(int z =-1; z<2; z++){
+                    Vec3 v0 = v+Vec3{(double)x,(double)y,(double)z}*square_size;
+                    int64_t p = compute_position(v0);
+                    if(p<0){
+                        continue;
+                    }
+                    if(grid.contains(p)){
+                        for(const auto j: grid[p]){
+                            if(i == j){
+                                continue;
+                            }
+                            update_pair(i,j);
+                            count += 1;
+                        }
+                    } 
+                }
+            }
         }
+    return count;
+     
+ 
+}
+void update_physics(){    
+#define GRID
+
+    setup_grid();
+ 
+    size_t count = 0;
+    for(size_t i =0; i<comps.size(); i++){ 
+        comps[i].trans.trans.translation += comps[i].velocity*1./60.0;
+        #ifdef GRID
+        count += update_obj(i);
+        #endif
+        #ifndef GRID
+        for(size_t j = i+1; j<comps.size(); j++){
+            update_pair(i,j);
+            count += 1;
+        }
+        #endif
     }
+    double avg = (double)count/(double)comps.size();
+//    printf("average compute count:%f\n",avg);
+    grid.clear();
 }
 void physics_finish_update(){
     vector<PhysicsComp>& phys_comps = get_level().physics;

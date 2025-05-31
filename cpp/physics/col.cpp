@@ -257,7 +257,6 @@ std::array<Vec3, 2> collision_response(
     assert(Vector3Length(normal)>0.0);
     auto n_0 = normal;
     normal = Vec3::from(Vector3Normalize(normal));
-    printf("initial normal:(%f, %f, %f), final_normal:(%f, %f,%f)\n", n_0.x, n_0.y, n_0.z, normal.x, normal.y, normal.z);
     auto center_momentum = v1 * m1 + v2 * m2;
     auto momentum_1 = v1 - center_momentum/(m1+m2);
     auto momentum_2 = v2 - center_momentum/(m1+m2);
@@ -266,18 +265,7 @@ std::array<Vec3, 2> collision_response(
     Vec3 out1 = Vec3::from(momentum_1+ center_momentum/(m1+m2) );
     Vec3 out2 = Vec3::from(momentum_2 + center_momentum/(m1+m2));
     std::array<Vec3, 2> out;
-    out[0] = out1*1.0;
-    out[1] = out2*1.0;
-/*    double d1 = Vector3Length(out[0]);
-    double d2 = Vector3Length(out[1]);
-    const double max = 1000;
-    if(d1>max){
-        out[0]*=1./d1;
-        out[0] *= max;
-    }
-    if(d2>max){
-        out[1]*= 1./d2;
-        out[1] *= max;
-    }*/
+    out[0] = out1;
+    out[1] = out2;
     return out;
 }
