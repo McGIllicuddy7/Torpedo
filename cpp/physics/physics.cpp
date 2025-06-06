@@ -75,6 +75,13 @@ std::array<Vec3, 2> collision_response(
     double m2,
     Vec3 v2,
     Vec3 normal); 
+std::array<Vec3, 2> angular_collision_response(
+    double m1,
+    Vec3 v1,
+    Vec3 p1,
+    double m2,
+    Vec3 v2,
+    Vec3 p2); 
 void physics_prepare_update(){
     comps.clear();
     ptrs.clear();
@@ -105,12 +112,13 @@ std::optional<Col>physics_comp_check_collision(const PhysicsComp & a, const Phys
 [[gnu::always_inline]]
 static void update_pair(size_t i, size_t j){
         if(auto col = physics_comp_check_collision(comps[i], comps[j])){
-            comps[i].trans.trans.translation += col->norm*col->depth*3.0;
+            comps[i].trans.trans.translation += col->norm*(col->depth+0.01);
             auto v = collision_response(comps[i].mass, comps[i].velocity, comps[j].mass, comps[j].velocity, Vec3::from(Vector3Normalize(col->norm)));
-            auto m_0 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
+            auto v2 = angular_collision_response(comps[i].mass, comps[i].velocity, comps[i].trans.trans.translation,comps[j].mass, comps[j].velocity, comps[j].trans.trans.translation);
             comps[i].velocity = v[0];
             comps[j].velocity = v[1];
-            auto m_1 = comps[i].velocity * comps[i].mass + comps[j].velocity*comps[j].mass;
+           
+            
            }
 }
 uint64_t update_obj(size_t i){
@@ -148,6 +156,8 @@ void update_physics(){
     size_t count = 0;
     for(size_t i =0; i<comps.size(); i++){ 
         comps[i].trans.trans.translation += comps[i].velocity*1./60.0;
+        comps[i].trans.trans.rotation =Quat::from(QuaternionFromMatrix(QuaternionToMatrix(comps[i].trans.trans.rotation)*QuaternionToMatrix(comps[i].angular_velocity)));
+        comps[i].trans.trans.rotation = Quat::from(QuaternionNormalize(comps[i].trans.trans.rotation));
         #ifdef GRID
         count += update_obj(i);
         #endif

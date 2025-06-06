@@ -269,3 +269,13 @@ std::array<Vec3, 2> collision_response(
     out[1] = out2;
     return out;
 }
+std::array<Vec3, 2> angular_collision_response(
+    double m1,
+    Vec3 v1,
+    Vec3 p1,
+    double m2,
+    Vec3 v2,
+    Vec3 p2) {
+    std::array<Vec3, 2> out;
+    return out;
+}

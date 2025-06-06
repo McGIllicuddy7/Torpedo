@@ -4,12 +4,14 @@ using namespace Torpedo;
 static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox b){
     for(const auto&i:cmp.meshes){
         Model md = get_level().models[i.second.string];
+        auto old = md.transform;
+        md.transform = QuaternionToMatrix(trans.rotation); 
         auto loc = trans.translation+i.second.offset.translation;
-        DrawModel(md, loc,1.0,i.second.color);
-//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
-        b.min += trans.translation;
-        b.max += trans.translation;
-        DrawBoundingBox(b, GREEN);
+        DrawModel(md, loc,1.0,i.second.color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
+        md.transform = old;
+  //      b.min += trans.translation;
+ //       b.max += trans.translation;
+//        DrawBoundingBox(b, GREEN);
 
     }
 }

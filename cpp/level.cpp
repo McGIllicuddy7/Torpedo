@@ -1,6 +1,7 @@
 #include "level.hpp"
 #include "renderer/renderer.hpp"
 #include "physics/physics.hpp"
+#include "shaders.hpp"
 namespace Torpedo{
 Runtime runtime;
 void update();
@@ -13,7 +14,7 @@ void update(){
 }
 
 void mainloop(const char * startup_level){
-    InitWindow(1200,800, "brid-get");
+    InitWindow(1920,1080, "brid-get");
     DisableCursor();
     Camera cam;
     cam.up = {0,0,1};
@@ -23,6 +24,7 @@ void mainloop(const char * startup_level){
     cam.projection = CAMERA_PERSPECTIVE; 
     load_level(startup_level);
     setup();
+    SetTargetFPS(60);
     while(!WindowShouldClose()){
         physics_prepare_update();
         update_physics();
@@ -76,11 +78,12 @@ Level & get_level(){
 
 void load_level(const char * path){
     #define MULT
-
     runtime.level = std::make_unique<Level>(Level{});
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
+    Shader shader = LoadShaderFromMemory(vertex_shader, frag_shader);
+    get_level().models[string("cube")].materials[0].shader = shader;
     #ifdef MULT
-    int count =10;
+    int count =8;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
@@ -89,8 +92,12 @@ void load_level(const char * path){
                 v.x = x == 0 ? 0 : (x> 0 ? -1 : 1);
                 v.y = y == 0 ? 0 : (y> 0 ? -1 : 1);
                 v.z = z == 0 ? 0 : (z> 0 ? -1 : 1);
-                v;
-                create_cube(point,Vec3{0.5, 0.5, 0.5}, v, WHITE);
+                Vec3 ang;
+                ang.x = (rand()%1000)/1000.0*2-1;
+                ang.y= (rand()%1000)/1000.0*2-1;
+                ang.z = (rand()%1000)/1000.0*2-1;
+                ang *= 0.0;
+                EntityRef a = create_cube(point,Vec3{0.5, 0.5, 0.5}, v, WHITE, ang);
             }
         }
     }
@@ -108,7 +115,7 @@ void load_level(const char * path){
     #endif
 
 }
-EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color){
+EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular){
     MeshPart m;
     m.string = "cube";
     m.offset= Trans::create(); 
@@ -120,6 +127,7 @@ EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color){
     phys.is_valid = true;
     phys.trans.trans = Trans::create();
     phys.trans.trans.translation = location;
+    phys.angular_velocity = Quat::from(QuaternionFromEuler(angular.x, angular.y, angular.z));
     Collider col;
     col.offset= Trans::create();
     Vec3 mscale = Vec3{-scale.x, -scale.y, -scale.z};
