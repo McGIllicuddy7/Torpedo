@@ -4,9 +4,16 @@
 #include <array>
 #include <assert.h>
 #include <optional>
+#if __linux__
+#include <raylib.h>
+#include <raymath.h>
+#include <rlgl.h>
+#endif
+#ifndef __linux__
 #include </usr/local/include/raylib.h>
 #include </usr/local/include/raymath.h>
 #include </usr/local/include/rlgl.h>
+#endif
 #include <string>
 #include <unordered_map>
 namespace Torpedo{
