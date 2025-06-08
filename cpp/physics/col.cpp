@@ -103,8 +103,7 @@ array<Vec3,13> get_normals(Trans a_trans, Trans a_off)  {
     }
    return normals;
 }
-
-constexpr array<Vec3, 6>get_normals_basic(Trans a_trans, Trans a_off){
+array<Vec3, 6>get_normals_basic(Trans a_trans, Trans a_off){
     array<Vec3, 6> normals = {
         Vec3{1.0, 0., 0.},
         Vec3{-1., 0., 0.},

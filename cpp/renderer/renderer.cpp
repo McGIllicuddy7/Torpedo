@@ -19,7 +19,6 @@ void renderer_update(Camera *cam){
     UpdateCamera(cam, CAMERA_FREE);
     BeginDrawing();
     ClearBackground(BLACK); 
-    DrawFPS(1100, 80);
     rlSetClipPlanes(0.005, 5000000);
     BeginMode3D(*cam);
     for(size_t i =0; i<get_level().meshes.size(); i++){
@@ -29,5 +28,6 @@ void renderer_update(Camera *cam){
         draw_mesh_comp(get_level().meshes[i], get_level().physics[i].trans.trans,get_level().physics[i].colliders[0].bb);
     }
     EndMode3D();
+    DrawFPS(1800,80);
     EndDrawing();
 }

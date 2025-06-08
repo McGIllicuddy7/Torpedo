@@ -110,7 +110,7 @@ std::optional<Col>physics_comp_check_collision(const PhysicsComp & a, const Phys
     return std::optional<Col>{};
 }
 [[gnu::always_inline]]
-static void update_pair(size_t i, size_t j){
+static inline void update_pair(size_t i, size_t j){
         if(auto col = physics_comp_check_collision(comps[i], comps[j])){
             comps[i].trans.trans.translation += col->norm*(col->depth+0.01);
             auto v = collision_response(comps[i].mass, comps[i].velocity, comps[j].mass, comps[j].velocity, Vec3::from(Vector3Normalize(col->norm)));
