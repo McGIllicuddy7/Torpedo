@@ -239,7 +239,7 @@ impl Arena {
             let tmp = self.internal.get().as_mut().expect("msg");
             libc::pthread_mutex_unlock(&mut tmp.lock as *mut pthread_mutex_t);
         }
-    }  
+    }
     //saftety, this returns bytes, these bytes are fine but casting them to not bytes isn't
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_bytes(&self, count: usize) -> &mut [u8] {
@@ -538,10 +538,7 @@ impl<'a> AStr<'a> {
         }
     }
     pub fn extend(&'a self, s: &str) -> Self {
-        let bytes = unsafe {
-            self.arena
-                .alloc_bytes(self.len() + s.len())
-        };
+        let bytes = unsafe { self.arena.alloc_bytes(self.len() + s.len()) };
         let b0 = self.as_bytes();
         let b1 = s.as_bytes();
         bytes[..b0.len()].copy_from_slice(b0);
@@ -656,4 +653,3 @@ impl<'a, T> GraphNode<'a, T> {
         todo!()
     }
 }
-

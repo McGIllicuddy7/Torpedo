@@ -55,7 +55,7 @@ public:
         template<typename T> T* downcast(){
             Entity * e= get(); 
             return dynamic_cast<T>(e);
-        }
+        } 
     };
 
 void mainloop(const char * level);
@@ -78,6 +78,7 @@ void load_level(const char* path);
         runtime.level->entities[runtime.level->entities.size()-1]->id = runtime.level->entities.size()-1;
         return EntityRef::create(runtime.level->entities.size()-1, 0);
     }
+
 EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular= Vec3{0,0,0});
 }
 
