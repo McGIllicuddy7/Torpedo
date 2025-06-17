@@ -2,6 +2,7 @@
 #include "renderer/renderer.hpp"
 #include "physics/physics.hpp"
 #include "shaders.hpp"
+#include "component.hpp"
 namespace Torpedo{
 Runtime runtime;
 void update();
