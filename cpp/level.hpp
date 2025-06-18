@@ -13,9 +13,14 @@ namespace Torpedo{
         virtual PhysicsComp& get_physics();
         virtual MeshComp& get_mesh();
         static unique_ptr<Entity> deserialze(std::string_view name,vector<unsigned char> bytes);
+	virtual Vec3 get_forward_vector();
+	virtual Vec3 get_right_vector();
+	virtual Vec3 get_up_vector();
     }; 
     class Level{
         public:
+	Entity * player;
+	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;
         std::vector<std::unique_ptr<Entity>> entities;
         std::vector<uint32_t> generations;
@@ -28,6 +33,7 @@ namespace Torpedo{
     };
 extern Runtime runtime;
     class EntityRef{
+public:
         uint32_t index;
         uint32_t generation;
 public:
@@ -78,9 +84,16 @@ void load_level(const char* path);
         runtime.level->entities[runtime.level->entities.size()-1]->id = runtime.level->entities.size()-1;
         return EntityRef::create(runtime.level->entities.size()-1, 0);
     }
+void destroy_entity(EntityRef ref);
 
 EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular= Vec3{0,0,0});
+void set_player_entity(EntityRef ref);
+inline EntityRef get_as_ref(Entity * ptr){
+	return EntityRef::create(ptr->id, get_level().generations[ptr->id]);
 }
+}
+
+
 
 
 

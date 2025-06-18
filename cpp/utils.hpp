@@ -188,8 +188,31 @@ struct Vec4{
     inline Vec4 operator*(const Vec4& other)const{
         return Vec4{x*other.x, y*other.y, z*other.z, w*other.w};
     }
+   inline Vec4 operator+=(const Vec4& other){
+        auto out = *this + other;
+	*this = out;
+	return out;
+    }
+   inline Vec4 operator -=(const Vec4& other){
+        auto out = *this - other;
+	*this = out;
+	return out;
+   }
+   inline Vec4 operator *=(const Vec4& other){
+        auto out = *this * other;
+	*this = out;
+	return out;
+    }
+   inline Vec4 operator *=(const double v){
+	   auto out = *this *v;
+	   *this = out;
+	   return out;
+   }
     inline operator Vector4()const{
         return {(float)x,(float)y,(float)z,(float)w};
+    }
+    inline Matrix to_matrix() const{
+   	return QuaternionToMatrix(*this);
     }
 };
 using Quat = Vec4;
@@ -219,6 +242,15 @@ struct Trans{
         out.translation = translation;
         return out;
     }
+    inline Vec3 get_forward_vector()const {
+   	return Vec3::from(Vec3{1, 0,0}*rotation.to_matrix());
+    }
+    inline Vec3 get_right_vector() const {
+    	return Vec3::from(Vec3{0, 1,0}*rotation.to_matrix());
+    }
+    inline Vec3 get_up_vector() const {
+    	return Vec3::from(Vec3{0, 0,1}*rotation.to_matrix());
+    }
 };
 struct Col{
     Torpedo::Vec3 norm;
@@ -226,6 +258,15 @@ struct Col{
 };
 struct TransformComp{
     Torpedo::Trans trans;
+    Vec3 get_forward_vector() const {
+  	return trans.get_forward_vector();  
+    }
+    Vec3 get_right_vector() const {
+  	return trans.get_right_vector();  
+    }
+    Vec3 get_up_vector() const {
+  	return trans.get_up_vector();  
+    }
 };
 struct Collider{
     Trans offset;
@@ -253,4 +294,14 @@ struct MeshComp{
         meshes.clear();
     }
     };
+}
+inline double get_input_axis(int key_negative, int key_positive){
+	double out =0;
+	if(IsKeyDown(key_negative)){
+		out -= 1;
+	}
+	if(IsKeyDown(key_positive)){
+		out += 1;
+	}
+	return out;
 }

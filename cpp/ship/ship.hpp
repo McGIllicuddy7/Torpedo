@@ -12,5 +12,14 @@ typedef struct {
 	Quat rotation_input;
 	Vec3 movement_input;
 }ShipComp;
+void ship_comp_update(ShipComp * comp);
 
+class PlayerShip:public Entity{
+	ShipComp ship;
+	public:
+	PlayerShip();
+	virtual void on_tick();
+	EntityRef create();
+};
+EntityRef create_player_ship(Vec3 pos, Quat rot);
 };

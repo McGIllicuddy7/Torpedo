@@ -16,7 +16,6 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
     }
 }
 void renderer_update(Camera *cam){
-    UpdateCamera(cam, CAMERA_FREE);
     BeginDrawing();
     ClearBackground(BLACK); 
     rlSetClipPlanes(0.005, 5000000);
@@ -28,6 +27,6 @@ void renderer_update(Camera *cam){
         draw_mesh_comp(get_level().meshes[i], get_level().physics[i].trans.trans,get_level().physics[i].colliders[0].bb);
     }
     EndMode3D();
-    DrawFPS(1800,80);
+    DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);
     EndDrawing();
 }

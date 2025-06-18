@@ -2,10 +2,15 @@
 #include "renderer/renderer.hpp"
 #include "physics/physics.hpp"
 #include "shaders.hpp"
-#include "component.hpp"
+#include "ship/ship.hpp"
 namespace Torpedo{
 Runtime runtime;
 void update();
+void run_destructors();
+void set_player_entity(EntityRef ref){
+	runtime.level->player = ref.get();
+}
+
 void update(){
     for(int i =0; i<runtime.level->entities.size(); i++){
         if(runtime.level->entities[i]){
@@ -14,8 +19,19 @@ void update(){
     }
 }
 
+void cam_update(Camera * cam){
+	if (runtime.level->player){
+		cam->position = runtime.level->player->get_physics().trans.trans.translation;
+		cam->target = runtime.level->player->get_forward_vector();
+		cam->up = runtime.level->player->get_up_vector();
+//		printf("%f,%f,%f\n", cam->up.x, cam->up.y, cam->up.z);
+	}
+	else {
+    		UpdateCamera(cam, CAMERA_FREE);
+	}
+}
 void mainloop(const char * startup_level){
-    InitWindow(1920,1080, "brid-get");
+    InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
     DisableCursor();
     Camera cam;
     cam.up = {0,0,1};
@@ -27,10 +43,13 @@ void mainloop(const char * startup_level){
     setup();
     SetTargetFPS(60);
     while(!WindowShouldClose()){
+	update();
         physics_prepare_update();
         update_physics();
+	cam_update(&cam);
         renderer_update(&cam);
         physics_finish_update();
+	run_destructors();
     }  
     CloseWindow();
 }
@@ -71,6 +90,25 @@ Vec3 Entity::get_velocity(){
 void setup(){
 
 }
+void run_destructors(){
+	if(!runtime.level->destroy_queue.size()){
+		return;
+	}	
+	size_t index = runtime.level->destroy_queue.size()-1;
+	do {
+		size_t idx = runtime.level->destroy_queue[index];
+		Entity *ptr = runtime.level->entities[idx].get();
+		if(runtime.level->player == ptr){
+			runtime.level->player = 0;
+		}
+		runtime.level->meshes[idx].reset();
+		runtime.level->physics[idx].reset();
+		runtime.level->physics[idx].is_valid = false;
+		runtime.level->entities[idx] = 0;
+		index -=1;
+	}while(index>0);
+	runtime.level->destroy_queue.clear();
+}
 
 
 Level & get_level(){
@@ -80,11 +118,13 @@ Level & get_level(){
 void load_level(const char * path){
     #define MULT
     runtime.level = std::make_unique<Level>(Level{});
+    runtime.level->player = 0;
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
-    Shader shader = LoadShaderFromMemory(vertex_shader, frag_shader);
+    Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     get_level().models[string("cube")].materials[0].shader = shader;
+    EntityRef player =create_player_ship(Vec3{100,0,0}, Quat{0,0,0,1});
     #ifdef MULT
-    int count =8;
+    int count =4;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
@@ -138,6 +178,22 @@ EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec
     e.get()->get_physics()= phys;
     return e;
 }
+void destroy_entity(EntityRef ref){
+	if(!ref.is_valid()){
+		return;
+	}
+	runtime.level->destroy_queue.push_back(ref.index);
+}
+Vec3 Entity::get_forward_vector() {
+	return get_physics().trans.get_forward_vector();
+}
+Vec3 Entity::get_right_vector(){
+	return get_physics().trans.get_right_vector();
+}
+Vec3 Entity::get_up_vector() {
+	return get_physics().trans.get_up_vector();
+}
+
 }
 
 
