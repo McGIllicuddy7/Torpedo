@@ -22,8 +22,8 @@ void update(){
 void cam_update(Camera * cam){
 	if (runtime.level->player){
 		cam->position = runtime.level->player->get_physics().trans.trans.translation;
-		cam->target = runtime.level->player->get_forward_vector();
-		cam->up = runtime.level->player->get_up_vector();
+		cam->target = runtime.level->player->get_forward_vector()+runtime.level->player->get_physics().trans.trans.translation;
+		cam->up = runtime.level->player->get_up_vector()+runtime.level->player->get_physics().trans.trans.translation;
 //		printf("%f,%f,%f\n", cam->up.x, cam->up.y, cam->up.z);
 	}
 	else {
@@ -122,7 +122,7 @@ void load_level(const char * path){
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
     Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     get_level().models[string("cube")].materials[0].shader = shader;
-    EntityRef player =create_player_ship(Vec3{100,0,0}, Quat{0,0,0,1});
+    EntityRef player =create_player_ship(Vec3{0,0,0}, Quat{0,0,0,1});
     #ifdef MULT
     int count =4;
     for(int x = -count; x<count+1; x++){
