@@ -1,0 +1,13 @@
+prefix=/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out
+exec_prefix=${prefix}
+includedir=/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/include
+libdir=/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/lib
+
+Name: GLFW
+Description: A multi-platform library for OpenGL, window and input
+Version: 3.4.0
+URL: https://www.glfw.org/
+Requires.private: 
+Libs: -L${libdir} -lglfw3
+Libs.private:  -framework Cocoa -framework IOKit -framework CoreFoundation
+Cflags: -I${includedir}

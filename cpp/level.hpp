@@ -16,6 +16,8 @@ namespace Torpedo{
 	virtual Vec3 get_forward_vector();
 	virtual Vec3 get_right_vector();
 	virtual Vec3 get_up_vector();
+	virtual Vec3 get_location();
+	virtual Quat get_rotation();
     }; 
     class Level{
         public:

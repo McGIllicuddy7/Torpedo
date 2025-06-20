@@ -1,0 +1,10 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/build/cmake_install.cmake",
+		"/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/build/raylib/cmake_install.cmake",
+		"/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/build/raylib/external/glfw/cmake_install.cmake",
+		"/Users/bridget/torpedo/rust/target/debug/build/raylib-sys-15755d6742c5dd02/out/build/raylib/external/glfw/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

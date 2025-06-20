@@ -1,0 +1,1 @@
+{"rustc":4288001519616503020,"features":"[]","declared_features":"[\"default\", \"use_std\"]","target":3556356971060988614,"profile":17881933484524574303,"path":829830945603758588,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/scopeguard-8b9b1f2c34dab45c/dep-lib-scopeguard","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}
