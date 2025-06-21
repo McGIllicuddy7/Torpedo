@@ -122,7 +122,8 @@ void load_level(const char * path){
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
     Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     get_level().models[string("cube")].materials[0].shader = shader;
-    EntityRef player =create_player_ship(Vec3{(double)(rand()%10-5), (double)(rand()%10-5), (double)(rand()%10-5)}, Quat{0,0,0,1});
+    int64_t dims = 100;
+    EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
     #ifdef MULT
     int count =4;
     for(int x = -count; x<count+1; x++){
