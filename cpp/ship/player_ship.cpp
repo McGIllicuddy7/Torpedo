@@ -3,8 +3,13 @@ namespace Torpedo{
 void PlayerShip::on_tick(){
 	ship.parent = get_as_ref(this);
 	Vector2 imp = GetMouseDelta();
-	ship.rotation_input = QuaternionFromEuler(0,get_input_axis(KEY_S, KEY_W)*0.1, get_input_axis(KEY_A, KEY_D)*0.1);
-	ship_comp_update(&ship);
+	ship.rotation_input = QuaternionFromEuler(0,imp.y*0.001, -imp.x*0.001);
+	ship.movement_input = Vec3{
+		get_input_axis(KEY_S, KEY_W),
+		get_input_axis(KEY_D, KEY_A),
+		get_input_axis(KEY_LEFT_SHIFT, KEY_Z),
+	}*0.01;
+	ship.update();
 	auto rot  = get_physics().trans.trans.rotation;	
 }
 PlayerShip::PlayerShip(){

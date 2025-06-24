@@ -294,6 +294,13 @@ struct MeshComp{
         meshes.clear();
     }
     };
+inline Vec3 to_global_vector(Vec3 input, Vec3 forward, Vec3 right, Vec3 up){
+    Vec3 out = {0,0,0};
+    out+= forward*input.x;
+    out+= right*input.y;
+    out +=up*input.z;
+    return out;
+}
 }
 inline double get_input_axis(int key_negative, int key_positive){
 	double out =0;
@@ -305,3 +312,4 @@ inline double get_input_axis(int key_negative, int key_positive){
 	}
 	return out;
 }
+

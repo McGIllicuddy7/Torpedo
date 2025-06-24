@@ -2,7 +2,9 @@
 #include "../utils.hpp"
 #include "../level.hpp"
 namespace Torpedo{
-typedef struct {
+struct WeaponsComp{
+};
+struct ShipComp{
 	bool use_desired_rotation;
 	bool use_desired_position;
 	int32_t fuel;
@@ -11,8 +13,11 @@ typedef struct {
 	Vec3 desired_position;
 	Quat rotation_input;
 	Vec3 movement_input;
-}ShipComp;
-void ship_comp_update(ShipComp * comp);
+	WeaponsComp weapons;
+	void update();
+	void apply_damage(Vec3 direction, double amount);
+};
+
 
 class PlayerShip:public Entity{
 	ShipComp ship;

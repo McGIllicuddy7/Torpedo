@@ -31,7 +31,7 @@ void cam_update(Camera * cam){
 	}
 }
 void mainloop(const char * startup_level){
-    InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
+    InitWindow(1200,800, "brid-get");
     DisableCursor();
     Camera cam;
     cam.up = {0,0,1};
@@ -122,7 +122,7 @@ void load_level(const char * path){
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
     Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     get_level().models[string("cube")].materials[0].shader = shader;
-    int64_t dims = 100;
+    int64_t dims = 10;
     EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
     #ifdef MULT
     int count =4;

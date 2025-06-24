@@ -1,1 +1,0 @@
-Box<(dyn for<'a, 'b> Fn(&'a raylib::RaylibThread, &'b mut RaylibHandle) -> ModelList + Send + Sync + 'static)>
