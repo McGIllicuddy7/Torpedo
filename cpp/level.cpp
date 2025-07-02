@@ -31,7 +31,7 @@ void cam_update(Camera * cam){
 	}
 }
 void mainloop(const char * startup_level){
-    InitWindow(1200,800, "brid-get");
+    InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
     DisableCursor();
     Camera cam;
     cam.up = {0,0,1};

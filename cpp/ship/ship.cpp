@@ -2,8 +2,8 @@
 namespace Torpedo{
 void ShipComp::update(){	
     if(use_desired_rotation){
-	Vec3 base = QuaterionToEuler(parent.get()->get_physics().trans.trans.rotation);	
-	Vec3 target = QuaternionToEuler(desired_rotation);
+	Vec3 base = Vec3::from(QuaternionToEuler(parent.get()->get_physics().trans.trans.rotation));	
+	Vec3 target = Vec3::from(QuaternionToEuler(desired_rotation));
 	Vec3 delta = base-target;
 	Quaternion rot;
     	if(Vector3Length(delta)<0.01){
@@ -23,7 +23,7 @@ void ShipComp::update(){
 	parent.get()->get_physics().trans.trans.rotation =  Quat::from(QuaternionFromMatrix(rot_matrix));
     }
     if (use_desired_position){
-	   Vec3 delta =  	
+	   ;
     } else{	
 	parent.get()->get_physics().velocity+= to_global_vector(
 	    movement_input, 
