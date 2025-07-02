@@ -1,5 +1,5 @@
 #include "techno.h"
-#include "raylib.h"
+#include "/opt/homebrew/include/raylib.h"
 int main(){
 
 }
