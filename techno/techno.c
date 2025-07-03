@@ -1,6 +1,11 @@
 #define CTILS_IMPLEMENTATION
 #include "techno.h"
+#ifdef macos
 #include </opt/homebrew/include/raylib.h>
+#else 
+#include <raylib.h>
+#endif
+#include <string.h>
 #define MAX_PANEL_COUNT 128
 #define ALLOCATOR_SIZE 16000
 typedef struct{
@@ -17,6 +22,11 @@ typedef struct{
 	int b;
 	int a;
 }techno_color_t;
+typedef struct{
+	int height;
+	int width;
+}dimensions_t;
+static dimensions_t get_text_dimensions(const char * text, int pixel_dimensions, int width, int max_height);
 static techno_panel_t panel_stack[MAX_PANEL_COUNT];
 static int panel_stack_ptr = 0;
 static draw_call_t* draw_calls = 0;
@@ -98,9 +108,18 @@ bool techno_panel_begin(int x, int y, int width, int height){
 	return false;
 }
 void techno_panel_end(){
-	panel_stack_ptr -= 1;
+	if(panel_stack_ptr>0) panel_stack_ptr -= 1;
 }
 bool techno_button(const char * text,const char * name){
+	techno_panel_t * panel = get_current_panel();
+	int buff = panel->border;
+	int x = panel->x+buff;
+	int y = panel->y+buff;
+	int height = panel->height-panel->border*2;
+	int width = panel->width-panel->border*2;
+	dimensions_t dims = get_text_dimensions(text, 14,width, height );
+	
+	return false;
 }
 void techno_text(const char * text){
 }
@@ -108,4 +127,8 @@ void techno_title(const char * text){
 }
 void techno_scroll_box_begin(int depth){}
 void techno_scroll_box_end(){}
+static dimensions_t get_text_dimensions(const char * string, int pixel_size, int width, int height){
+	//todo fix
+	return (dimensions_t){width, height};
+}
 

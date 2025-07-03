@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <_static_assert.h>
 typedef enum{
 	DrawCallHeader, DrawCallText, DrawCallPanel, DrawCallButton,DrawCallImage
 } draw_call_type_t;
