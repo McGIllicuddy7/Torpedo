@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
+;
+typedef struct{
+	char r;
+	char g;
+	char b;
+	char a;
+}techno_color_t;
 typedef enum{
 	DrawCallHeader, DrawCallText, DrawCallPanel, DrawCallButton,DrawCallImage
 } draw_call_type_t;
@@ -13,16 +20,19 @@ typedef struct draw_call_t{
 	int y;
 	int height;
 	int width;
-	char r;
-	char g;
-	char b;
-	char a;
+	int text_height;
+	techno_color_t text_col;
+	techno_color_t border_col;
+	techno_color_t background_col;
+	techno_color_t panel_col;
 	draw_call_type_t to_call;
 } draw_call_t;
 void techno_begin();
 draw_call_t* techno_end();
 
-void techno_color(int r, int g, int b, int a);
+void techno_border_color(int r, int g, int b, int a);
+void techno_text_color(int r, int g, int b, int a);
+void techno_background_color(int r, int g, int b, int a);
 bool techno_panel_begin(int x, int y, int width, int height);
 void techno_panel_end();
 bool techno_button(const char * text,const char * name);
@@ -30,4 +40,5 @@ void techno_text(const char * text);
 void techno_title(const char * text);
 void techno_scroll_box_begin(int depth);
 void techno_scroll_box_end();
-
+void draw_call(draw_call_t * dc);
+void draw_render_queue(draw_call_t * start);
