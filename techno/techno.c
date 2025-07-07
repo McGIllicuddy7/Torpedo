@@ -34,6 +34,11 @@ typedef struct {
 	int height;
 	int width;
 }techno_rect_t;
+typedef struct scrollbar_data_t{
+	char * name;
+	struct scrollbar_data_t * next;
+	float scroll_amount;
+}scrollbar_data_t;
 static int get_text_wrapped_height(const char * string, int pixel_size, int width);
 static point_t center_text(const char * string, int pixel_size, int base_width, int in_height);
 static dimensions_t get_text_dimensions(const char * text, int pixel_dimensions);
@@ -58,6 +63,7 @@ typedef struct {
 	bool mouse_is_down;
 	bool mouse_was_down;
 	bool selected_object;
+	
 }techno_state_t;
 static techno_state_t state = {0};
 static techno_state_t * current_state = &state;
@@ -124,7 +130,7 @@ void techno_begin(){
 	current_state->cursor_y = GetMouseY();
 	current_state->draw_calls =0;
 	current_state->last_draw_call =0;
-	current_state->pixel_size = 12;
+	current_state->pixel_size = 24;
 	current_state->text_color = (techno_color_t){255, 255, 255, 255};
 	current_state->background_color = (techno_color_t){128, 128, 128, 255};
 	current_state->panel_color = (techno_color_t){32, 32, 32, 255};
@@ -221,6 +227,7 @@ bool techno_button(const char * text,const char * name){
 		}
 	}
 	draw_call_t dc = {0};
+	dc.text_height =current_state->pixel_size;
 	dc.x = rect.x;
 	dc.y = rect.y;
 	dc.height = rect.height;
@@ -230,6 +237,11 @@ bool techno_button(const char * text,const char * name){
 	dc.text_col = current_state->text_color;
 	dc.border_col = current_state->border_color;
 	dc.background_col = current_state->background_color;
+	if(out){
+		dc.background_col.b /=2;
+		dc.background_col.g /=2;
+		dc.background_col.r /=2;
+	}
 	push_draw_call(dc);
 	return out;
 }
@@ -268,12 +280,6 @@ void techno_title(const char * text){
 	dc.background_col = current_state->background_color;
 	dc.text_height = current_state->pixel_size*2;
 	push_draw_call(dc);
-}
-void techno_scroll_box_begin(int depth){
-	TODO();
-}
-void techno_scroll_box_end(){
-	TODO();
 }
 static dimensions_t get_text_dimensions(const char * string, int pixel_size){
 	int width = 0;
@@ -336,7 +342,7 @@ static point_t center_text(const char * string, int pixel_size, int width, int i
 			height+= pixel_size;
 		}	
 	}	
-	int diff = (width-max_width)/2;
+	int diff = (width-max_width-max_char_width/2)/2;
 	int h = (in_height-height)/2;
 	return (point_t){diff, h};
 }
@@ -370,7 +376,6 @@ void draw_text(int x, int y, int width, int pixel_size, techno_color_t color,con
 	DrawText(draw_buff, x, y+height, pixel_size, *(Color*)&color);	
 }
 void draw_call(draw_call_t * dc){
-	printf("draw call\n");
 	draw_call_type_t dt = dc->to_call;
 	switch(dt){
 		case DrawCallHeader:{
@@ -381,8 +386,7 @@ void draw_call(draw_call_t * dc){
 			draw_text(dc->x, dc->y, dc->width, dc->text_height,dc->text_col,dc->string);
 			break;
 		}
-		case DrawCallPanel:{
-			printf("drew panel\n");
+		case DrawCallPanel:{	
 			DrawRectangleRounded((Rectangle){dc->x, dc->y, dc->width, dc->height}, 
 			0.1, 10,*(Color*)&dc->panel_col);
 			break;
@@ -398,10 +402,24 @@ void draw_call(draw_call_t * dc){
 			TODO();
 			break;
 		};
+		case DrawCallRectangle:{
+				break;
+		};
+		case DrawCallCircle:{
+			break;
+		};
 		default:TODO();
 		break;
 	}
 }
+void techno_progress_bar(double value, double min, double max, int height, bool horizontal){
+	techno_rect_t r= request_slab(height);
+		
+}
+double techno_slider(double start_value, int height){
+
+}
+
 void draw_render_queue(draw_call_t * start){
 	draw_call_t * current = start;
 	while(current){

@@ -10,7 +10,7 @@ typedef struct{
 	char a;
 }techno_color_t;
 typedef enum{
-	DrawCallHeader, DrawCallText, DrawCallPanel, DrawCallButton,DrawCallImage
+	DrawCallHeader, DrawCallText, DrawCallPanel, DrawCallButton,DrawCallImage, DrawCallRectangle, DrawCallCircle
 } draw_call_type_t;
 
 typedef struct draw_call_t{
@@ -29,7 +29,6 @@ typedef struct draw_call_t{
 } draw_call_t;
 void techno_begin();
 draw_call_t* techno_end();
-
 void techno_border_color(int r, int g, int b, int a);
 void techno_text_color(int r, int g, int b, int a);
 void techno_background_color(int r, int g, int b, int a);
@@ -38,7 +37,8 @@ void techno_panel_end();
 bool techno_button(const char * text,const char * name);
 void techno_text(const char * text);
 void techno_title(const char * text);
-void techno_scroll_box_begin(int depth);
-void techno_scroll_box_end();
+void techno_set_text_size(int size);
+void techno_progress_bar(double value, double min, double max, int height, bool horizontal);
+double techno_slider(double start_value, int height);
 void draw_call(draw_call_t * dc);
 void draw_render_queue(draw_call_t * start);
