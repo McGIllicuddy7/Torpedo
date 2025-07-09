@@ -9,10 +9,10 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
         auto loc = trans.translation+to_global_vector(i.second.offset.translation, trans.get_forward_vector(), trans.get_right_vector(), trans.get_up_vector());
         DrawModel(md, loc,1.0,i.second.color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
         md.transform = old;
-        b.min += trans.translation;
+/*        b.min += trans.translation;
         b.max += trans.translation;
         DrawBoundingBox(b, GREEN);
-
+*/
     }
 }
 void renderer_update(Camera *cam){

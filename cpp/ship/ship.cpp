@@ -20,26 +20,34 @@ void ShipComp::private_update_non_homing(){
     }else{
 	Matrix base =  QuaternionToMatrix(parent.get()->get_physics().trans.trans.rotation);
 	Matrix rot_matrix= QuaternionToMatrix(rotation_input)*base;
-	parent.get()->get_physics().trans.trans.rotation =  Quat::from(QuaternionFromMatrix(rot_matrix));
+	parent.get()->get_physics().trans.trans.rotation =  Quat::from(QuaternionFromMatrix(rot_matrix));      
     }
     if (use_desired_position){
 	   Vec3 delta = desired_position - parent.get()->get_location();
 	    if(Vector3LengthSqr(delta)<0.1){
-		parent.get()->get_physics().trans.trans.translation = delta;	
+		    parent.get()->get_physics().trans.trans.translation = desired_position	;
+	        if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
+		   parent.get()->get_physics().velocity = (Vec3){0, 0,0 };
+		}
+	    }else{
+		parent.get()->get_physics().velocity -=Vector3Normalize(delta)*accel_value;
 	    }
-	    parent.get()->get_physics().velocity -= parent.get()->get_physics().velocity*0.1;
-	    if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
-		parent.get()->get_physics().velocity = (Vec3){0, 0,0 };
-	    }
-
     } else{	
-    
-	parent.get()->get_physics().velocity+= to_global_vector(
-	    movement_input, 
-	    parent.get()->get_forward_vector(), 
-	    parent.get()->get_right_vector(), 
-	    parent.get()->get_up_vector()
-	);
+	if(stablized_velocity && Vector3Length(movement_input)<0.001){
+	    Vec3 vec = parent.get()->get_physics().velocity;
+	    if(Vector3Length(vec)<0.001){
+		vec = Vec3{0,0,0};
+	    } else{
+		parent.get()->get_physics().velocity -= Vec3::from(Vector3Normalize(vec)*accel_value);
+	    }
+	}else{
+	    parent.get()->get_physics().velocity+= to_global_vector(
+		Vec3::from(Vector3(movement_input)*accel_value),
+		parent.get()->get_forward_vector(), 
+		parent.get()->get_right_vector(), 
+		parent.get()->get_up_vector()
+	    );
+	}
     }
 
 }

@@ -156,7 +156,7 @@ void update_physics(){
     size_t count = 0;
     for(size_t i =0; i<comps.size(); i++){ 
         comps[i].trans.trans.translation += comps[i].velocity*1./60.0;
-        comps[i].trans.trans.rotation =Quat::from(QuaternionFromMatrix(QuaternionToMatrix(comps[i].trans.trans.rotation)*QuaternionToMatrix(comps[i].angular_velocity)));
+        comps[i].trans.trans.rotation =Quat::from(QuaternionFromMatrix(QuaternionToMatrix(comps[i].trans.trans.rotation)*QuaternionToMatrix(QuaternionFromEuler(comps[i].angular_velocity.x, comps[i].angular_velocity.y, comps[i].angular_velocity.z))));
         comps[i].trans.trans.rotation = Quat::from(QuaternionNormalize(comps[i].trans.trans.rotation));
         #ifdef GRID
         count += update_obj(i);

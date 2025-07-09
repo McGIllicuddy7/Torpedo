@@ -8,7 +8,9 @@ struct ShipComp{
 	bool use_desired_rotation = false;	
 	bool use_desired_position = false;
 	bool use_target=false;
+	bool stablized_velocity = true;
 	int32_t fuel = 1000;
+	float accel_value= 0.025;
 	EntityRef parent =EntityRef{0,0};
 	Quat desired_rotation = Quat{0,0,0,1};
 	Vec3 desired_position = Vec3{0,0,0};

@@ -132,7 +132,7 @@ void load_level(const char * path){
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
-                Vec3 point = Vec3{(double)x,(double)y,(double)z}*8;
+                Vec3 point = Vec3{(double)x,(double)y,(double)z}*32;
                 Vec3 v;
                 v.x = x == 0 ? 0 : (x> 0 ? -1 : 1);
                 v.y = y == 0 ? 0 : (y> 0 ? -1 : 1);
@@ -162,7 +162,7 @@ void load_level(const char * path){
 }
 EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular){
     MeshPart m;
-    m.string = "ship";
+    m.string = "cube";
     m.offset= Trans::create(); 
     m.color = color;
     EntityRef e = create_entity<Entity>();
@@ -172,11 +172,12 @@ EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec
     phys.is_valid = true;
     phys.trans.trans = Trans::create();
     phys.trans.trans.translation = location;
-    phys.angular_velocity = Quat::from(QuaternionFromEuler(angular.x, angular.y, angular.z));
+    phys.angular_velocity = Vec3{angular.x, angular.y, angular.z};
     Collider col;
     col.offset= Trans::create();
     Vec3 mscale = Vec3{-scale.x, -scale.y, -scale.z};
-    col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
+    //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
+    col.bb = BoundingBox{mscale, scale};
     phys.colliders.push_back(col);
     phys.velocity = velocity; 
     e.get()->get_physics()= phys;

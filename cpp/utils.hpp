@@ -278,7 +278,7 @@ struct PhysicsComp{
     vector<Collider> colliders;
     Torpedo::Vec3 velocity;
     double mass;
-    Torpedo::Quat angular_velocity;
+    Torpedo::Vec3 angular_velocity;
     inline void reset(){
         is_valid = false; 
     }
