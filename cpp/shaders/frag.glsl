@@ -29,7 +29,7 @@ void main()
     }
     vec4 col = texture(diffuse, fragTexCoord); 
     finalColor = delta *col;
-    finalColor.a = col.a;
+    finalColor.a = col.a; 
     /*
     vec3 light_pos = vec3(-10.0, 0.0,0.0);
     vec3 delt = light_pos-position;

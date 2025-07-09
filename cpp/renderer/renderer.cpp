@@ -15,8 +15,10 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
 */
     }
 }
-void renderer_update(Camera *cam){
-    BeginDrawing();
+void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
+ 
+    
+    BeginTextureMode(tex);
     ClearBackground(BLACK); 
     rlSetClipPlanes(0.001, 5000000);
     BeginMode3D(*cam);
@@ -28,5 +30,11 @@ void renderer_update(Camera *cam){
     }
     EndMode3D();
     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);
+    EndTextureMode();
+    BeginDrawing();
+    BeginShaderMode(postprocess);
+ 
+     DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
+    EndShaderMode();
     EndDrawing();
 }

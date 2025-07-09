@@ -42,12 +42,14 @@ void mainloop(const char * startup_level){
     load_level(startup_level);
     setup();
     SetTargetFPS(60);
+    RenderTexture2D post_texture = LoadRenderTexture(GetScreenWidth(),GetScreenHeight());
+    Shader post_shader = LoadShader("./shaders/vertex.glsl", "./shaders/postfrag.glsl");
     while(!WindowShouldClose()){
 	update();
         physics_prepare_update();
         update_physics();
 	cam_update(&cam);
-        renderer_update(&cam);
+        renderer_update(&cam,post_texture, post_shader);
         physics_finish_update();
 	run_destructors();
     }  
@@ -125,10 +127,10 @@ void load_level(const char * path){
     get_level().models[string("cube")].materials[0].shader = shader;
     get_level().models[string("ship")].materials[0].shader = shader;
     get_level().models[string("ship")].materials[0].maps->texture = LoadTexture("../assets/ship_texture.png");
-    int64_t dims = 10;
+    int64_t dims = 4;
     EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
     #ifdef MULT
-    int count =4;
+    int count =10;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
