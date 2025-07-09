@@ -6,19 +6,19 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
         Model md = get_level().models[i.second.string];
         auto old = md.transform;
         md.transform = QuaternionToMatrix(trans.rotation); 
-        auto loc = trans.translation+i.second.offset.translation;
+        auto loc = trans.translation+to_global_vector(i.second.offset.translation, trans.get_forward_vector(), trans.get_right_vector(), trans.get_up_vector());
         DrawModel(md, loc,1.0,i.second.color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
         md.transform = old;
-  //      b.min += trans.translation;
- //       b.max += trans.translation;
-//        DrawBoundingBox(b, GREEN);
+        b.min += trans.translation;
+        b.max += trans.translation;
+        DrawBoundingBox(b, GREEN);
 
     }
 }
 void renderer_update(Camera *cam){
     BeginDrawing();
     ClearBackground(BLACK); 
-    rlSetClipPlanes(0.005, 5000000);
+    rlSetClipPlanes(0.001, 5000000);
     BeginMode3D(*cam);
     for(size_t i =0; i<get_level().meshes.size(); i++){
         if(get_level().meshes[i].meshes.empty()|| !get_level().entities[i]){

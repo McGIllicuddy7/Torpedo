@@ -25,7 +25,10 @@ EntityRef create_player_ship(Vec3 pos, Quat rot){
 	MeshPart msh;
 	msh.color = Color{0,0,0,0};
 	msh.offset= Trans::create();
-	msh.string = "cube";
+	//-0.257, 0, -0.0615
+	msh.offset.translation = Vec3{-0.540*0.75,0,-0.130*0.75};
+	msh.offset.scale = Vec3{1,1,1};
+	msh.string = "ship";
 	out.get()->get_mesh().meshes = std::unordered_map<std::string, MeshPart>{{"mesh", msh}};
 	return out;
 }

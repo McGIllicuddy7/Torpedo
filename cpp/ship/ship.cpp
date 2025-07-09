@@ -29,7 +29,7 @@ void ShipComp::private_update_non_homing(){
 	    }
 	    parent.get()->get_physics().velocity -= parent.get()->get_physics().velocity*0.1;
 	    if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
-		parent.get()->get_physics().velocity = {0, 0,0 };
+		parent.get()->get_physics().velocity = (Vec3){0, 0,0 };
 	    }
 
     } else{	

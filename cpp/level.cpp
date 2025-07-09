@@ -120,8 +120,11 @@ void load_level(const char * path){
     runtime.level = std::make_unique<Level>(Level{});
     runtime.level->player = 0;
     get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
+    get_level().models[string("ship")] = LoadModel("../assets/ship.glb");
     Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     get_level().models[string("cube")].materials[0].shader = shader;
+    get_level().models[string("ship")].materials[0].shader = shader;
+    get_level().models[string("ship")].materials[0].maps->texture = LoadTexture("../assets/ship_texture.png");
     int64_t dims = 10;
     EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
     #ifdef MULT
@@ -159,7 +162,7 @@ void load_level(const char * path){
 }
 EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular){
     MeshPart m;
-    m.string = "cube";
+    m.string = "ship";
     m.offset= Trans::create(); 
     m.color = color;
     EntityRef e = create_entity<Entity>();
@@ -173,7 +176,7 @@ EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec
     Collider col;
     col.offset= Trans::create();
     Vec3 mscale = Vec3{-scale.x, -scale.y, -scale.z};
-    col.bb = BoundingBox{mscale/2,scale/2};
+    col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
     phys.colliders.push_back(col);
     phys.velocity = velocity; 
     e.get()->get_physics()= phys;

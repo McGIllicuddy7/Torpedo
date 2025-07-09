@@ -6,7 +6,7 @@ in vec4 fragColor;
 in vec3 fragNormal;
 in vec3 fragPosition;
 // Input uniform values
-//uniform sampler2D diffuse;
+uniform sampler2D diffuse;
 //uniform sampler2D normals;
 //uniform vec4 colDiffuse;
 // Output fragment color
@@ -27,9 +27,9 @@ void main()
     else if(delta>1.0){
         delta = 1.0;        
     }
-    
-    finalColor = delta *vec4(1,1,1,1);
-    finalColor.a = 1;
+    vec4 col = texture(diffuse, fragTexCoord); 
+    finalColor = delta *col;
+    finalColor.a = col.a;
     /*
     vec3 light_pos = vec3(-10.0, 0.0,0.0);
     vec3 delt = light_pos-position;
