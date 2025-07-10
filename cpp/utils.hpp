@@ -279,6 +279,7 @@ struct PhysicsComp{
     Torpedo::Vec3 velocity;
     double mass;
     Torpedo::Vec3 angular_velocity;
+    bool destroy_on_impact;
     inline void reset(){
         is_valid = false; 
     }

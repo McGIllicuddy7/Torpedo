@@ -1,12 +1,24 @@
 #pragma once 
 #include "utils.hpp"
+#include <functional>
+#include <mutex>
+
 namespace Torpedo{
+enum Tag:uint32_t{
+    tag_movable = 0b1,
+    tag_on_fire = 0b10,
+    tag_ship = 0b100,
+    tag_projectile = 0b1000,
+    tag_pressurized = 0b10000,
+    tag_interactable = 0b100000,
+};
     class Entity{ 
         public:
-        uint32_t id;
+        uint32_t tags;
+        uint32_t id; 
         virtual ~Entity();
         virtual void on_tick();
-        virtual void apply_damage(const char * comp, double damage);
+        virtual void on_damage(Vec3 incoming_direction, double damage);
         virtual vector<unsigned char> serialize();
         virtual void set_velocity(Vec3 vel);
         virtual Vec3 get_velocity();
@@ -18,16 +30,40 @@ namespace Torpedo{
 	virtual Vec3 get_up_vector();
 	virtual Vec3 get_location();
 	virtual Quat get_rotation();
+        bool has_tag(Tag tag)const ; 
+        void add_tag(Tag tag);
+        void remove_tag(Tag tag);
     }; 
+ 
+    enum class EventType{
+        ApplyDamage,
+    };
+    struct Event{
+        uint32_t target_idx;
+        uint32_t target_generation; 
+        uint32_t cause_idx;
+        uint32_t cause_generation;
+        EventType EventType;
+        struct ApplyDamage{
+            Vec3 direction;
+            Vec3 point;
+            double damage;
+        };
+        union{
+            ApplyDamage apply_damage;
+        };
+    };
     class Level{
         public:
 	Entity * player;
+        std::vector<Event> event_queue;
 	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;
         std::vector<std::unique_ptr<Entity>> entities;
         std::vector<uint32_t> generations;
         std::vector<MeshComp> meshes;
         std::vector<PhysicsComp> physics;
+        std::vector<std::function<void()>> draw_calls;
     };
     class Runtime{
         public:
@@ -46,6 +82,9 @@ public:
             return out;
         }
         inline bool is_valid(){
+            if(index>=runtime.level->entities.size()){
+                return false;
+             }
             return runtime.level->entities[index] && runtime.level->generations[index] == generation;
         }
         inline Entity& operator->(){
@@ -57,13 +96,15 @@ public:
             return *runtime.level->entities[index];
         }
         inline Entity * get(){
-            assert(is_valid());
+            if(!is_valid()){
+                return 0;
+            }
             return runtime.level->entities[index].get();
          }
         template<typename T> T* downcast(){
             Entity * e= get(); 
-            return dynamic_cast<T>(e);
-        } 
+            return dynamic_cast<T*>(e);
+        }
     };
 
 void mainloop(const char * level);
@@ -93,6 +134,11 @@ void set_player_entity(EntityRef ref);
 inline EntityRef get_as_ref(Entity * ptr){
 	return EntityRef::create(ptr->id, get_level().generations[ptr->id]);
 }
+void draw_call(std::function<void()>to_call);
+std::vector<EntityRef> get_all_entities_with_tag(Tag tag);
+std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t count);
+std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count);
+void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amount);
 }
 
 

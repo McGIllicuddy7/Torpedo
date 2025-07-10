@@ -23,14 +23,20 @@ void ShipComp::private_update_non_homing(){
 	parent.get()->get_physics().trans.trans.rotation =  Quat::from(QuaternionFromMatrix(rot_matrix));      
     }
     if (use_desired_position){
-	   Vec3 delta = desired_position - parent.get()->get_location();
-	    if(Vector3LengthSqr(delta)<0.1){
-		    parent.get()->get_physics().trans.trans.translation = desired_position	;
+	   Vec3 delta2 = desired_position - parent.get()->get_location();
+
+	    if(Vector3LengthSqr(delta2)<0.1){
+		    parent.get()->get_physics().trans.trans.translation = desired_position;
 	        if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
 		   parent.get()->get_physics().velocity = (Vec3){0, 0,0 };
 		}
-	    }else{
-		parent.get()->get_physics().velocity -=Vector3Normalize(delta)*accel_value;
+	    }else{	
+		double dot = Vector3DotProduct(delta2, parent.get()->get_physics().velocity);	
+		Vector3 v = parent.get()->get_physics().velocity*(1-dot);	
+		Vector3 p =  Vector3Normalize(v);
+		p+=Vector3Normalize(delta2)*dot;
+		parent.get()->get_physics().velocity += Vector3Normalize(p)*accel_value;
+		///parent.get()->get_physics().velocity  = Vector3Normalize(parent.get()->get_physics().velocity);
 	    }
     } else{	
 	if(stablized_velocity && Vector3Length(movement_input)<0.001){
@@ -55,8 +61,13 @@ void ShipComp::private_update_homing(){
     Entity * t = target.get();
     Vec3 to_target = t->get_location()-parent.get()->get_location();
     use_desired_position = true;
+
     desired_position = t->get_location();
-    desired_rotation = QuaternionFromMatrix(MatrixLookAt(parent.get()->get_location(), t->get_location(),parent.get()->get_up_vector()));
+    Vec3 dp = desired_position;
+    draw_call([dp](){
+	DrawSphere(dp, 2.0, GREEN)	;
+    });
+    parent.get()->get_physics().trans.trans.rotation= QuaternionFromMatrix(MatrixLookAt(parent.get()->get_location(), t->get_location(),parent.get()->get_up_vector()));
     private_update_non_homing(); 
 }
 void ShipComp::update(){	 

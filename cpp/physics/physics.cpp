@@ -113,6 +113,17 @@ std::optional<Col>physics_comp_check_collision(const PhysicsComp & a, const Phys
 static inline void update_pair(size_t i, size_t j){
         if(auto col = physics_comp_check_collision(comps[i], comps[j])){
             comps[i].trans.trans.translation += col->norm*(col->depth+0.01);
+            uint32_t i_gen = runtime.level->generations[i];
+            uint32_t j_gen = runtime.level->generations[j];
+            uint32_t ui = i;
+            uint32_t uj = j;
+            EntityRef iref = EntityRef{.index = ui, .generation =i_gen};
+            EntityRef jref = EntityRef{.index = uj, .generation = j_gen};
+            apply_damage(iref,jref,col->norm,10);
+            apply_damage(jref, iref, col->norm*-1, 10);
+            if(comps[i].destroy_on_impact || comps[j].destroy_on_impact){
+                return;
+            }
             auto v = collision_response(comps[i].mass, comps[i].velocity, comps[j].mass, comps[j].velocity, Vec3::from(Vector3Normalize(col->norm)));
             auto v2 = angular_collision_response(comps[i].mass, comps[i].velocity, comps[i].trans.trans.translation,comps[j].mass, comps[j].velocity, comps[j].trans.trans.translation);
             comps[i].velocity = v[0];

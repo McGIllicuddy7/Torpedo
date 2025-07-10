@@ -29,6 +29,9 @@ void main()
     }
     vec4 col = texture(diffuse, fragTexCoord); 
     finalColor = delta *col;
+/*    if(col.r >= 1.0 || col.g >= 1.0 || col.b >= 1.0){
+        finalColor = col;
+    }*/
     finalColor.a = col.a; 
     /*
     vec3 light_pos = vec3(-10.0, 0.0,0.0);

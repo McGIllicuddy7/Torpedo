@@ -17,10 +17,16 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
 }
 void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
  
-    
+   
     BeginTextureMode(tex);
     ClearBackground(BLACK); 
     rlSetClipPlanes(0.001, 5000000);
+
+    for(int i =0; i<runtime.level->draw_calls.size(); i++){
+        try{runtime.level->draw_calls[i]();} catch(std::exception e){
+            assert(false);
+        }
+    }
     BeginMode3D(*cam);
     for(size_t i =0; i<get_level().meshes.size(); i++){
         if(get_level().meshes[i].meshes.empty()|| !get_level().entities[i]){
@@ -28,13 +34,14 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
         }
         draw_mesh_comp(get_level().meshes[i], get_level().physics[i].trans.trans,get_level().physics[i].colliders[0].bb);
     }
-    EndMode3D();
-    DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);
-    EndTextureMode();
-    BeginDrawing();
-    BeginShaderMode(postprocess);
- 
-     DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
+    EndMode3D(); 
+
+     EndTextureMode();
+    BeginDrawing();  
+    BeginShaderMode(postprocess); 
+    DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
     EndShaderMode();
+     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   
+
     EndDrawing();
 }

@@ -10,5 +10,20 @@ uniform sampler2D inputTexture;
 // Output fragment color
 out vec4 finalColor;
 void main(){
-    finalColor = texture(inputTexture, fragTexCoord);
+    vec4 col =   texture(inputTexture, fragTexCoord);
+    float a = col.a; 
+    int width =5;
+    for(int i  = -width; i<width+1; i++){
+        for(int j = -width; j<width+1; j++){
+            if(i == 0 && j == 0){
+                continue;
+            }
+            vec4 c2 = texture(inputTexture, fragTexCoord+vec2(i,j));
+            if(c2.r >= 0.6|| c2.g >= 0.6|| c2.b >=0.6){
+                   col += c2/sqrt((i*i+j*j)/32.0);
+            }
+        }
+    }
+    finalColor =col;
+    finalColor.a = a;
 }
