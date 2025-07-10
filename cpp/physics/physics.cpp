@@ -189,3 +189,13 @@ void physics_finish_update(){
         phys_comps[indexs[i]] = comps[i];
     }
 }
+
+bool check_collision_line_box(Vec3 start, Vec3 end, Matrix trans, BoundingBox box){
+    return false;
+}
+std::optional<Torpedo::Col> line_trace(Torpedo::Vec3 start, Torpedo::Vec3 end){
+    for(int i =0; i<runtime.level->physics.size();i++){
+        
+    } 
+    return std::optional<Torpedo::Col>{};
+}

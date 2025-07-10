@@ -77,6 +77,8 @@ void ShipComp::update(){
 	private_update_non_homing();
     }
 }
+void ShipComp::on_damage(Vec3 direction, double amount){
 
+}
 
 }

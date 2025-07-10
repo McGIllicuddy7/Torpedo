@@ -11,3 +11,4 @@ std::optional<Torpedo::Col>check_collision(
 void physics_prepare_update();
 void update_physics();
 void physics_finish_update();
+std::optional<Torpedo::Col> line_trace(Torpedo::Vec3 start, Torpedo::Vec3 end);
