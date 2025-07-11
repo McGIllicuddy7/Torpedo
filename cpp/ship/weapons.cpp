@@ -23,7 +23,7 @@ namespace Torpedo{
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*50;
+		phys.velocity = direction*300.0;
 		e.get()->get_physics()= phys; 
 }	
 void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef target, bool homing){
@@ -35,6 +35,7 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
 		Missile * miss= e.downcast<Missile>();
 		miss->target = target;
 		miss->homing = homing;
+		miss->ship.parent = e;
 		e.get()->add_tag(tag_movable);
 		e.get()->get_mesh().meshes["base"] = m;
 		PhysicsComp phys = {0};
@@ -56,7 +57,7 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
 		e.get()->get_physics()= phys;
 }
 Projectile::Projectile(){
-	remaining_time = 10.0;
+	remaining_time = 0.1;
 	pending_kill =false;
 };
 void Projectile::on_tick(){
@@ -76,7 +77,6 @@ void Projectile::on_damage(Vec3 incoming_direction, double damage){
 	destroy_entity(get_as_ref(this));
 }
 Missile::Missile(){
-	ship.parent = get_as_ref(this);
 	remaining_time = 60.0;
 	ship = ShipComp{};
 	ship.accel_value = 0.1;

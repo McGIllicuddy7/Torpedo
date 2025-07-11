@@ -22,7 +22,7 @@ void update(){
 void process_events(){
     for(int i =0; i<runtime.level->event_queue.size(); i++){
 	Event e = runtime.level->event_queue[i];
-	if(e.EventType ==EventType::ApplyDamage){
+	if(e.event_type==EventType::ApplyDamage){
 		EntityRef ent = EntityRef{.index = e.target_idx, .generation = e.target_generation};
 		if(!ent.get()) continue;
 		ent.get()->on_damage(e.apply_damage.direction, e.apply_damage.damage);
@@ -56,6 +56,7 @@ void mainloop(const char * startup_level){
     Shader post_shader = LoadShader("./shaders/vertex.glsl", "./shaders/postfrag.glsl");
     while(!WindowShouldClose()){
 	runtime.level->draw_calls.clear();
+	runtime.level->draw_calls_3d.clear();
 	runtime.level->event_queue.clear();
 	update();
         physics_prepare_update();
@@ -93,7 +94,7 @@ void Entity::remove_tag(Tag tag){
     tags &= ~tag;
 }
 void Entity::on_damage(Vec3 incoming_direction,double damage){
-    
+    destroy_entity(get_as_ref(this));    
 }
 
 vector<unsigned char> Entity::serialize(){
@@ -119,6 +120,9 @@ void run_destructors(){
 		return;
 	}	
 	size_t index = runtime.level->destroy_queue.size();
+	if(index == 0){
+	    return;
+	}
 	do {
 		index -=1;
 		size_t idx = runtime.level->destroy_queue[index];
@@ -169,7 +173,7 @@ void load_level(const char * path){
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
-                Vec3 point = Vec3{(double)x,(double)y,(double)z}*40;
+                Vec3 point = Vec3{(double)x,(double)y,(double)z}*4;
                 Vec3 v;
                 v.x = x == 0 ? 0 : (x> 0 ? -1 : 1);
                 v.y = y == 0 ? 0 : (y> 0 ? -1 : 1);
@@ -178,8 +182,8 @@ void load_level(const char * path){
                 ang.x = (rand()%1000)/1000.0*2-1;
                 ang.y= (rand()%1000)/1000.0*2-1;
                 ang.z = (rand()%1000)/1000.0*2-1;
-                ang *= 0.0;
-                EntityRef a = create_cube(point,Vec3{0.5, 0.5, 0.5}, v, WHITE, ang);
+//                ang *= 0.0;
+                EntityRef a = create_cube(point,Vec3{0.5, 0.5, 0.5}, Vec3{0,0,0}, WHITE, ang);
             }
         }
     }
@@ -249,6 +253,12 @@ void draw_call(std::function<void()>func ){
     }
 
 }
+
+void draw_call_3d(std::function<void()>to_call){
+    try {runtime.level->draw_calls_3d.push_back(to_call);} catch(std::exception e) {
+	fputs("exception in draw call caught\n",stderr);
+    }
+}
 std::vector<EntityRef> get_all_entities_with_tag(Tag tag){
     std::vector<EntityRef> out = {};
     for(uint32_t i =0; i<runtime.level->entities.size(); i++){
@@ -306,7 +316,7 @@ void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amou
     event.cause_generation = source.generation;
     event.target_idx = target.index;
     event.target_generation = target.generation;
-    event.EventType = EventType::ApplyDamage;
+    event.event_type = EventType::ApplyDamage;
     event.apply_damage.damage = amount;
     event.apply_damage.direction = direction;
     runtime.level->event_queue.push_back(event);

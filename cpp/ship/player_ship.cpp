@@ -1,4 +1,6 @@
 #include "ship.hpp"
+#include "../physics/physics.hpp"
+#include "../particles.hpp"
 namespace Torpedo{
 
 void PlayerShip::on_tick(){	
@@ -20,7 +22,33 @@ void PlayerShip::on_tick(){
 		Vec3 rv = Vec3::from(r*-1.0);
 		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector(),get_rotation());
 		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(),get_rotation());
-
+	}
+	if(IsKeyPressed(KEY_C)){
+		/*Vector3 r = get_right_vector();
+		r*= 0.2;
+		Vec3 lv= Vec3::from(r);
+		Vec3 rv = Vec3::from(r*-1.0);
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector(),get_rotation());
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(),get_rotation());*/
+		Vec3 r = get_right_vector()*0.23;
+		Vec3 start =get_location()+get_forward_vector()+r;
+		Vec3 end =get_location()+get_forward_vector()*1000.0+r;	
+		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
+			DrawCapsule(start, end, 0.01, 12, 12, RED);
+		});});
+		auto c = line_trace( start,end,{id});
+		if(c){
+			apply_damage(get_as_ref(this),*c,get_forward_vector(), 10);
+		}
+		start =get_location()+get_forward_vector()-r*2.0;
+		end =get_location()+get_forward_vector()*1000.0-r*2.0;	
+		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
+			DrawCapsule(start, end, 0.01, 12, 12, RED);
+		});});
+		c = line_trace( start,end,{id});
+		if(c){
+			apply_damage(get_as_ref(this),*c,get_forward_vector(), 10);
+		}
 	}
 	ship.update();	
 	Vector2 center; 
@@ -30,11 +58,17 @@ void PlayerShip::on_tick(){
 	bool hit_min = false;
 	double min_dist = Vector2LengthSqr(center);
 	bool check = IsKeyPressed(KEY_M);
-	std::vector<EntityRef> with_tag = get_all_entities_with_at_least_one_tag((Tag[]){tag_ship},3);
+	std::vector<EntityRef> with_tag = get_all_entities_with_at_least_one_tag((Tag[]){tag_ship},1);
 	for(auto a : with_tag	){
 		Vec3 v = a.get()->get_location()-get_location();
 		Vector3 target =get_forward_vector();
-		Vector2 p = GetWorldToScreen(v, Camera{.position ={0,0,0}, .up = get_up_vector(), .target =target,.projection = CAMERA_PERSPECTIVE,.fovy= 120});
+		Camera3D cam;
+		cam.up = get_up_vector();
+		cam.target = target;
+		cam.position = {0,0,0};
+		cam.projection =CAMERA_PERSPECTIVE;
+		cam.fovy = 120;
+		Vector2 p = GetWorldToScreen(v,cam);
 		double d = Vector3Distance(v, get_location());
 		if(d<1){d = 1;}
 		if(d>5000){

@@ -14,7 +14,7 @@ enum Tag:uint32_t{
 };
     class Entity{ 
         public:
-        uint32_t tags;
+        uint32_t tags = 0;
         uint32_t id; 
         virtual ~Entity();
         virtual void on_tick();
@@ -43,7 +43,7 @@ enum Tag:uint32_t{
         uint32_t target_generation; 
         uint32_t cause_idx;
         uint32_t cause_generation;
-        EventType EventType;
+        EventType event_type;
         struct ApplyDamage{
             Vec3 direction;
             Vec3 point;
@@ -64,6 +64,8 @@ enum Tag:uint32_t{
         std::vector<MeshComp> meshes;
         std::vector<PhysicsComp> physics;
         std::vector<std::function<void()>> draw_calls;
+        std::vector<std::function<void()>> draw_calls_3d;
+
     };
     class Runtime{
         public:
@@ -111,12 +113,12 @@ void mainloop(const char * level);
 void setup();
 Level & get_level();
 void load_level(const char* path);
-    template<typename T, typename...Args>EntityRef create_entity(Args...args){
+template<typename T, typename...Args>EntityRef create_entity(Args...args){
         for(size_t i =0; i<runtime.level->entities.size(); i++){
             if(!runtime.level->entities[i]){
                 runtime.level->entities[i] = std::make_unique<T>(args...);
                 runtime.level->generations[i]+=1;
-                runtime.level->entities[i]->id = i;  
+                runtime.level->entities[i]->id = i;
                 return EntityRef::create(i, runtime.level->generations[i]);
             }
         }
@@ -135,6 +137,8 @@ inline EntityRef get_as_ref(Entity * ptr){
 	return EntityRef::create(ptr->id, get_level().generations[ptr->id]);
 }
 void draw_call(std::function<void()>to_call);
+void draw_call_3d(std::function<void()>to_call);
+
 std::vector<EntityRef> get_all_entities_with_tag(Tag tag);
 std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t count);
 std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count);

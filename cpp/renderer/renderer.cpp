@@ -33,6 +33,11 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
             continue;
         }
         draw_mesh_comp(get_level().meshes[i], get_level().physics[i].trans.trans,get_level().physics[i].colliders[0].bb);
+    } 
+    for(int i =0; i<runtime.level->draw_calls_3d.size(); i++){
+        try{runtime.level->draw_calls_3d[i]();} catch(std::exception e){
+            assert(false);
+        }
     }
     EndMode3D(); 
 
@@ -42,6 +47,6 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
     DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
     EndShaderMode();
      DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   
-
+    DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 5, GREEN);
     EndDrawing();
 }

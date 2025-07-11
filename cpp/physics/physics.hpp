@@ -1,5 +1,6 @@
 #pragma once
 #include "../utils.hpp"
+#include "../level.hpp"
 std::optional<Torpedo::Col>check_collision(
     BoundingBox a,
     Torpedo::Trans a_off,
@@ -11,4 +12,4 @@ std::optional<Torpedo::Col>check_collision(
 void physics_prepare_update();
 void update_physics();
 void physics_finish_update();
-std::optional<Torpedo::Col> line_trace(Torpedo::Vec3 start, Torpedo::Vec3 end);
+std::optional<Torpedo::EntityRef> line_trace(Torpedo::Vec3 start, Torpedo::Vec3 end,const std::vector<uint32_t>& to_ignore = {});

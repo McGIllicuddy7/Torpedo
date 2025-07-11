@@ -19,20 +19,31 @@ void main()
     dist /= 100;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
-    delta /= dist;
-    delta = log(delta);
+    delta /= dist; 
     if (delta<0.1){
         delta = 0.1;
     }
-    else if(delta>1.0){
-        delta = 1.0;        
+     vec4 col =texture(diffuse, fragTexCoord);  
+    float a = col.a;
+    col = col*delta;
+    vec4 col0 = col;
+    col = atan(col*1.5);
+    float min = 1.0/255.0;
+    if(col.r< min &&col0.r>min){
+        col.r = min;
     }
-    vec4 col = texture(diffuse, fragTexCoord); 
-    finalColor = delta *col;
+    if(col.g< min &&col0.g>min){
+        col.g = min;
+    }
+    if(col.b< min &&col0.b>min){
+        col.b = min;
+    }
+    finalColor = col;
+     
 /*    if(col.r >= 1.0 || col.g >= 1.0 || col.b >= 1.0){
         finalColor = col;
     }*/
-    finalColor.a = col.a; 
+    finalColor.a = a; 
     /*
     vec3 light_pos = vec3(-10.0, 0.0,0.0);
     vec3 delt = light_pos-position;

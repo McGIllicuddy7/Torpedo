@@ -1,6 +1,7 @@
 #include "physics.hpp"
 #include <string.h>
 #include "../utils.hpp"
+#include "../particles.hpp"
 using namespace Torpedo;
 array<Vec3, 8> get_vertices(BoundingBox a,Trans offset, Trans a_trans) {
     std::array<Vec3, 8> verts = {
@@ -277,4 +278,76 @@ std::array<Vec3, 2> angular_collision_response(
     Vec3 p2) {
     std::array<Vec3, 2> out;
     return out;
+}
+/*
+double check_collision_aabb(Vec3 start, Vec3 direction, BoundingBox box){
+    double t1 = (box.min.x - start.x) / direction.x;
+    double t2 = (box.max.x - start.y) / direction.x;
+    double t3 = (box.min.y - start.y) / direction.y;
+    double t4 = (box.max.y - start.y) /direction.y;
+    double t5 = (box.min.z - start.z) /direction.z;
+    double t6 = (box.max.z - start.z) / direction.z;
+    double tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+    double tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6)); 
+ //   printf("tmin:%f, tmax:%f\n", tmin, tmax);
+    if (tmax < 0) {
+        return -1;
+    } 
+    if (tmin > tmax) {
+        return -1;
+    } 
+    if (tmin < 0.0) {    
+        return tmax;
+    }
+    
+    return tmin;
+}*/
+static inline double min(double a, double b){
+    if(a<b) return a;
+    return b;
+}
+static inline double max(double a, double b){
+    if(a<b) return b;
+    return a;
+}
+double check_collision_aabb(Vec3 start, Vec3 direction, BoundingBox box){
+    double tmin = 0.0, tmax = INFINITY; 
+    double t1x = (box.min.x -start.x) * 1.0/direction.x;
+    double t2x = (box.max.x - start.x) * 1.0/direction.x;
+    tmin = max(tmin, min(min(t1x, t2x),tmax));
+    tmax = min(tmax, max(max(t1x, t2x),tmin));
+    double t1y = (box.min.y -start.y) * 1.0/direction.y;
+    double  t2y = (box.max.y - start.y) * 1.0/direction.y;
+    tmin = max(tmin, min(min(t1y, t2y),tmax));
+    tmax = min(tmax, max(max(t1y, t2y),tmin)); 
+    double t1z = (box.min.z -start.z) * 1.0/direction.z;
+    double t2z = (box.max.z - start.z) * 1.0/direction.z;
+    tmin = max(tmin, min(min(t1z, t2z),tmax));
+    tmax = min(tmax, max(max(t1z, t2z),tmin)); 
+    if(tmin>tmax){
+        return -1;
+    } 
+    Vec3 p = start+direction*tmin;
+    if(p.x>box.max.x || p.x<box.min.x || p.y>box.max.y|| p.y<box.min.y || p.z>box.max.z || p.z<box.min.z){
+        return -1;
+    }
+    return tmin; 
+}
+
+
+double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, BoundingBox box){ 
+    Matrix mat = QuaternionToMatrix(trans.rotation);
+    Matrix inv = MatrixInvert(mat);
+    Vec3 s = Vec3::from(Vector3Transform(start-trans.translation,inv));
+    Vec3 e = Vec3::from(Vector3Transform(end-trans.translation, inv));    
+    e+= trans.translation;
+    s += trans.translation;
+    box.min += trans.translation;
+    box.max += trans.translation;
+    Vec3 dir = Vec3::from(Vector3Normalize(e-s));
+    double h = check_collision_aabb(s,dir, box);
+   //spawn_repeating(100.0,[e,s](){draw_call_3d([e,s](){DrawLine3D(s,e, RED);});});	
+    //spawn_repeating(100.0,[box](){draw_call_3d([box](){DrawBoundingBox(box, GREEN);});});	
+
+    return h;
 }
