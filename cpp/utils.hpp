@@ -16,6 +16,7 @@
 #endif
 #include <string>
 #include <unordered_map>
+#include "../cereal/cereal.h"
 namespace Torpedo{
 using std::string;
 using std::vector;
@@ -283,16 +284,56 @@ struct PhysicsComp{
     inline void reset(){
         is_valid = false; 
     }
+    inline void serialize(Serializer* ser)const {
+            ser->serialize(is_valid);
+            ser->serialize(trans);
+            ser->serialize_array(colliders.data(), colliders.size());
+            ser->serialize(velocity);
+            ser->serialize(mass);
+            ser->serialize(angular_velocity);
+            ser->serialize(destroy_on_impact);
+    }
+    static inline PhysicsComp deserialize(Deserializer * des){
+        PhysicsComp out;
+        out.is_valid = des->deserialize<bool>();
+        out.trans = des->deserialize<TransformComp>();
+        out.colliders = des->deserialize_array<Collider>();
+        out.velocity = des->deserialize<Vec3>();
+        out.mass = des->deserialize<double>();
+        out.angular_velocity = des->deserialize<Vec3>();
+        out.destroy_on_impact = des->deserialize<bool>();
+        return out;
+    }
 };
 struct MeshPart{
-    const char * string;
+    std::string string;
     Trans offset;
     Color color;
+    inline void serialize(Serializer* ser)const{
+        ser->serialize(string);
+        ser->serialize(offset);
+        ser->serialize(color);
+    }
+    static inline MeshPart deserialize(Deserializer * des){
+        MeshPart out;
+        out.string = des->deserialize<std::string>();
+        out.offset = des->deserialize<Trans>();
+        out.color = des->deserialize<Color>();
+        return out;
+    }
 };
 struct MeshComp{
         unordered_map<string, MeshPart> meshes;
     inline void reset(){
         meshes.clear();
+    }
+    inline void serialize (Serializer * ser)const {
+        ser->serialize_map(meshes);
+    }
+    static inline MeshComp deserialize(Deserializer * des){
+        MeshComp out;
+        out.meshes = des->deserialize_hashmap<string, MeshPart>();
+        return out;
     }
     };
 inline Vec3 to_global_vector(Vec3 input, Vec3 forward, Vec3 right, Vec3 up){

@@ -5,6 +5,7 @@ namespace Torpedo{
 
 void PlayerShip::on_tick(){	
 	ship.parent = get_as_ref(this);
+	get_level().player = this;
 	Vector2 imp = GetMouseDelta();
 	ship.rotation_input = QuaternionFromEuler(get_input_axis(KEY_Q, KEY_E)*0.01,imp.y*0.001, -imp.x*0.001);
 	ship.movement_input = Vec3{
@@ -32,18 +33,33 @@ void PlayerShip::on_tick(){
 		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(),get_rotation());*/
 		Vec3 r = get_right_vector()*0.23;
 		Vec3 start =get_location()+get_forward_vector()+r;
-		Vec3 end =get_location()+get_forward_vector()*1000.0+r;	
+		Vec3 end =get_location()+get_forward_vector()*1000.0+r;
+
 		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
-			DrawCapsule(start, end, 0.01, 12, 12, RED);
+			Color c = RED;
+			c.a =4;
+			DrawCapsule(start, end, 0.04, 12, 12, c);
 		});});
+		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
+			DrawCapsule(start+Vector3Normalize(end-start)*0.1, end, 0.02, 12, 12, WHITE);	
+		});});
+		/*spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
+			DrawCapsule(start, end, 0.01, 12, 12, RED);
+		});});*/
 		auto c = line_trace( start,end,{id});
 		if(c){
 			apply_damage(get_as_ref(this),*c,get_forward_vector(), 10);
 		}
 		start =get_location()+get_forward_vector()-r*2.0;
 		end =get_location()+get_forward_vector()*1000.0-r*2.0;	
+		
 		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
-			DrawCapsule(start, end, 0.01, 12, 12, RED);
+			Color c = RED;
+			c.a =4;
+			DrawCapsule(start, end, 0.04, 12, 12, c);
+		});});		
+		spawn_repeating(1.0,[start,end](){draw_call_3d([start,end](){	
+			DrawCapsule(start+Vector3Normalize(end-start)*0.1, end, 0.02, 12, 12, WHITE);
 		});});
 		c = line_trace( start,end,{id});
 		if(c){
@@ -102,6 +118,12 @@ void PlayerShip::on_tick(){
 		}
 		}
 	}
+	if(IsKeyPressed(KEY_K)){
+		save_level("level.bin");
+	}
+	if(IsKeyPressed(KEY_Y)){
+		load_level("level.bin");
+	}
 	if(check){
 		ship.weapons.fire_missile(get_location()+get_forward_vector(), get_forward_vector(), get_rotation(), min, hit_min);
 	}	
@@ -135,6 +157,24 @@ EntityRef create_player_ship(Vec3 pos, Quat rot){
 }
 void PlayerShip::on_damage(Vec3 incoming_direction, double damage){
 	destroy_entity(get_as_ref(this));
+}
+void PlayerShip::serialize(Serializer* ser) const{
+	ser->serialize("PlayerShip");
+	ser->serialize(id);
+	ser->serialize(tags);
+	ser->serialize(ship);
+}
+PlayerShip PlayerShip::deserialize(Deserializer* des){
+	PlayerShip out;
+	des->deserialize<std::string>();
+	out.id =des->deserialize<uint32_t>();
+	out.tags = des->deserialize<Tag>();
+	out.ship = des->deserialize<ShipComp>();	
+	return out;
+}
+
+Entity * PlayerShip::interface_deserialize(Deserializer&des){
+	return new PlayerShip(PlayerShip::deserialize(&des));
 }
 }
 

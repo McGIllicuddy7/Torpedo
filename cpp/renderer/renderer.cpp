@@ -4,6 +4,7 @@ using namespace Torpedo;
 static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox b){
     for(const auto&i:cmp.meshes){
         Model md = get_level().models[i.second.string];
+
         auto old = md.transform;
         md.transform = QuaternionToMatrix(trans.rotation); 
         auto loc = trans.translation+to_global_vector(i.second.offset.translation, trans.get_forward_vector(), trans.get_right_vector(), trans.get_up_vector());
@@ -18,9 +19,10 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
 void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
  
    
-    BeginTextureMode(tex);
-    ClearBackground(BLACK); 
-    rlSetClipPlanes(0.001, 5000000);
+//    BeginTextureMode(tex);
+    BeginDrawing();  
+    ClearBackground(DARKBLUE); 
+
 
     for(int i =0; i<runtime.level->draw_calls.size(); i++){
         try{runtime.level->draw_calls[i]();} catch(std::exception e){
@@ -28,6 +30,7 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
         }
     }
     BeginMode3D(*cam);
+    rlSetClipPlanes(0.001, 5000000);
     for(size_t i =0; i<get_level().meshes.size(); i++){
         if(get_level().meshes[i].meshes.empty()|| !get_level().entities[i]){
             continue;
@@ -41,12 +44,13 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
     }
     EndMode3D(); 
 
-     EndTextureMode();
-    BeginDrawing();  
+ //    EndTextureMode();
+
+  /*  ClearBackground(BLACK);
     BeginShaderMode(postprocess); 
     DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
     EndShaderMode();
-     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   
+     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   */
     DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 5, GREEN);
     EndDrawing();
 }

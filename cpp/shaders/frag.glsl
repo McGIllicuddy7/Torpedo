@@ -16,7 +16,7 @@ void main()
     vec3 light_pos = vec3(0.0, 0.0,0.0);
     vec3 delt = light_pos-fragPosition;
     float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
-    dist /= 100;
+    dist /= 10;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
     delta /= dist; 
@@ -27,7 +27,7 @@ void main()
     float a = col.a;
     col = col*delta;
     vec4 col0 = col;
-    col = atan(col*1.5);
+//    col = atan(col);
     float min = 1.0/255.0;
     if(col.r< min &&col0.r>min){
         col.r = min;
@@ -38,8 +38,7 @@ void main()
     if(col.b< min &&col0.b>min){
         col.b = min;
     }
-    finalColor = col;
-     
+    finalColor =col;
 /*    if(col.r >= 1.0 || col.g >= 1.0 || col.b >= 1.0){
         finalColor = col;
     }*/

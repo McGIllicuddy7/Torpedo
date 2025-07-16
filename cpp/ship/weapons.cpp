@@ -23,7 +23,7 @@ namespace Torpedo{
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*300.0;
+		phys.velocity = direction*30.0;
 		e.get()->get_physics()= phys; 
 }	
 void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef target, bool homing){
@@ -53,11 +53,11 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*10;
+		phys.velocity = direction*100;
 		e.get()->get_physics()= phys;
 }
 Projectile::Projectile(){
-	remaining_time = 0.1;
+	remaining_time = 10.0;
 	pending_kill =false;
 };
 void Projectile::on_tick(){
@@ -75,6 +75,25 @@ Projectile::~Projectile(){
 }
 void Projectile::on_damage(Vec3 incoming_direction, double damage){
 	destroy_entity(get_as_ref(this));
+}
+void Projectile::serialize(Serializer * ser)const {
+	ser->serialize("Projectile");
+	ser->serialize(id);
+	ser->serialize(tags);
+	ser->serialize(remaining_time);
+	ser->serialize(pending_kill);
+}
+Projectile Projectile::deserialize(Deserializer* des){
+	Projectile out;
+	des->deserialize<std::string>();
+	out.id = des->deserialize<uint32_t>();
+	out.tags = des->deserialize<Tag>();
+	out.remaining_time = des->deserialize<double>();
+	out.pending_kill = des->deserialize<bool>();
+	return out;
+}
+Entity * Projectile::interface_deserialize(Deserializer&des){
+	return new Projectile(Projectile::deserialize(&des));
 }
 Missile::Missile(){
 	remaining_time = 60.0;
@@ -100,5 +119,28 @@ remaining_time -= 1.0/60.0;
 }
 void Missile::on_damage(Vec3 incoming_direction, double damage){
 	destroy_entity(get_as_ref(this));
+}
+void Missile::serialize(Serializer*ser) const{
+	ser->serialize("Missile");
+	ser->serialize(id);
+	ser->serialize(tags);
+	ser->serialize(ship);
+	ser->serialize(remaining_time);
+	ser->serialize(target);
+	ser->serialize(homing);
+}
+Missile Missile::deserialize(Deserializer* des){
+	Missile out;
+	des->deserialize<std::string>();
+	out.id =des->deserialize<uint32_t>();
+	out.tags = des->deserialize<Tag>();
+	out.ship = des->deserialize<ShipComp>();
+	out.remaining_time = des->deserialize<double>();
+	out.target = des->deserialize<EntityRef>();	
+	out.homing = des->deserialize<bool>();
+	return out;
+}
+Entity * Missile::interface_deserialize(Deserializer&des){
+	return new Missile(Missile::deserialize(&des));
 }
 }

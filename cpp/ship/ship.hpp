@@ -28,6 +28,8 @@ struct ShipComp{
 	void private_update_non_homing();
 	void update();
 	void on_damage(Vec3 direction, double amount);
+	void serialize(Serializer*ser) const;	
+	static ShipComp deserialize(Deserializer*des);
 };
 
 class Aligned{
@@ -42,7 +44,11 @@ class PlayerShip:public Entity,public Aligned{
 	virtual Alignment get_alignment();
 	EntityRef create();
 	virtual void on_damage(Vec3 incoming_direction, double damage);
+	virtual void serialize(Serializer* ser) const;
+	static PlayerShip deserialize(Deserializer* des);
+	static Entity * interface_deserialize(Deserializer&des);
 };
+Register(PlayerShip, Entity);
 class Projectile:public Entity{	
 public:
 	double remaining_time;
@@ -51,7 +57,11 @@ public:
 	virtual ~Projectile();
 	virtual void on_tick();
 	virtual void on_damage(Vec3 incoming_direction, double damage);
+	virtual void serialize(Serializer* ser) const;
+	static Projectile deserialize(Deserializer* des);
+	static Entity * interface_deserialize(Deserializer&des);
 };
+Register(Projectile, Entity);
 class Missile:public Entity{
 public:
 	ShipComp ship;
@@ -62,7 +72,12 @@ public:
 	virtual ~Missile();
 	virtual void on_tick();
 	virtual void on_damage(Vec3 incoming_direction, double damage);
+	virtual void serialize(Serializer* ser) const;
+	static Missile deserialize(Deserializer* des);
+	static Entity * interface_deserialize(Deserializer&des);
+
 };
+Register(Missile,Entity);
 class NPCShip: public Entity, public Aligned{
 	ShipComp ship;
 public:
@@ -71,7 +86,11 @@ public:
 	virtual Alignment get_alignment();
 	virtual void on_tick();
 	virtual void on_damage(Vec3 incoming_direction, double damage);
+	virtual void serialize(Serializer* ser) const;
+	static NPCShip deserialize(Deserializer* des);
+	static Entity * interface_deserialize(Deserializer&des);
 };
+Register(NPCShip, Entity);
 EntityRef create_player_ship(Vec3 pos, Quat rot);
 EntityRef create_npc_ship(Vec3 pos, Quat rot, Alignment align);
 };

@@ -94,7 +94,7 @@ void physics_prepare_update(){
         if(p.is_valid){
             indexs.push_back(i);
             comps.push_back(p);
-            ptrs.push_back(runtime.level->entities[i].get());
+            ptrs.push_back(runtime.level->entities[i]);
         }
     }
 }
@@ -172,7 +172,7 @@ void update_physics(){
         #ifdef STEP
         double dist = Vector3Length(comps[i].velocity) *1/60.0;
         Vec3 p = comps[i].trans.trans.translation;
-        double delta = 0.05;
+        double delta = 0.01;
         Vec3 delt = Vec3::from(Vector3Normalize(comps[i].velocity)*delta);
         if(dist == 0) continue;
         int dt = ceil((double)dist/delta);

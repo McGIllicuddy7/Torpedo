@@ -14,7 +14,7 @@ void set_player_entity(EntityRef ref){
 
 void update(){
     for(int i =0; i<runtime.level->entities.size(); i++){
-        if(runtime.level->entities[i].get()){
+        if(runtime.level->entities[i]){
             runtime.level->entities[i]->on_tick();
         }
     }
@@ -34,13 +34,34 @@ void cam_update(Camera * cam){
 		cam->position = runtime.level->player->get_physics().trans.trans.translation;
 		cam->target = runtime.level->player->get_forward_vector()+cam->position;
 		cam->up = runtime.level->player->get_up_vector();
-//		printf("%f,%f,%f\n", cam->up.x, cam->up.y, cam->up.z);
+//	printf("%f,%f,%f\n", cam->up.x, cam->up.y, cam->up.z);
 	}
 	else {
     		UpdateCamera(cam, CAMERA_FREE);
 	}
 }
-void mainloop(const char * startup_level){
+void handle_loading_and_saving(){
+    if(get_level().should_save){
+	Serializer s;
+	s.serialize_interface(runtime.level.get());
+	s.write_to_file(get_level().save_name.c_str());
+    }
+    if(get_level().should_load){
+	FILE *f = fopen(get_level().load_name.c_str(),"r");
+	if(!f){
+	    goto done;
+	}
+	fclose(f);
+	Deserializer d = Deserializer::from_file(get_level().load_name.c_str());	
+	runtime.level.reset(new Level(d.deserialize<Level>()));	
+    }
+done:
+    get_level().should_load = false;
+    get_level().should_save = false;
+    get_level().load_name = "";
+    get_level().save_name=  ""; 
+}
+void mainloop(std::function<void()> func){
     InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
     DisableCursor();
     Camera cam;
@@ -49,7 +70,7 @@ void mainloop(const char * startup_level){
     cam.fovy = 120;
     cam.position = {20,0,0};
     cam.projection = CAMERA_PERSPECTIVE; 
-    load_level(startup_level);
+    load_level_fn(func);
     setup();
     SetTargetFPS(60);
     RenderTexture2D post_texture = LoadRenderTexture(GetScreenWidth(),GetScreenHeight());
@@ -66,8 +87,10 @@ void mainloop(const char * startup_level){
         physics_finish_update();
 	process_events();
 	run_destructors();
+	handle_loading_and_saving();
     }  
     CloseWindow();
+    runtime.level = 0;
 }
 
 Entity::~Entity(){
@@ -97,19 +120,26 @@ void Entity::on_damage(Vec3 incoming_direction,double damage){
     destroy_entity(get_as_ref(this));    
 }
 
-vector<unsigned char> Entity::serialize(){
-    return {};
-}
-
-unique_ptr<Entity> Entity::deserialze(std::string_view name,vector<unsigned char> bytes){
-    return 0;
-} 
-
 void Entity::set_velocity(Vec3 vel){
 }
 
 Vec3 Entity::get_velocity(){
     return Vec3{0,0,0};
+}
+void Entity::serialize(Serializer * ser) const{
+    ser->serialize("Entity");
+    ser->serialize(id);
+    ser->serialize(tags);
+}
+Entity Entity::deserialize(Deserializer* des){
+    Entity out;
+    des->deserialize<std::string>();
+    out.id = des->deserialize<uint32_t>();
+    out.tags = des->deserialize<Tag>();
+    return out;
+}
+Entity * Entity::interface_deserialize(Deserializer&des){
+    return new Entity (Entity::deserialize(&des));
 }
 
 void setup(){
@@ -129,12 +159,12 @@ void run_destructors(){
 		if(!runtime.level->entities[idx]){	
 		    continue;
 		}
-		Entity *ptr = runtime.level->entities[idx].get();
-		if(!ptr){
- 
+		Entity *ptr = runtime.level->entities[idx];
+		if(!ptr){ 
 		    continue;
 		}
-		if(runtime.level->player == ptr){
+		delete ptr;
+		if(runtime.level->player == ptr){ 
 			runtime.level->player = 0;
 		}
 		runtime.level->meshes[idx].reset();
@@ -152,53 +182,8 @@ Level & get_level(){
     return *runtime.level;
 }
 
-void load_level(const char * path){
-    #define MULT
-    runtime.level = std::make_unique<Level>(Level{});
-    runtime.level->player = 0;
-    get_level().models[string("cube")]= LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
-    get_level().models[string("cylinder")] = LoadModelFromMesh(GenMeshCube(0.2,0.02, 0.02));
-    get_level().models[string("ship")] = LoadModel("../assets/ship.glb");
-    Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
-    get_level().models[string("cube")].materials[0].shader = shader;
-    get_level().models[string("cube")].materials->maps->color = BLACK;
-
-    get_level().models[string("ship")].materials[0].shader = shader;
-    get_level().models[string("ship")].materials[0].maps->texture = LoadTexture("../assets/ship_texture.png");
-    int64_t dims = 4;
-    EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
-    EntityRef enemy = create_npc_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)},Quat{0,0,0,-1},Alignment::EnemyAligned);
-    #ifdef MULT
-    int count =2;
-    for(int x = -count; x<count+1; x++){
-        for(int y = -count; y<count+1; y++){
-            for(int z = -count; z<count+1; z++){
-                Vec3 point = Vec3{(double)x,(double)y,(double)z}*4;
-                Vec3 v;
-                v.x = x == 0 ? 0 : (x> 0 ? -1 : 1);
-                v.y = y == 0 ? 0 : (y> 0 ? -1 : 1);
-                v.z = z == 0 ? 0 : (z> 0 ? -1 : 1);
-                Vec3 ang;
-                ang.x = (rand()%1000)/1000.0*2-1;
-                ang.y= (rand()%1000)/1000.0*2-1;
-                ang.z = (rand()%1000)/1000.0*2-1;
-//                ang *= 0.0;
-                EntityRef a = create_cube(point,Vec3{0.5, 0.5, 0.5}, Vec3{0,0,0}, WHITE, ang);
-            }
-        }
-    }
-    #endif
-    #ifndef MULT
-    double s = rand()%1000/1000.0*2*M_PI;
-    Vec3 p1 = Vec3{-1, sin(s), cos(s)};
-    Vec3 p2 = Vec3{-1, cos(s), -sin(s)};
-    Vec3 v1 = {0,-sin(s), -cos(s)};
-    Vec3 v2 = {0,-cos(s), sin(s)};
-    double scale = 5.0;
-    double speed = 0.5;
-    create_cube(p1*scale, Vec3{1,1,1}, v1*speed, RED);
-    create_cube(p2*scale, Vec3{1,1,1}, v2*speed, BLUE);
-    #endif
+void load_level_fn(std::function<void()>func){ 
+    func();
 
 }
 EntityRef create_cube(Vec3 location, Vec3 scale, Vec3 velocity, Color color, Vec3 angular){
@@ -262,7 +247,7 @@ void draw_call_3d(std::function<void()>to_call){
 std::vector<EntityRef> get_all_entities_with_tag(Tag tag){
     std::vector<EntityRef> out = {};
     for(uint32_t i =0; i<runtime.level->entities.size(); i++){
-	Entity * e = runtime.level->entities[i].get();
+	Entity * e = runtime.level->entities[i];
 	if(!e){
 	    continue;
 	} else if(e->has_tag(tag)){
@@ -278,7 +263,7 @@ std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t
 	tg |= tags[i];
     }
     for(uint32_t i =0; i<runtime.level->entities.size(); i++){
-	Entity * e = runtime.level->entities[i].get();
+	Entity * e = runtime.level->entities[i];
 	if(!e){
 	    continue;
 	} else if(e->has_tag((Tag)tg)){
@@ -290,7 +275,7 @@ std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t
 std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count){
     std::vector<EntityRef> out = {}; 
     for(uint32_t i =0; i<runtime.level->entities.size(); i++){
-	Entity * e = runtime.level->entities[i].get();
+	Entity * e = runtime.level->entities[i];
 	if(!e){
 	    continue;
 	}
@@ -321,6 +306,147 @@ void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amou
     event.apply_damage.direction = direction;
     runtime.level->event_queue.push_back(event);
 }
+void Level::serialize(Serializer * ser)const{
+    ser->serialize((std::string)"Level");
+    printf("ser partial:%zu\n", ser->get_current_idx());
+    if(player){
+            printf("ser player idx:%ld\n", (long)player->id);
+	ser->serialize<long>((long)player->id);
+    } else{
+	ser->serialize<long>((long)(-1));
+        printf("ser player idx:%ld\n", -1l);
+    } 
+
+    printf("ser stage 1:%zu\n", ser->get_current_idx());
+    fflush(stdout);
+
+    ser->serialize(textures.size());
+    for(const auto &i:textures){
+	ser->serialize(i.first);
+    }
+    printf("ser stage 2:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize(mesh_textures.size());
+    for(auto &i: mesh_textures){
+	ser->serialize(i.first);
+	ser->serialize_array(i.second.data(), i.second.size());
+    }
+    printf("ser stage 3:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize(models.size()); 
+    printf("model_count:%zu\n", models.size());
+    for(const auto&i : models){
+	ser->serialize(i.first);
+    }
+     printf("ser stage 4:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize_interface_array(entities.data(), entities.size());
+     printf("ser stage 5:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize_array(generations.data(), generations.size());
+     printf("ser stage 6:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize_array(meshes.data(), meshes.size());
+     printf("ser stage 7:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+    ser->serialize_array(physics.data(), physics.size());
+     printf("ser stage 8:%zu\n", ser->get_current_idx()); 
+    fflush(stdout);
+}
+Level Level::deserialize(Deserializer* des){
+    printf("deserializing\n");
+    Level out;
+    des->deserialize<std::string>();
+    std::string t = des->deserialize<std::string>();
+    printf("des partial:%zu, s:%s\n",des->get_current_idx(), t.c_str());
+    out.shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
+    long player_idx = des->deserialize<long>();
+    printf("des player idx:%ld\n", player_idx);
+     printf("des stage 1:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    size_t texture_size = des->deserialize<size_t>(); 
+    for(size_t i =0; i<texture_size; i++){
+	std::string name = des->deserialize<std::string>();
+	Texture tex = LoadTexture(name.c_str());
+	 out.textures.insert({name, tex});
+    }  
+    printf("des stage 2:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    size_t mesh_texture_size = des->deserialize<size_t>(); 
+    for(size_t i =0; i<mesh_texture_size; i++){
+	std::string name = des->deserialize<std::string>();
+	std::vector<std::string> values = des->deserialize_array<std::string>();
+	out.mesh_textures.insert({name, values});
+    }
+    printf("des stage 3:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    size_t model_size = des->deserialize<size_t>();
+    printf("model_count:%zu\n", model_size);
+    for(size_t i =0; i<model_size; i++){
+	std::string name = des->deserialize<std::string>();
+	Model m = path_load_model(name, out.mesh_textures[name], out.textures,out.shader);
+	out.models.insert({name, m});
+    }
+    printf("des stage 4:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    out.entities = des->deserialize_interface_array<Entity>(); 
+    if(player_idx>=0&& player_idx<out.entities.size()){
+	out.player = out.entities[player_idx];
+    }else{
+	out.player =0;
+    }
+    printf("des stage 5:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    out.generations=  des->deserialize_array<uint32_t>();
+    printf("des stage 6:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    out.meshes = des->deserialize_array<MeshComp>();
+    printf("des stage 7:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    out.physics = des->deserialize_array<PhysicsComp>();
+    printf("des stage 8:%zu\n", des->get_current_idx()); 
+    fflush(stdout);
+    return out;
+}
+Level * Level::interface_deserialize(Deserializer&des){
+    return new Level(Level::deserialize(&des));
+}
+Level::~Level(){
+    for(auto & i:models){
+	    UnloadModel(i.second);
+    }
+    for(auto &i:textures){
+	    UnloadTexture(i.second);
+    }
+    UnloadShader(shader);
+}
+void load_level(const char* path){
+    get_level().should_load = true;
+    get_level().load_name = path;
+}
+void save_level(const char* path){
+    get_level().should_save = true;
+    get_level().save_name = path;
+}
+Model path_load_model(const std::string&mod, const std::vector<std::string>& textures, unordered_map<string,Texture> & loaded_textures, Shader shader){
+    Model out;
+    if(mod == "../assets/cube.glb"|| mod == "cube"){
+	out = LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
+    }else if(mod == "../assets/cylinder.glb"||mod == "cylinder"){
+	out =LoadModelFromMesh(GenMeshCube(0.2,0.02, 0.02));	
+    } else{
+	string name = std::string("../assets/")+mod+".glb";
+	printf("loading %s\n", name.c_str());
+	out = LoadModel(name.c_str());
+    }
+    for(size_t i =0; i<textures.size(); i++){
+	if(!loaded_textures.contains(textures[i])){
+	    loaded_textures[textures[i]] = LoadTexture(textures[i].c_str());
+	}
+	out.materials[0].maps->texture=loaded_textures[textures[i]];
+    }
+    out.materials[0].shader = shader;
+    return out;
 }
 
-
+}

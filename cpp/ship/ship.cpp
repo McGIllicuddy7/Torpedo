@@ -80,5 +80,12 @@ void ShipComp::update(){
 void ShipComp::on_damage(Vec3 direction, double amount){
 
 }
+void ShipComp::serialize(Serializer*ser) const{
+    ser->serialize_trivial(*this);
+}
+ShipComp ShipComp::deserialize(Deserializer*des){
+    return des->deserialize_trivial<ShipComp>();
+}
+
 
 }

@@ -18,13 +18,11 @@ enum Tag:uint32_t{
         uint32_t id; 
         virtual ~Entity();
         virtual void on_tick();
-        virtual void on_damage(Vec3 incoming_direction, double damage);
-        virtual vector<unsigned char> serialize();
+        virtual void on_damage(Vec3 incoming_direction, double damage); 
         virtual void set_velocity(Vec3 vel);
         virtual Vec3 get_velocity();
         virtual PhysicsComp& get_physics();
-        virtual MeshComp& get_mesh();
-        static unique_ptr<Entity> deserialze(std::string_view name,vector<unsigned char> bytes);
+        virtual MeshComp& get_mesh(); 
 	virtual Vec3 get_forward_vector();
 	virtual Vec3 get_right_vector();
 	virtual Vec3 get_up_vector();
@@ -33,7 +31,11 @@ enum Tag:uint32_t{
         bool has_tag(Tag tag)const ; 
         void add_tag(Tag tag);
         void remove_tag(Tag tag);
+        virtual void serialize(Serializer * ser) const;
+        static Entity  deserialize(Deserializer * des);
+        static Entity * interface_deserialize(Deserializer&des);
     }; 
+    Register(Entity, Entity);
  
     enum class EventType{
         ApplyDamage,
@@ -59,18 +61,29 @@ enum Tag:uint32_t{
         std::vector<Event> event_queue;
 	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;
-        std::vector<std::unique_ptr<Entity>> entities;
+        unordered_map<string, std::vector<string>> mesh_textures;
+        unordered_map<string, Texture> textures;
+        std::vector<Entity*> entities;
         std::vector<uint32_t> generations;
         std::vector<MeshComp> meshes;
         std::vector<PhysicsComp> physics;
         std::vector<std::function<void()>> draw_calls;
         std::vector<std::function<void()>> draw_calls_3d;
-
+        Shader shader;
+        ~Level();
+        void serialize(Serializer * ser)const;
+        static Level deserialize(Deserializer*des);
+        static Level *interface_deserialize(Deserializer&des);
+        bool should_save = false;
+        bool should_load = false;
+        std::string save_name;
+        std::string load_name;
     };
     class Runtime{
         public:
         unique_ptr<Level> level;
     };
+Register(Level, Level);
 extern Runtime runtime;
     class EntityRef{
 public:
@@ -101,7 +114,7 @@ public:
             if(!is_valid()){
                 return 0;
             }
-            return runtime.level->entities[index].get();
+            return runtime.level->entities[index];
          }
         template<typename T> T* downcast(){
             Entity * e= get(); 
@@ -109,20 +122,22 @@ public:
         }
     };
 
-void mainloop(const char * level);
+void mainloop(std::function<void()> func);
 void setup();
 Level & get_level();
 void load_level(const char* path);
+void load_level_fn(std::function<void()>func);
+void save_level(const char* path);
 template<typename T, typename...Args>EntityRef create_entity(Args...args){
         for(size_t i =0; i<runtime.level->entities.size(); i++){
             if(!runtime.level->entities[i]){
-                runtime.level->entities[i] = std::make_unique<T>(args...);
+                runtime.level->entities[i] = new T(args...);
                 runtime.level->generations[i]+=1;
                 runtime.level->entities[i]->id = i;
                 return EntityRef::create(i, runtime.level->generations[i]);
             }
         }
-        runtime.level->entities.push_back(std::make_unique<T>(args...));
+        runtime.level->entities.push_back(new T(args...));
         runtime.level->generations.push_back(0);
         runtime.level->physics.push_back(PhysicsComp{});
         runtime.level->meshes.push_back(MeshComp{});
@@ -143,6 +158,7 @@ std::vector<EntityRef> get_all_entities_with_tag(Tag tag);
 std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t count);
 std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count);
 void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amount);
+Model path_load_model(const std::string& mod, const std::vector<std::string>& textures, unordered_map<string, Texture> & loaded_textures, Shader shader);
 }
 
 

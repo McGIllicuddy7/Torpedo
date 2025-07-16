@@ -35,4 +35,25 @@ EntityRef create_npc_ship(Vec3 pos, Quat rot, Alignment align){
 void NPCShip::on_damage(Vec3 incoming_direction, double damage){
 	destroy_entity(get_as_ref(this));
 }
+void NPCShip::serialize(Serializer* ser) const{
+	ser->serialize("NPCShip");
+	ser->serialize(id);
+	ser->serialize(tags);
+	ser->serialize(ship);
+	ser->serialize(align);
+}
+NPCShip NPCShip::deserialize(Deserializer* des){
+	NPCShip out;
+	des->deserialize<std::string>();
+	out.id =des->deserialize<uint32_t>();
+	out.tags = des->deserialize<Tag>();
+	out.ship = des->deserialize<ShipComp>();
+	out.align= des->deserialize<Alignment>();
+	return out;
+}
+
+Entity * NPCShip::interface_deserialize(Deserializer&des){
+	return new NPCShip(NPCShip::deserialize(&des));
+}
+
 }
