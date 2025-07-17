@@ -172,7 +172,7 @@ void update_physics(){
         #ifdef STEP
         double dist = Vector3Length(comps[i].velocity) *1/60.0;
         Vec3 p = comps[i].trans.trans.translation;
-        double delta = 0.01;
+        double delta = 0.1;
         Vec3 delt = Vec3::from(Vector3Normalize(comps[i].velocity)*delta);
         if(dist == 0) continue;
         int dt = ceil((double)dist/delta);

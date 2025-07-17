@@ -1,6 +1,7 @@
 #pragma once 
-#include "../utils.hpp"
-#include "../level.hpp"
+#include "../../engine/utils.hpp"
+#include "../../engine/level.hpp"
+#include "../../engine/particles.hpp"
 namespace Torpedo{
 enum class Alignment{
 	PlayerAligned, EnemyAligned
@@ -24,6 +25,7 @@ struct ShipComp{
 	Vec3 movement_input = Vec3{0,0,0};
 	WeaponsComp weapons = WeaponsComp{};
 	EntityRef target = {0,0};
+	double health = 100.0;
 	void private_update_homing();
 	void private_update_non_homing();
 	void update();
@@ -93,4 +95,5 @@ public:
 Register(NPCShip, Entity);
 EntityRef create_player_ship(Vec3 pos, Quat rot);
 EntityRef create_npc_ship(Vec3 pos, Quat rot, Alignment align);
+void spawn_explosion(Vec3 pos, double size);
 };

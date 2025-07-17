@@ -58,6 +58,7 @@ enum Tag:uint32_t{
     class Level{
         public:
 	Entity * player;
+        Camera3D cam;
         std::vector<Event> event_queue;
 	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;

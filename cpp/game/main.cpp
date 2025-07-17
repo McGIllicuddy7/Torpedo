@@ -1,20 +1,13 @@
-#include "level.hpp"
+#include "../engine/level.hpp"
 #include "ship/ship.hpp"
 using namespace Torpedo;
-void load_test_level(){
+void load_test_level1(){
     #define MULT 
-    runtime.level = std::make_unique<Level>(Level{});
-    runtime.level->textures["../assets/ship_texture.png"] =LoadTexture("../assets/ship_texture.png");
-    runtime.level->player = 0;
-    Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
-    get_level().models["cube"] = path_load_model("cube",std::vector<std::string>{}, runtime.level->textures,shader);
-    get_level().models["cylinder"] = path_load_model("cylinder",std::vector<std::string>{}, runtime.level->textures,shader);
-    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"../assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
-    int64_t dims = 4;
-    runtime.level->shader = shader;
-    EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
+    int dims =8;
+      EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
     EntityRef enemy = create_npc_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)},Quat{0,0,0,-1},Alignment::EnemyAligned);
     #ifdef MULT
+ 
     int count =1;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
@@ -46,6 +39,11 @@ void load_test_level(){
     create_cube(p2*scale, Vec3{1,1,1}, v2*speed, BLUE);
     #endif
 }
+void  load_test_level2(){
+    int dims =80;
+    EntityRef player =create_player_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)}, Quat{0,0,0,1});
+    EntityRef enemy = create_npc_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)},Quat{0,0,0,-1},Alignment::EnemyAligned); 
+}
 int main(int argc, const char** argv){
-    Torpedo::mainloop(load_test_level);
+    Torpedo::mainloop(load_test_level2);
 }

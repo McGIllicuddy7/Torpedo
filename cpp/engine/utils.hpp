@@ -16,7 +16,7 @@
 #endif
 #include <string>
 #include <unordered_map>
-#include "../cereal/cereal.h"
+#include "../../cereal/cereal.h"
 namespace Torpedo{
 using std::string;
 using std::vector;

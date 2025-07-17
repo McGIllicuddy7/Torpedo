@@ -63,10 +63,7 @@ void ShipComp::private_update_homing(){
     use_desired_position = true;
 
     desired_position = t->get_location();
-    Vec3 dp = desired_position;
-    draw_call([dp](){
-	DrawSphere(dp, 2.0, GREEN)	;
-    });
+    Vec3 dp = desired_position; 
     parent.get()->get_physics().trans.trans.rotation= QuaternionFromMatrix(MatrixLookAt(parent.get()->get_location(), t->get_location(),parent.get()->get_up_vector()));
     private_update_non_homing(); 
 }
@@ -78,7 +75,10 @@ void ShipComp::update(){
     }
 }
 void ShipComp::on_damage(Vec3 direction, double amount){
-
+    health -= amount;
+    if(health<=0.0){
+	destroy_entity(parent);
+    }
 }
 void ShipComp::serialize(Serializer*ser) const{
     ser->serialize_trivial(*this);

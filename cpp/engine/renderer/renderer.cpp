@@ -18,11 +18,24 @@ static void draw_mesh_comp(const MeshComp& cmp, const Trans &trans, BoundingBox 
 }
 void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
  
-   
+    
 //    BeginTextureMode(tex);
     BeginDrawing();  
-    ClearBackground(DARKBLUE); 
-
+    ClearBackground(Color{1, 1, 64,255});
+    static bool stars_init = false;
+    static std::vector<Vec3> positions;
+    if(!stars_init){
+        for(int i =0; i<500; i++){
+            int x= rand()%1000-500;
+            int y = rand()%1000-500;
+            int z = rand()%1000-500;
+            x*= 1;
+            y*= 1;
+            z*= 1;
+            positions.push_back(Vec3{(double)x,(double)y,(double)z});
+        }
+        stars_init = true;
+    }
 
     for(int i =0; i<runtime.level->draw_calls.size(); i++){
         try{runtime.level->draw_calls[i]();} catch(std::exception e){
@@ -31,6 +44,10 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
     }
     BeginMode3D(*cam);
     rlSetClipPlanes(0.001, 5000000);
+    for(int i =0; i<500; i++){
+        DrawSphere(cam->position+positions[i],0.5, WHITE);
+    }
+    DrawSphere(Vec3{500000,0,0},100000.0, YELLOW);
     for(size_t i =0; i<get_level().meshes.size(); i++){
         if(get_level().meshes[i].meshes.empty()|| !get_level().entities[i]){
             continue;

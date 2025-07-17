@@ -1,8 +1,6 @@
 #include "level.hpp"
 #include "renderer/renderer.hpp"
 #include "physics/physics.hpp"
-#include "shaders.hpp"
-#include "ship/ship.hpp"
 #include <stdio.h>
 namespace Torpedo{
 Runtime runtime;
@@ -64,26 +62,28 @@ done:
 void mainloop(std::function<void()> func){
     InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
     DisableCursor();
-    Camera cam;
-    cam.up = {0,0,1};
-    cam.target = {-1, 0,0};
-    cam.fovy = 120;
-    cam.position = {20,0,0};
-    cam.projection = CAMERA_PERSPECTIVE; 
-    load_level_fn(func);
     setup();
+    load_level_fn(func); 
+    Camera *cam= &get_level().cam;
+    cam->up = {0,0,1};
+    cam->target = {-1, 0,0};
+    cam->fovy = 100;
+    cam->position = {20,0,0};
+    cam->projection = CAMERA_PERSPECTIVE; 
+
     SetTargetFPS(60);
     RenderTexture2D post_texture = LoadRenderTexture(GetScreenWidth(),GetScreenHeight());
     Shader post_shader = LoadShader("./shaders/vertex.glsl", "./shaders/postfrag.glsl");
     while(!WindowShouldClose()){
+	cam = &get_level().cam;
 	runtime.level->draw_calls.clear();
 	runtime.level->draw_calls_3d.clear();
 	runtime.level->event_queue.clear();
 	update();
         physics_prepare_update();
         update_physics();
-	cam_update(&cam);
-        renderer_update(&cam,post_texture, post_shader);
+	cam_update(cam);
+        renderer_update(cam,post_texture, post_shader);
         physics_finish_update();
 	process_events();
 	run_destructors();
@@ -143,6 +143,15 @@ Entity * Entity::interface_deserialize(Deserializer&des){
 }
 
 void setup(){
+    runtime.level = std::make_unique<Level>(Level{});
+    runtime.level->textures["../assets/ship_texture.png"] =LoadTexture("../assets/ship_texture.png");
+    runtime.level->player = 0;
+    Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
+    get_level().models["cube"] = path_load_model("cube",std::vector<std::string>{}, runtime.level->textures,shader);
+    get_level().models["cylinder"] = path_load_model("cylinder",std::vector<std::string>{}, runtime.level->textures,shader);
+    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"../assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
+    get_level().mesh_textures[string("ship")]= std::vector<std::string>{std::string("../assets/ship_texture.png")}; 
+    runtime.level->shader = shader;
 
 }
 void run_destructors(){
@@ -308,104 +317,105 @@ void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amou
 }
 void Level::serialize(Serializer * ser)const{
     ser->serialize((std::string)"Level");
-    printf("ser partial:%zu\n", ser->get_current_idx());
+//    printf("ser partial:%zu\n", ser->get_current_idx());
     if(player){
-            printf("ser player idx:%ld\n", (long)player->id);
+ //           printf("ser player idx:%ld\n", (long)player->id);
 	ser->serialize<long>((long)player->id);
     } else{
 	ser->serialize<long>((long)(-1));
-        printf("ser player idx:%ld\n", -1l);
+//        printf("ser player idx:%ld\n", -1l);
     } 
 
-    printf("ser stage 1:%zu\n", ser->get_current_idx());
-    fflush(stdout);
+//    printf("ser stage 1:%zu\n", ser->get_current_idx());
+ //   fflush(stdout);
 
     ser->serialize(textures.size());
     for(const auto &i:textures){
 	ser->serialize(i.first);
     }
-    printf("ser stage 2:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+  //  printf("ser stage 2:%zu\n", ser->get_current_idx()); 
+   // fflush(stdout);
     ser->serialize(mesh_textures.size());
     for(auto &i: mesh_textures){
 	ser->serialize(i.first);
 	ser->serialize_array(i.second.data(), i.second.size());
     }
-    printf("ser stage 3:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+   // printf("ser stage 3:%zu\n", ser->get_current_idx()); 
+    //fflush(stdout);
     ser->serialize(models.size()); 
-    printf("model_count:%zu\n", models.size());
+    //printf("model_count:%zu\n", models.size());
     for(const auto&i : models){
 	ser->serialize(i.first);
     }
-     printf("ser stage 4:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+   //  printf("ser stage 4:%zu\n", ser->get_current_idx()); 
+    //fflush(stdout);
     ser->serialize_interface_array(entities.data(), entities.size());
-     printf("ser stage 5:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+     //printf("ser stage 5:%zu\n", ser->get_current_idx()); 
+    //fflush(stdout);
     ser->serialize_array(generations.data(), generations.size());
-     printf("ser stage 6:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+     //printf("ser stage 6:%zu\n", ser->get_current_idx()); 
+    //fflush(stdout);
     ser->serialize_array(meshes.data(), meshes.size());
-     printf("ser stage 7:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+     //printf("ser stage 7:%zu\n", ser->get_current_idx()); 
+    //fflush(stdout);
     ser->serialize_array(physics.data(), physics.size());
-     printf("ser stage 8:%zu\n", ser->get_current_idx()); 
-    fflush(stdout);
+    ser->serialize(cam);
+   // fflush(stdout);
 }
 Level Level::deserialize(Deserializer* des){
     printf("deserializing\n");
     Level out;
     des->deserialize<std::string>();
     std::string t = des->deserialize<std::string>();
-    printf("des partial:%zu, s:%s\n",des->get_current_idx(), t.c_str());
+    //printf("des partial:%zu, s:%s\n",des->get_current_idx(), t.c_str());
     out.shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
     long player_idx = des->deserialize<long>();
-    printf("des player idx:%ld\n", player_idx);
-     printf("des stage 1:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des player idx:%ld\n", player_idx);
+     //printf("des stage 1:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     size_t texture_size = des->deserialize<size_t>(); 
     for(size_t i =0; i<texture_size; i++){
 	std::string name = des->deserialize<std::string>();
 	Texture tex = LoadTexture(name.c_str());
 	 out.textures.insert({name, tex});
     }  
-    printf("des stage 2:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 2:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     size_t mesh_texture_size = des->deserialize<size_t>(); 
     for(size_t i =0; i<mesh_texture_size; i++){
 	std::string name = des->deserialize<std::string>();
 	std::vector<std::string> values = des->deserialize_array<std::string>();
 	out.mesh_textures.insert({name, values});
     }
-    printf("des stage 3:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 3:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     size_t model_size = des->deserialize<size_t>();
-    printf("model_count:%zu\n", model_size);
+    //printf("model_count:%zu\n", model_size);
     for(size_t i =0; i<model_size; i++){
 	std::string name = des->deserialize<std::string>();
 	Model m = path_load_model(name, out.mesh_textures[name], out.textures,out.shader);
 	out.models.insert({name, m});
     }
-    printf("des stage 4:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+   // printf("des stage 4:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     out.entities = des->deserialize_interface_array<Entity>(); 
     if(player_idx>=0&& player_idx<out.entities.size()){
 	out.player = out.entities[player_idx];
     }else{
 	out.player =0;
     }
-    printf("des stage 5:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 5:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     out.generations=  des->deserialize_array<uint32_t>();
-    printf("des stage 6:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 6:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     out.meshes = des->deserialize_array<MeshComp>();
-    printf("des stage 7:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 7:%zu\n", des->get_current_idx()); 
+    //fflush(stdout);
     out.physics = des->deserialize_array<PhysicsComp>();
-    printf("des stage 8:%zu\n", des->get_current_idx()); 
-    fflush(stdout);
+    //printf("des stage 8:%zu\n", des->get_current_idx()); 
+    out.cam = des->deserialize<Camera3D>();
+    //fflush(stdout);
     return out;
 }
 Level * Level::interface_deserialize(Deserializer&des){
@@ -444,6 +454,7 @@ Model path_load_model(const std::string&mod, const std::vector<std::string>& tex
 	    loaded_textures[textures[i]] = LoadTexture(textures[i].c_str());
 	}
 	out.materials[0].maps->texture=loaded_textures[textures[i]];
+	printf("%s\n", textures[i].c_str());
     }
     out.materials[0].shader = shader;
     return out;

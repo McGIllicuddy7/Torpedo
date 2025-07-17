@@ -1,4 +1,6 @@
 #include "ship.hpp"
+#include "../../engine/physics/physics.hpp"
+#include "/opt/homebrew/include/raymath.h"
 namespace Torpedo{
 	void WeaponsComp::fire_projectile(Vec3 start, Vec3 direction, Quat rot){
 		MeshPart m;
@@ -53,7 +55,7 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*100;
+		phys.velocity = direction*5;
 		e.get()->get_physics()= phys;
 }
 Projectile::Projectile(){
@@ -70,11 +72,21 @@ void Projectile::on_tick(){
 		destroy_entity(EntityRef{id, runtime.level->generations[id]});
 		pending_kill = true;
 	}
+	auto a=line_trace(get_location(), get_location()+get_forward_vector()*0.1);
+	if(a){
+		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
+		destroy_entity(get_as_ref(this));
+	}
+
 }
 Projectile::~Projectile(){
 }
 void Projectile::on_damage(Vec3 incoming_direction, double damage){
+	spawn_explosion(get_location(), 1.0);
+
 	destroy_entity(get_as_ref(this));
+
+
 }
 void Projectile::serialize(Serializer * ser)const {
 	ser->serialize("Projectile");
@@ -114,10 +126,15 @@ remaining_time -= 1.0/60.0;
 	}else{
 		ship.use_target = false;
 	}
-	
+	auto a = line_trace(get_location(), get_location()+get_forward_vector()*0.1);
+	if(a){
+		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
+		destroy_entity(get_as_ref(this));
+	}
 	ship.update();
 }
 void Missile::on_damage(Vec3 incoming_direction, double damage){
+	spawn_explosion(get_location(), 10.0);
 	destroy_entity(get_as_ref(this));
 }
 void Missile::serialize(Serializer*ser) const{
@@ -143,4 +160,13 @@ Missile Missile::deserialize(Deserializer* des){
 Entity * Missile::interface_deserialize(Deserializer&des){
 	return new Missile(Missile::deserialize(&des));
 }
+void spawn_explosion(Vec3 pos, double size){
+	static Texture texture = LoadTexture("../../../assets/explosion.png");
+	Texture tex = texture;
+	spawn_repeating(2.0,[tex,pos, size](double time){
+		DrawBillboard(get_level().cam, tex,pos, size*time,WHITE);
+	});
+
+}
+
 }

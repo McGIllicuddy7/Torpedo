@@ -13,15 +13,18 @@ uniform sampler2D diffuse;
 out vec4 finalColor;
 void main()
 {
-    vec3 light_pos = vec3(0.0, 0.0,0.0);
+    vec3 light_pos = vec3(500000, 0.0,0.0);
     vec3 delt = light_pos-fragPosition;
     float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
-    dist /= 10;
+    dist /= 10000000;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
     delta /= dist; 
-    if (delta<0.1){
-        delta = 0.1;
+    if (delta<0.4){
+        delta = 0.4;
+    }
+    if(delta>1.0){
+        delta = 1.0;
     }
      vec4 col =texture(diffuse, fragTexCoord);  
     float a = col.a;

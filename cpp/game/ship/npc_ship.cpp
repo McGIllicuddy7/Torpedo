@@ -33,7 +33,7 @@ EntityRef create_npc_ship(Vec3 pos, Quat rot, Alignment align){
 	return out;
 }
 void NPCShip::on_damage(Vec3 incoming_direction, double damage){
-	destroy_entity(get_as_ref(this));
+	ship.on_damage(incoming_direction, damage);
 }
 void NPCShip::serialize(Serializer* ser) const{
 	ser->serialize("NPCShip");

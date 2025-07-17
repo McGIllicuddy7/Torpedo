@@ -1,6 +1,6 @@
 #include "ship.hpp"
-#include "../physics/physics.hpp"
-#include "../particles.hpp"
+#include "../../engine/physics/physics.hpp"
+#include "../../engine/particles.hpp"
 namespace Torpedo{
 
 void PlayerShip::on_tick(){	
@@ -87,7 +87,7 @@ void PlayerShip::on_tick(){
 		Vector2 p = GetWorldToScreen(v,cam);
 		double d = Vector3Distance(v, get_location());
 		if(d<1){d = 1;}
-		if(d>5000){
+		if(d>500000000){
 			continue;
 		}	
 		if(a.index == this->id){
@@ -156,7 +156,7 @@ EntityRef create_player_ship(Vec3 pos, Quat rot){
 	return out;
 }
 void PlayerShip::on_damage(Vec3 incoming_direction, double damage){
-	destroy_entity(get_as_ref(this));
+	ship.on_damage(incoming_direction, damage);
 }
 void PlayerShip::serialize(Serializer* ser) const{
 	ser->serialize("PlayerShip");
