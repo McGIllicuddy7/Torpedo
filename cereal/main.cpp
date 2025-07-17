@@ -104,7 +104,8 @@ void test2(){
 	s.write_to_file("test.bin");
 }
 int main(void){		
-	//writer();
-	//reader();	
-	test2();
+	writer();
+	reader();	
+	exit(0);
+	//test2();
 }

@@ -115,8 +115,7 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             *did_hit = true;
             comps[i].trans.trans.translation += col->norm*(col->depth+0.01);
             uint32_t i_gen = runtime.level->generations[i];
-            uint32_t j_gen = runtime.level->generations[j];
-            uint32_t ui = i;
+            uint32_t j_gen = runtime.level->generations[j]; uint32_t ui = i;
             uint32_t uj = j;
             EntityRef iref = EntityRef{.index = ui, .generation =i_gen};
             EntityRef jref = EntityRef{.index = uj, .generation = j_gen};

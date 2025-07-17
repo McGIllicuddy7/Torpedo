@@ -1,5 +1,3 @@
 make: engine
 	cd game && make
-	cd ../engine && make
-
-	cd ..
+	cd engine && make	

@@ -6,6 +6,8 @@
 #include <functional>
 #include <unordered_map>
 #include <assert.h>
+#include<cstdint>
+#include <string.h>
 template <typename T> concept Trivial= std::is_trivial_v<T>;
 
 
@@ -129,6 +131,7 @@ class Deserializer{
 	SerialValue peek_next_serial_value();
 public:
 	Deserializer();
+	~Deserializer();
 	Deserializer(Deserializer &) = delete;
 	Deserializer(const Deserializer &) = delete;
 	Deserializer& operator=(Deserializer&) = delete;

@@ -73,7 +73,7 @@ void mainloop(std::function<void()> func){
 
     SetTargetFPS(60);
     RenderTexture2D post_texture = LoadRenderTexture(GetScreenWidth(),GetScreenHeight());
-    Shader post_shader = LoadShader("./shaders/vertex.glsl", "./shaders/postfrag.glsl");
+    Shader post_shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/postfrag.glsl");
     while(!WindowShouldClose()){
 	cam = &get_level().cam;
 	runtime.level->draw_calls.clear();
@@ -144,13 +144,13 @@ Entity * Entity::interface_deserialize(Deserializer&des){
 
 void setup(){
     runtime.level = std::make_unique<Level>(Level{});
-    runtime.level->textures["../assets/ship_texture.png"] =LoadTexture("../assets/ship_texture.png");
+    runtime.level->textures["../../assets/ship_texture.png"] =LoadTexture("../../assets/ship_texture.png");
     runtime.level->player = 0;
-    Shader shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
+    Shader shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/frag.glsl");
     get_level().models["cube"] = path_load_model("cube",std::vector<std::string>{}, runtime.level->textures,shader);
     get_level().models["cylinder"] = path_load_model("cylinder",std::vector<std::string>{}, runtime.level->textures,shader);
-    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"../assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
-    get_level().mesh_textures[string("ship")]= std::vector<std::string>{std::string("../assets/ship_texture.png")}; 
+    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"../../assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
+    get_level().mesh_textures[string("ship")]= std::vector<std::string>{std::string("../../assets/ship_texture.png")}; 
     runtime.level->shader = shader;
 
 }
@@ -368,7 +368,7 @@ Level Level::deserialize(Deserializer* des){
     des->deserialize<std::string>();
     std::string t = des->deserialize<std::string>();
     //printf("des partial:%zu, s:%s\n",des->get_current_idx(), t.c_str());
-    out.shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
+    out.shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/frag.glsl");
     long player_idx = des->deserialize<long>();
     //printf("des player idx:%ld\n", player_idx);
      //printf("des stage 1:%zu\n", des->get_current_idx()); 
@@ -445,7 +445,7 @@ Model path_load_model(const std::string&mod, const std::vector<std::string>& tex
     }else if(mod == "../assets/cylinder.glb"||mod == "cylinder"){
 	out =LoadModelFromMesh(GenMeshCube(0.2,0.02, 0.02));	
     } else{
-	string name = std::string("../assets/")+mod+".glb";
+	string name = std::string("../../assets/")+mod+".glb";
 	printf("loading %s\n", name.c_str());
 	out = LoadModel(name.c_str());
     }

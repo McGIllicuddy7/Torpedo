@@ -1,6 +1,5 @@
 #include "ship.hpp"
 #include "../../engine/physics/physics.hpp"
-#include "/opt/homebrew/include/raymath.h"
 namespace Torpedo{
 	void WeaponsComp::fire_projectile(Vec3 start, Vec3 direction, Quat rot){
 		MeshPart m;
@@ -59,34 +58,33 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
 		e.get()->get_physics()= phys;
 }
 Projectile::Projectile(){
-	remaining_time = 10.0;
+	remaining_time = 60.0;
 	pending_kill =false;
 };
 void Projectile::on_tick(){
 	if(pending_kill){
+
 		printf("error %ul is pending kill\n", id);
 	}
 	assert(!pending_kill);
-	remaining_time -= 1.0/60.0;
-	if(remaining_time<0.0){
-		destroy_entity(EntityRef{id, runtime.level->generations[id]});
-		pending_kill = true;
-	}
-	auto a=line_trace(get_location(), get_location()+get_forward_vector()*0.1);
+	remaining_time -= 1.0/60.0;	
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./60.0));
 	if(a){
 		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
+		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
 		destroy_entity(get_as_ref(this));
+	}
+	if(remaining_time<0.0){	
+		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
+		destroy_entity(EntityRef{id, runtime.level->generations[id]});
+		pending_kill = true;
 	}
 
 }
 Projectile::~Projectile(){
 }
-void Projectile::on_damage(Vec3 incoming_direction, double damage){
-	spawn_explosion(get_location(), 1.0);
-
-	destroy_entity(get_as_ref(this));
-
-
+void Projectile::on_damage(Vec3 incoming_direction, double damage){	
+		remaining_time =0.001;
 }
 void Projectile::serialize(Serializer * ser)const {
 	ser->serialize("Projectile");
@@ -108,34 +106,36 @@ Entity * Projectile::interface_deserialize(Deserializer&des){
 	return new Projectile(Projectile::deserialize(&des));
 }
 Missile::Missile(){
-	remaining_time = 60.0;
+	remaining_time =100.0;
 	ship = ShipComp{};
 	ship.accel_value = 0.1;
 }
 Missile::~Missile(){
 }
 void Missile::on_tick(){
-remaining_time -= 1.0/60.0;
-	if(remaining_time<0.0){
-		destroy_entity(EntityRef{id, runtime.level->generations[id]});
-	}
+remaining_time -= 1.0/60.0;	
+	
 	ship.parent = get_as_ref(this);
 	ship.target = target;
 	if(homing){
 		if(target.get())ship.use_target = homing; else ship.use_target = false;
 	}else{
 		ship.use_target = false;
-	}
-	auto a = line_trace(get_location(), get_location()+get_forward_vector()*0.1);
+	}	
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./30.0));
 	if(a){
-		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
+		apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);
+		spawn_explosion(get_location()-get_forward_vector(), 30.0);
 		destroy_entity(get_as_ref(this));
+	}
+	if(remaining_time<0.0){
+		spawn_explosion(get_location(), 30.0);
+		destroy_entity(EntityRef{id, runtime.level->generations[id]});
 	}
 	ship.update();
 }
-void Missile::on_damage(Vec3 incoming_direction, double damage){
-	spawn_explosion(get_location(), 10.0);
-	destroy_entity(get_as_ref(this));
+void Missile::on_damage(Vec3 incoming_direction, double damage){	
+	remaining_time =0.001;	
 }
 void Missile::serialize(Serializer*ser) const{
 	ser->serialize("Missile");
@@ -160,11 +160,25 @@ Missile Missile::deserialize(Deserializer* des){
 Entity * Missile::interface_deserialize(Deserializer&des){
 	return new Missile(Missile::deserialize(&des));
 }
+Texture gen_explosion_texture(){
+	
+	Image img = LoadImage("../../assets/explosion.png");	
+	return LoadTextureFromImage(img);
+}
 void spawn_explosion(Vec3 pos, double size){
-	static Texture texture = LoadTexture("../../../assets/explosion.png");
+	//static Texture texture = LoadTextureFromImage(GenImageColor(821,821, Color{255, 0,0, 128}));//
+	//static Texture texture = LoadTexture("../../assets/explosion.png");
+	//printf("%d, %d\n", texture.height, texture.width);
+	static Texture texture = gen_explosion_texture();	
 	Texture tex = texture;
-	spawn_repeating(2.0,[tex,pos, size](double time){
-		DrawBillboard(get_level().cam, tex,pos, size*time,WHITE);
+	spawn_repeating(0.2,[tex,pos, size](double time){
+		double size2 = size*(0.2-time)*0.10;
+		draw_call_3d([tex, pos, size2](){
+			DrawBillboardPro(get_level().cam, tex, Rectangle{0,0,280,239},pos, get_level().cam.up,Vector2{(float)size2, (float)size2}, Vector2{(float)(0.5*size2),(float)(0.5*size2)},0.0,WHITE);
+		});
+		//draw_call([tex](){
+			//DrawTexture(tex, 64, 64, WHITE);
+		//});
 	});
 
 }

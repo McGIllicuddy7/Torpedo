@@ -21,8 +21,8 @@ void PlayerShip::on_tick(){
 		r*= 0.2;
 		Vec3 lv= Vec3::from(r);
 		Vec3 rv = Vec3::from(r*-1.0);
-		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector(),get_rotation());
-		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(),get_rotation());
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector()+get_velocity(),get_rotation());
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector()+get_velocity(),get_rotation());
 	}
 	if(IsKeyPressed(KEY_C)){
 		/*Vector3 r = get_right_vector();
@@ -83,7 +83,7 @@ void PlayerShip::on_tick(){
 		cam.target = target;
 		cam.position = {0,0,0};
 		cam.projection =CAMERA_PERSPECTIVE;
-		cam.fovy = 120;
+		cam.fovy = 90;
 		Vector2 p = GetWorldToScreen(v,cam);
 		double d = Vector3Distance(v, get_location());
 		if(d<1){d = 1;}
@@ -125,7 +125,7 @@ void PlayerShip::on_tick(){
 		load_level("level.bin");
 	}
 	if(check){
-		ship.weapons.fire_missile(get_location()+get_forward_vector(), get_forward_vector(), get_rotation(), min, hit_min);
+		ship.weapons.fire_missile(get_location()+get_forward_vector(), get_forward_vector()+get_velocity(), get_rotation(), min, hit_min);
 	}	
 }
 PlayerShip::PlayerShip(){

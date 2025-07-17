@@ -14,7 +14,7 @@ void call_serialize(Serializer* __restrict__ ser, const std::string& s){
 }
 Serializer::~Serializer(){
 		for(size_t i =0; i<values.size(); i++){
-			delete values[i].buffer;
+			delete [] values[i].buffer;
 		}
 	}
 void Serializer::push_value(SerialValue value){
@@ -117,4 +117,10 @@ Deserializer::Deserializer(){
 	buffsz =0;
 	current_idx =0;
 
+}
+Deserializer::~Deserializer(){
+	delete[] buffer;
+	buffer =0;
+	buffsz = 0; 
+	current_idx =0;
 }

@@ -24,8 +24,10 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
     ClearBackground(Color{1, 1, 64,255});
     static bool stars_init = false;
     static std::vector<Vec3> positions;
+    static Model star;
     if(!stars_init){
-        for(int i =0; i<500; i++){
+        star = LoadModelFromMesh(GenMeshSphere(0.5, 3,3)); 
+        for(int i =0; i<1000; i++){
             int x= rand()%1000-500;
             int y = rand()%1000-500;
             int z = rand()%1000-500;
@@ -44,8 +46,8 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
     }
     BeginMode3D(*cam);
     rlSetClipPlanes(0.001, 5000000);
-    for(int i =0; i<500; i++){
-        DrawSphere(cam->position+positions[i],0.5, WHITE);
+    for(size_t i =0; i<positions.size(); i++){
+        DrawModel(star, positions[i]+cam->position,1.0,WHITE);
     }
     DrawSphere(Vec3{500000,0,0},100000.0, YELLOW);
     for(size_t i =0; i<get_level().meshes.size(); i++){
@@ -66,8 +68,8 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
   /*  ClearBackground(BLACK);
     BeginShaderMode(postprocess); 
     DrawTextureRec(tex.texture, (Rectangle){ 0, 0, (float)tex.texture.width, (float)-tex.texture.height }, (Vector2){ 0, 0 }, WHITE); 
-    EndShaderMode();
-     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   */
+    EndShaderMode();*/
+     DrawFPS(GetScreenWidth()-GetScreenWidth()/5,80);   
     DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 5, GREEN);
     EndDrawing();
 }
