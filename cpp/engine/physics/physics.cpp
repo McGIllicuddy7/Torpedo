@@ -31,6 +31,8 @@ static int64_t compute_position(Vector3 v){
 static void setup_grid(){
     grid.clear();
     for(const auto &i:comps){
+        if(!i.can_ever_collide)
+            continue;
         auto pos = i.trans.trans.translation;
         if(pos.x<min_x){
             min_x = pos.x;
@@ -167,11 +169,12 @@ void update_physics(){
     setup_grid(); 
     size_t count = 0;
     for(size_t i =0; i<comps.size(); i++){ 
+        if(!comps[i].can_ever_collide){comps[i].trans.trans.translation+= comps[i].velocity*1/60.0;continue;}
 
         #ifdef STEP
         double dist = Vector3Length(comps[i].velocity) *1/60.0;
         Vec3 p = comps[i].trans.trans.translation;
-        double delta = 0.1;
+        double delta = 0.05;
         Vec3 delt = Vec3::from(Vector3Normalize(comps[i].velocity)*delta);
         if(dist == 0) continue;
         int dt = ceil((double)dist/delta);

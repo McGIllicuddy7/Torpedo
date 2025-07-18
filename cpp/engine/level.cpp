@@ -2,14 +2,52 @@
 #include "renderer/renderer.hpp"
 #include "physics/physics.hpp"
 #include <stdio.h>
+#include <mutex>
 namespace Torpedo{
 Runtime runtime;
+std::mutex game_lock;
 void update();
 void run_destructors();
 void set_player_entity(EntityRef ref){
 	runtime.level->player = ref.get();
 }
-
+void handle_logs(){
+    size_t count =0;
+    Log * current = get_level().logs;
+    while(current){
+	    count++;
+	    current = current->next;
+    }
+    size_t min = GetScreenHeight()/4;
+    current = get_level().logs;
+    Log* prev = 0;
+    count =0;
+    while(current){
+	if(current->remaining_time <= 0){
+	    if(prev){
+		prev->next = current->next;
+	    }else{
+		get_level().logs =current->next;
+	    }
+	    Log * old = current;
+	    current = current->next;
+	    delete old;
+	}else{
+	current->remaining_time -= 1./60.;
+	if(count*14>min) continue;
+	    char buff[256];
+	    memcpy(buff, current->data, 256);
+	    size_t idx = min-count*14;
+	    draw_call([buff, idx](){
+		DrawText(buff, (GetScreenWidth()*8)/10,idx, 12, WHITE);	
+	    });
+	    prev = current;
+	    current = current->next;
+	    count++;
+	}	
+    }
+    
+}
 void update(){
     for(int i =0; i<runtime.level->entities.size(); i++){
         if(runtime.level->entities[i]){
@@ -61,6 +99,7 @@ done:
 }
 void mainloop(std::function<void()> func){
     InitWindow(GetScreenWidth(), GetScreenHeight(), "brid-get");
+    InitAudioDevice();
     DisableCursor();
     setup();
     load_level_fn(func); 
@@ -70,7 +109,6 @@ void mainloop(std::function<void()> func){
     cam->fovy = 100;
     cam->position = {20,0,0};
     cam->projection = CAMERA_PERSPECTIVE; 
-
     SetTargetFPS(60);
     RenderTexture2D post_texture = LoadRenderTexture(GetScreenWidth(),GetScreenHeight());
     Shader post_shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/postfrag.glsl");
@@ -82,6 +120,7 @@ void mainloop(std::function<void()> func){
 	update();
         physics_prepare_update();
         update_physics();
+	handle_logs();
 	cam_update(cam);
         renderer_update(cam,post_texture, post_shader);
         physics_finish_update();
@@ -144,13 +183,30 @@ Entity * Entity::interface_deserialize(Deserializer&des){
 
 void setup(){
     runtime.level = std::make_unique<Level>(Level{});
-    runtime.level->textures["../../assets/ship_texture.png"] =LoadTexture("../../assets/ship_texture.png");
+    runtime.level->textures["assets/ship_texture.png"] =LoadTexture("assets/ship_texture.png");
     runtime.level->player = 0;
     Shader shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/frag.glsl");
     get_level().models["cube"] = path_load_model("cube",std::vector<std::string>{}, runtime.level->textures,shader);
     get_level().models["cylinder"] = path_load_model("cylinder",std::vector<std::string>{}, runtime.level->textures,shader);
-    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"../../assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
-    get_level().mesh_textures[string("ship")]= std::vector<std::string>{std::string("../../assets/ship_texture.png")}; 
+    get_level().models[string("ship")] =path_load_model("ship", std::vector<std::string>{"assets/ship_texture.png"}, runtime.level->textures,shader);// LoadModel("../assets/ship.glb");
+    get_level().mesh_textures[string("ship")]= std::vector<std::string>{std::string("assets/ship_texture.png")}; 
+    runtime.level->sounds["assets/launching-missile.mp3"] = LoadSound(
+"assets/launching-missile.mp3"
+    );
+    runtime.level->sounds["assets/missile-lock-detected.mp3"] = LoadSound(
+"assets/missile-lock-detected.mp3"
+    ); 
+    runtime.level->sounds["assets/missile.mp3"] = LoadSound(
+"assets/missile.mp3");
+    runtime.level->sounds["assets/machine-gun.mp3"] = LoadSound(
+"assets/machine-gun.mp3" 
+    ); 
+    runtime.level->sounds["assets/submachine-gun.mp3"] = LoadSound(
+	"assets/submachine-gun.mp3" 
+    ); 
+    runtime.level->sounds["assets/space-gun.mp3"] = LoadSound(
+	"assets/space-gun.mp3" 
+    ); 
     runtime.level->shader = shader;
 
 }
@@ -242,16 +298,20 @@ Quat Entity::get_rotation(){
 	return get_physics().trans.trans.rotation;
 }
 void draw_call(std::function<void()>func ){
+    game_lock.lock();
     try {runtime.level->draw_calls.push_back(func);} catch(std::exception e) {
 	fputs("exception in draw call caught\n",stderr);
     }
+    game_lock.unlock();
 
 }
 
 void draw_call_3d(std::function<void()>to_call){
+    game_lock.lock();
     try {runtime.level->draw_calls_3d.push_back(to_call);} catch(std::exception e) {
 	fputs("exception in draw call caught\n",stderr);
     }
+    game_lock.unlock();
 }
 std::vector<EntityRef> get_all_entities_with_tag(Tag tag){
     std::vector<EntityRef> out = {};
@@ -305,6 +365,7 @@ std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count){
 }
 
 void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amount){
+    game_lock.lock();
     Event event;
     event.cause_idx = source.index;
     event.cause_generation = source.generation;
@@ -314,108 +375,80 @@ void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amou
     event.apply_damage.damage = amount;
     event.apply_damage.direction = direction;
     runtime.level->event_queue.push_back(event);
+    game_lock.unlock();
 }
 void Level::serialize(Serializer * ser)const{
     ser->serialize((std::string)"Level");
-//    printf("ser partial:%zu\n", ser->get_current_idx());
-    if(player){
- //           printf("ser player idx:%ld\n", (long)player->id);
+    if(player){ 
 	ser->serialize<long>((long)player->id);
     } else{
 	ser->serialize<long>((long)(-1));
-//        printf("ser player idx:%ld\n", -1l);
     } 
-
-//    printf("ser stage 1:%zu\n", ser->get_current_idx());
- //   fflush(stdout);
-
     ser->serialize(textures.size());
     for(const auto &i:textures){
 	ser->serialize(i.first);
-    }
-  //  printf("ser stage 2:%zu\n", ser->get_current_idx()); 
-   // fflush(stdout);
+    }   
     ser->serialize(mesh_textures.size());
     for(auto &i: mesh_textures){
 	ser->serialize(i.first);
 	ser->serialize_array(i.second.data(), i.second.size());
-    }
-   // printf("ser stage 3:%zu\n", ser->get_current_idx()); 
-    //fflush(stdout);
-    ser->serialize(models.size()); 
-    //printf("model_count:%zu\n", models.size());
+    }  
+    ser->serialize(models.size());  
     for(const auto&i : models){
 	ser->serialize(i.first);
     }
-   //  printf("ser stage 4:%zu\n", ser->get_current_idx()); 
-    //fflush(stdout);
+    ser->serialize(sounds.size());
+    for(const auto& i:sounds){
+	ser->serialize(i.first);
+    }
     ser->serialize_interface_array(entities.data(), entities.size());
-     //printf("ser stage 5:%zu\n", ser->get_current_idx()); 
-    //fflush(stdout);
-    ser->serialize_array(generations.data(), generations.size());
-     //printf("ser stage 6:%zu\n", ser->get_current_idx()); 
-    //fflush(stdout);
-    ser->serialize_array(meshes.data(), meshes.size());
-     //printf("ser stage 7:%zu\n", ser->get_current_idx()); 
-    //fflush(stdout);
+    ser->serialize_array(generations.data(), generations.size()); 
+    ser->serialize_array(meshes.data(), meshes.size()); 
     ser->serialize_array(physics.data(), physics.size());
     ser->serialize(cam);
-   // fflush(stdout);
+   
 }
 Level Level::deserialize(Deserializer* des){
     printf("deserializing\n");
     Level out;
     des->deserialize<std::string>();
-    std::string t = des->deserialize<std::string>();
-    //printf("des partial:%zu, s:%s\n",des->get_current_idx(), t.c_str());
+    std::string t = des->deserialize<std::string>(); 
     out.shader = LoadShader("../engine/shaders/vertex.glsl", "../engine/shaders/frag.glsl");
     long player_idx = des->deserialize<long>();
-    //printf("des player idx:%ld\n", player_idx);
-     //printf("des stage 1:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
-    size_t texture_size = des->deserialize<size_t>(); 
+     size_t texture_size = des->deserialize<size_t>(); 
     for(size_t i =0; i<texture_size; i++){
 	std::string name = des->deserialize<std::string>();
 	Texture tex = LoadTexture(name.c_str());
 	 out.textures.insert({name, tex});
     }  
-    //printf("des stage 2:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
-    size_t mesh_texture_size = des->deserialize<size_t>(); 
+     size_t mesh_texture_size = des->deserialize<size_t>(); 
     for(size_t i =0; i<mesh_texture_size; i++){
 	std::string name = des->deserialize<std::string>();
 	std::vector<std::string> values = des->deserialize_array<std::string>();
 	out.mesh_textures.insert({name, values});
     }
-    //printf("des stage 3:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
-    size_t model_size = des->deserialize<size_t>();
-    //printf("model_count:%zu\n", model_size);
+     size_t model_size = des->deserialize<size_t>(); 
     for(size_t i =0; i<model_size; i++){
 	std::string name = des->deserialize<std::string>();
 	Model m = path_load_model(name, out.mesh_textures[name], out.textures,out.shader);
 	out.models.insert({name, m});
     }
-   // printf("des stage 4:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
+    size_t sounds_size = des->deserialize<size_t>();
+    for(size_t i =0; i<sounds_size; i++){
+	std::string name = des->deserialize<std::string>();
+	Sound m = LoadSound(name.c_str());
+	out.sounds.insert({name,m});
+    }
     out.entities = des->deserialize_interface_array<Entity>(); 
     if(player_idx>=0&& player_idx<out.entities.size()){
 	out.player = out.entities[player_idx];
     }else{
 	out.player =0;
     }
-    //printf("des stage 5:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
     out.generations=  des->deserialize_array<uint32_t>();
-    //printf("des stage 6:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
     out.meshes = des->deserialize_array<MeshComp>();
-    //printf("des stage 7:%zu\n", des->get_current_idx()); 
-    //fflush(stdout);
     out.physics = des->deserialize_array<PhysicsComp>();
-    //printf("des stage 8:%zu\n", des->get_current_idx()); 
     out.cam = des->deserialize<Camera3D>();
-    //fflush(stdout);
     return out;
 }
 Level * Level::interface_deserialize(Deserializer&des){
@@ -427,6 +460,9 @@ Level::~Level(){
     }
     for(auto &i:textures){
 	    UnloadTexture(i.second);
+    }
+    for(auto &i:sounds){
+	UnloadSound(i.second);
     }
     UnloadShader(shader);
 }
@@ -441,11 +477,11 @@ void save_level(const char* path){
 Model path_load_model(const std::string&mod, const std::vector<std::string>& textures, unordered_map<string,Texture> & loaded_textures, Shader shader){
     Model out;
     if(mod == "../assets/cube.glb"|| mod == "cube"){
-	out = LoadModelFromMesh(GenMeshCube(0.5, 0.5, 0.5)); 
+	out = LoadModelFromMesh(GenMeshCube(0.01, 0.01, 0.01)); 
     }else if(mod == "../assets/cylinder.glb"||mod == "cylinder"){
-	out =LoadModelFromMesh(GenMeshCube(0.2,0.02, 0.02));	
+	out =LoadModelFromMesh(GenMeshCube(0.25, 0.0125, 0.0125));	
     } else{
-	string name = std::string("../../assets/")+mod+".glb";
+	string name = std::string("assets/")+mod+".glb";
 	printf("loading %s\n", name.c_str());
 	out = LoadModel(name.c_str());
     }
@@ -459,5 +495,22 @@ Model path_load_model(const std::string&mod, const std::vector<std::string>& tex
     out.materials[0].shader = shader;
     return out;
 }
+void log(const char * message,double duration){
+    game_lock.lock();
+    Log* old = get_level().logs;
+    Log *log = new Log;
+    strncpy(log->data, message, 255);
+    log->remaining_time = duration;
+    log->next = old;
+    get_level().logs = log;
+    game_lock.unlock();
+}
 
 }
+void play_sound(const char * sound){
+    std::string base ="assets/";
+    base += sound;
+    Sound s= LoadSoundAlias(Torpedo::get_level().sounds[base]);
+    PlaySound(s);
+}
+

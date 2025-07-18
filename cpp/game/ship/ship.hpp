@@ -2,13 +2,15 @@
 #include "../../engine/utils.hpp"
 #include "../../engine/level.hpp"
 #include "../../engine/particles.hpp"
+constexpr double  UNITS_TO_KM = 1.;
+constexpr double KM_TO_UNITS  = 1./UNITS_TO_KM;
 namespace Torpedo{
 enum class Alignment{
 	PlayerAligned, EnemyAligned
 };
 struct WeaponsComp{
-	void fire_projectile(Vec3 start, Vec3 direction,Quat rot);
-	void fire_missile(Vec3 start, Vec3 direction, Quat rot, EntityRef target,bool homing);
+	void fire_projectile(Vec3 start, Vec3 direction,Vec3 base_vel,Quat rot, bool spawned_by_player = false);
+	void fire_missile(Vec3 start, Vec3 direction, Vec3 base_vel,Quat rot, EntityRef target,bool homing, bool spawned_by_player = false);
 };
 
 struct ShipComp{
@@ -17,7 +19,7 @@ struct ShipComp{
 	bool use_target=false;
 	bool stablized_velocity = true;
 	int32_t fuel = 1000;
-	float accel_value= 0.05;
+	float accel_value= 0.05*KM_TO_UNITS;
 	EntityRef parent =EntityRef{0,0};
 	Quat desired_rotation = Quat{0,0,0,1};
 	Vec3 desired_position = Vec3{0,0,0};
@@ -55,6 +57,7 @@ class Projectile:public Entity{
 public:
 	double remaining_time;
 	bool pending_kill;
+	bool spawned_by_player;
 	Projectile();
 	virtual ~Projectile();
 	virtual void on_tick();
@@ -70,6 +73,7 @@ public:
 	double remaining_time;
 	EntityRef target;
 	bool homing;
+	bool spawned_by_player;
 	Missile();
 	virtual ~Missile();
 	virtual void on_tick();
@@ -81,8 +85,8 @@ public:
 };
 Register(Missile,Entity);
 class NPCShip: public Entity, public Aligned{
-	ShipComp ship;
-public:
+	ShipComp ship;	
+public:	
 	Alignment align;
 	NPCShip();
 	virtual Alignment get_alignment();

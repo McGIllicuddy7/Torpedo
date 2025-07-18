@@ -21,8 +21,9 @@ void PlayerShip::on_tick(){
 		r*= 0.2;
 		Vec3 lv= Vec3::from(r);
 		Vec3 rv = Vec3::from(r*-1.0);
-		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector()+get_velocity(),get_rotation());
-		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector()+get_velocity(),get_rotation());
+		play_sound("submachine-gun.mp3");
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector(), get_velocity(),get_rotation());
+		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(), get_velocity(),get_rotation());
 	}
 	if(IsKeyPressed(KEY_C)){
 		/*Vector3 r = get_right_vector();
@@ -31,6 +32,7 @@ void PlayerShip::on_tick(){
 		Vec3 rv = Vec3::from(r*-1.0);
 		ship.weapons.fire_projectile(get_location()+get_forward_vector()+lv, get_forward_vector(),get_rotation());
 		ship.weapons.fire_projectile(get_location()+get_forward_vector()+rv, get_forward_vector(),get_rotation());*/
+		play_sound("space-gun.mp3");
 		Vec3 r = get_right_vector()*0.23;
 		Vec3 start =get_location()+get_forward_vector()+r;
 		Vec3 end =get_location()+get_forward_vector()*1000.0+r;
@@ -102,6 +104,9 @@ void PlayerShip::on_tick(){
 				r = 10;
 			}
 			DrawCircleLinesV(p, r,{255,0,0,255});
+			char buff[100];
+			snprintf(buff, 99, "%f km", d*UNITS_TO_KM);
+			DrawText(buff, p.x, p.y, 12, WHITE);
 		});
 		if(check){
 		Aligned * align_ptr = a.downcast<Aligned>();
@@ -125,8 +130,16 @@ void PlayerShip::on_tick(){
 		load_level("level.bin");
 	}
 	if(check){
-		ship.weapons.fire_missile(get_location()+get_forward_vector(), get_forward_vector()+get_velocity(), get_rotation(), min, hit_min);
+		play_sound("launching-missile.mp3");
+		ship.weapons.fire_missile(get_location()+get_forward_vector(), get_forward_vector(),get_velocity(), get_rotation(), min, hit_min);
 	}	
+	double v = Vector3Length(get_physics().velocity);
+	draw_call([v](){
+		char buffer[256];
+		double vel= v*UNITS_TO_KM*1000.0;
+		snprintf(buffer, 255,"SPEED: %d m/s\n" ,(int)vel);
+		DrawText(buffer, GetScreenWidth()/20, (GetScreenHeight()*1)/3, 16, WHITE);
+	});
 }
 PlayerShip::PlayerShip(){
 	ship = ShipComp{};

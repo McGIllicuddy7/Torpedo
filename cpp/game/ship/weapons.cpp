@@ -1,7 +1,7 @@
 #include "ship.hpp"
 #include "../../engine/physics/physics.hpp"
 namespace Torpedo{
-	void WeaponsComp::fire_projectile(Vec3 start, Vec3 direction, Quat rot){
+	void WeaponsComp::fire_projectile(Vec3 start, Vec3 direction, Vec3 base_vel,Quat rot, bool spawned_by_player){
 		MeshPart m;
 		m.string = "cylinder";
 		m.offset= Trans::create();
@@ -24,10 +24,12 @@ namespace Torpedo{
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*30.0;
+		phys.velocity = direction*5*KM_TO_UNITS+base_vel;
 		e.get()->get_physics()= phys; 
+		e.downcast<Projectile>()->spawned_by_player = spawned_by_player;
+		//play_sound("machine-gun.mp3");
 }	
-void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef target, bool homing){
+void WeaponsComp::fire_missile(Vec3 start, Vec3 direction,Vec3 base_vel, Quat rot,EntityRef target, bool homing,bool spawned_by_player){
 		MeshPart m;
 		m.string = "cylinder";
 		m.offset= Trans::create();
@@ -54,12 +56,14 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction, Quat rot,EntityRef ta
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*5;
+		phys.velocity = direction*2.0*KM_TO_UNITS+base_vel;
 		e.get()->get_physics()= phys;
+		e.downcast<Missile>()->spawned_by_player = spawned_by_player;	
 }
 Projectile::Projectile(){
-	remaining_time = 60.0;
+	remaining_time = 144.0;
 	pending_kill =false;
+	spawned_by_player = false;
 };
 void Projectile::on_tick(){
 	if(pending_kill){
@@ -72,12 +76,19 @@ void Projectile::on_tick(){
 	if(a){
 		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
 		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
-		destroy_entity(get_as_ref(this));
+		if(spawned_by_player){
+			log("bullet impact",2.0);
+		}
+		destroy_entity(get_as_ref(this));		
 	}
+	char buff[256];
+	snprintf(buff, 255,"remaining time:%d, distance travelled:%d km\n",(int)remaining_time, (int)((144.0-remaining_time)*Vector3Length(get_physics().velocity)*UNITS_TO_KM));
+	log(buff, 0.01);
 	if(remaining_time<0.0){	
 		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
 		destroy_entity(EntityRef{id, runtime.level->generations[id]});
 		pending_kill = true;
+		log("bullet timeout",2.0);
 	}
 
 }
@@ -92,7 +103,9 @@ void Projectile::serialize(Serializer * ser)const {
 	ser->serialize(tags);
 	ser->serialize(remaining_time);
 	ser->serialize(pending_kill);
+	ser->serialize(spawned_by_player);
 }
+
 Projectile Projectile::deserialize(Deserializer* des){
 	Projectile out;
 	des->deserialize<std::string>();
@@ -100,6 +113,7 @@ Projectile Projectile::deserialize(Deserializer* des){
 	out.tags = des->deserialize<Tag>();
 	out.remaining_time = des->deserialize<double>();
 	out.pending_kill = des->deserialize<bool>();
+	out.spawned_by_player = des->deserialize<bool>();
 	return out;
 }
 Entity * Projectile::interface_deserialize(Deserializer&des){
@@ -109,6 +123,7 @@ Missile::Missile(){
 	remaining_time =100.0;
 	ship = ShipComp{};
 	ship.accel_value = 0.1;
+	spawned_by_player = false;
 }
 Missile::~Missile(){
 }
@@ -126,11 +141,15 @@ remaining_time -= 1.0/60.0;
 	if(a){
 		apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);
 		spawn_explosion(get_location()-get_forward_vector(), 30.0);
+		if(spawned_by_player){
+			log("missile impact", 2.0);
+		}
 		destroy_entity(get_as_ref(this));
 	}
 	if(remaining_time<0.0){
 		spawn_explosion(get_location(), 30.0);
 		destroy_entity(EntityRef{id, runtime.level->generations[id]});
+		log("missile timeout", 2.0);
 	}
 	ship.update();
 }
@@ -145,6 +164,7 @@ void Missile::serialize(Serializer*ser) const{
 	ser->serialize(remaining_time);
 	ser->serialize(target);
 	ser->serialize(homing);
+	ser->serialize(spawned_by_player);
 }
 Missile Missile::deserialize(Deserializer* des){
 	Missile out;
@@ -155,6 +175,7 @@ Missile Missile::deserialize(Deserializer* des){
 	out.remaining_time = des->deserialize<double>();
 	out.target = des->deserialize<EntityRef>();	
 	out.homing = des->deserialize<bool>();
+	out.spawned_by_player = des->deserialize<bool>();
 	return out;
 }
 Entity * Missile::interface_deserialize(Deserializer&des){
@@ -162,7 +183,7 @@ Entity * Missile::interface_deserialize(Deserializer&des){
 }
 Texture gen_explosion_texture(){
 	
-	Image img = LoadImage("../../assets/explosion.png");	
+	Image img = LoadImage("./assets/explosion.png");	
 	return LoadTextureFromImage(img);
 }
 void spawn_explosion(Vec3 pos, double size){
@@ -171,8 +192,8 @@ void spawn_explosion(Vec3 pos, double size){
 	//printf("%d, %d\n", texture.height, texture.width);
 	static Texture texture = gen_explosion_texture();	
 	Texture tex = texture;
-	spawn_repeating(0.2,[tex,pos, size](double time){
-		double size2 = size*(0.2-time)*0.10;
+	spawn_repeating(1.0,[tex,pos, size](double time){
+		double size2 = size*(1.0-time)*0.10;
 		draw_call_3d([tex, pos, size2](){
 			DrawBillboardPro(get_level().cam, tex, Rectangle{0,0,280,239},pos, get_level().cam.up,Vector2{(float)size2, (float)size2}, Vector2{(float)(0.5*size2),(float)(0.5*size2)},0.0,WHITE);
 		});

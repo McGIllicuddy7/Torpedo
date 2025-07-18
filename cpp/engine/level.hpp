@@ -1,9 +1,14 @@
 #pragma once 
 #include "utils.hpp"
 #include <functional>
-#include <mutex>
+
 
 namespace Torpedo{
+struct Log {
+    Log * next; 
+    char data[256];
+    double remaining_time;
+};
 enum Tag:uint32_t{
     tag_movable = 0b1,
     tag_on_fire = 0b10,
@@ -58,12 +63,13 @@ enum Tag:uint32_t{
     class Level{
         public:
 	Entity * player;
-        Camera3D cam;
         std::vector<Event> event_queue;
 	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;
         unordered_map<string, std::vector<string>> mesh_textures;
         unordered_map<string, Texture> textures;
+        unordered_map<string,Sound> sounds;
+        Camera3D cam;
         std::vector<Entity*> entities;
         std::vector<uint32_t> generations;
         std::vector<MeshComp> meshes;
@@ -79,6 +85,7 @@ enum Tag:uint32_t{
         bool should_load = false;
         std::string save_name;
         std::string load_name;
+        Log *logs =0;
     };
     class Runtime{
         public:
@@ -160,6 +167,7 @@ std::vector<EntityRef> get_all_entities_with_at_least_one_tag(Tag tags[], size_t
 std::vector<EntityRef> get_all_entities_with_tag_set(Tag tags[], size_t count);
 void apply_damage(EntityRef source, EntityRef target,Vec3 direction, double amount);
 Model path_load_model(const std::string& mod, const std::vector<std::string>& textures, unordered_map<string, Texture> & loaded_textures, Shader shader);
+void log(const char * message,double duration);
 }
 
 

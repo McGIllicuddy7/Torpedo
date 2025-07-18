@@ -281,6 +281,7 @@ struct PhysicsComp{
     double mass;
     Torpedo::Vec3 angular_velocity;
     bool destroy_on_impact;
+    bool can_ever_collide = true;;
     inline void reset(){
         is_valid = false; 
     }
@@ -292,6 +293,7 @@ struct PhysicsComp{
             ser->serialize(mass);
             ser->serialize(angular_velocity);
             ser->serialize(destroy_on_impact);
+            ser->serialize(can_ever_collide);
     }
     static inline PhysicsComp deserialize(Deserializer * des){
         PhysicsComp out;
@@ -302,6 +304,7 @@ struct PhysicsComp{
         out.mass = des->deserialize<double>();
         out.angular_velocity = des->deserialize<Vec3>();
         out.destroy_on_impact = des->deserialize<bool>();
+        out.can_ever_collide = des->deserialize<bool>();
         return out;
     }
 };
@@ -354,5 +357,5 @@ inline double get_input_axis(int key_negative, int key_positive){
 	}
 	return out;
 }
-
+void play_sound(const char* sound);
 

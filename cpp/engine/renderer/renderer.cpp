@@ -38,14 +38,8 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
         }
         stars_init = true;
     }
-
-    for(int i =0; i<runtime.level->draw_calls.size(); i++){
-        try{runtime.level->draw_calls[i]();} catch(std::exception e){
-            assert(false);
-        }
-    }
     BeginMode3D(*cam);
-    rlSetClipPlanes(0.001, 5000000);
+    rlSetClipPlanes(0.01, 5000000);
     for(size_t i =0; i<positions.size(); i++){
         DrawModel(star, positions[i]+cam->position,1.0,WHITE);
     }
@@ -62,6 +56,11 @@ void renderer_update(Camera *cam, RenderTexture2D tex,Shader postprocess){
         }
     }
     EndMode3D(); 
+    for(int i =0; i<runtime.level->draw_calls.size(); i++){
+        try{runtime.level->draw_calls[i]();} catch(std::exception e){
+            assert(false);
+        }
+    }
 
  //    EndTextureMode();
 

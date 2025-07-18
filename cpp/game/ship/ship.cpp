@@ -24,7 +24,6 @@ void ShipComp::private_update_non_homing(){
     }
     if (use_desired_position){
 	   Vec3 delta2 = desired_position - parent.get()->get_location();
-
 	    if(Vector3LengthSqr(delta2)<0.1){
 		    parent.get()->get_physics().trans.trans.translation = desired_position;
 	        if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
@@ -35,7 +34,7 @@ void ShipComp::private_update_non_homing(){
 		Vector3 v = parent.get()->get_physics().velocity*(1-dot);	
 		Vector3 p =  Vector3Normalize(v);
 		p+=Vector3Normalize(delta2)*dot;
-		parent.get()->get_physics().velocity += Vector3Normalize(p)*accel_value;
+		parent.get()->get_physics().velocity += Vector3Normalize(p)*accel_value*1./60.0;
 		///parent.get()->get_physics().velocity  = Vector3Normalize(parent.get()->get_physics().velocity);
 	    }
     } else{	
@@ -44,11 +43,11 @@ void ShipComp::private_update_non_homing(){
 	    if(Vector3Length(vec)<0.001){
 		vec = Vec3{0,0,0};
 	    } else{
-		parent.get()->get_physics().velocity -= Vec3::from(Vector3Normalize(vec)*accel_value);
+		parent.get()->get_physics().velocity -= Vec3::from(Vector3Normalize(vec)*accel_value*1./60.0);
 	    }
 	}else{
 	    parent.get()->get_physics().velocity+= to_global_vector(
-		Vec3::from(Vector3(movement_input)*accel_value),
+		Vec3::from(Vector3(movement_input)*accel_value*1./60.0),
 		parent.get()->get_forward_vector(), 
 		parent.get()->get_right_vector(), 
 		parent.get()->get_up_vector()
@@ -78,7 +77,7 @@ void ShipComp::on_damage(Vec3 direction, double amount){
     health -= amount;
     if(health<=0.0){
 
-	spawn_explosion((parent.get()->get_location()-Vec3::from(Vector3Normalize(parent.get()->get_velocity()))), 10.0);
+	spawn_explosion((parent.get()->get_location()-Vec3::from(Vector3Normalize(parent.get()->get_velocity()))), 100.0);
 	destroy_entity(parent);
     }
 }
