@@ -29,13 +29,14 @@ void ShipComp::private_update_non_homing(){
 	        if(Vector3LengthSqr(parent.get()->get_physics().velocity) <= 0.1){
 		   parent.get()->get_physics().velocity = (Vec3){0, 0,0 };
 		}
-	    }else{	
-		double dot = Vector3DotProduct(delta2, parent.get()->get_physics().velocity);	
-		Vector3 v = parent.get()->get_physics().velocity*(1-dot);	
-		Vector3 p =  Vector3Normalize(v);
-		p+=Vector3Normalize(delta2)*dot;
-		parent.get()->get_physics().velocity += Vector3Normalize(p)*accel_value*1./60.0;
-		///parent.get()->get_physics().velocity  = Vector3Normalize(parent.get()->get_physics().velocity);
+	    }else{
+		Vec3 dn = Vec3::from(Vector3Normalize(delta2));
+		Vec3 v = parent.get()->get_physics().velocity;
+		Vec3 dv = Vec3::from(Vector3Normalize(v));
+		double d =  Vector3DotProduct(dn,dv);
+		Vec3 vout = (dn -Vec3{dv.x*d, dv.y*d, dv.z*d})*(1-d);
+		vout += dn*d;
+		parent.get()->get_physics().velocity += Vector3Normalize(vout)*accel_value*1./60.;
 	    }
     } else{	
 	if(stablized_velocity && Vector3Length(movement_input)<0.001){
@@ -60,10 +61,9 @@ void ShipComp::private_update_homing(){
     Entity * t = target.get();
     Vec3 to_target = t->get_location()-parent.get()->get_location();
     use_desired_position = true;
-
     desired_position = t->get_location();
     Vec3 dp = desired_position; 
-    parent.get()->get_physics().trans.trans.rotation= QuaternionFromMatrix(MatrixLookAt(parent.get()->get_location(), t->get_location(),parent.get()->get_up_vector()));
+    parent.get()->get_physics().trans.trans.rotation= QuaternionFromMatrix(MatrixLookAt(parent.get()->get_location(), t->get_location(),parent.get()->get_velocity()));
     private_update_non_homing(); 
 }
 void ShipComp::update(){	 
@@ -75,8 +75,10 @@ void ShipComp::update(){
 }
 void ShipComp::on_damage(Vec3 direction, double amount){
     health -= amount;
+    char buff[100];
+    snprintf(buff, 99, "took:%f damage health:%f", amount,health);
+    log(buff, 10.);
     if(health<=0.0){
-
 	spawn_explosion((parent.get()->get_location()-Vec3::from(Vector3Normalize(parent.get()->get_velocity()))), 100.0);
 	destroy_entity(parent);
     }

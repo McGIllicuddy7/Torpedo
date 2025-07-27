@@ -12,6 +12,7 @@ void set_player_entity(EntityRef ref){
 	runtime.level->player = ref.get();
 }
 void handle_logs(){
+    size_t height = GetScreenHeight()/80;
     size_t count =0;
     Log * current = get_level().logs;
     while(current){
@@ -34,12 +35,12 @@ void handle_logs(){
 	    delete old;
 	}else{
 	current->remaining_time -= 1./60.;
-	if(count*14>min) continue;
+	if(count*height+2>min) continue;
 	    char buff[256];
 	    memcpy(buff, current->data, 256);
-	    size_t idx = min-count*14;
-	    draw_call([buff, idx](){
-		DrawText(buff, (GetScreenWidth()*8)/10,idx, 12, WHITE);	
+	    size_t idx = min-count*(height+2);
+	    draw_call([buff, idx,height](){
+		DrawText(buff, (GetScreenWidth()*8)/10,idx, (int)height, WHITE);	
 	    });
 	    prev = current;
 	    current = current->next;
@@ -127,9 +128,10 @@ void mainloop(std::function<void()> func){
 	process_events();
 	run_destructors();
 	handle_loading_and_saving();
-    }  
-    CloseWindow();
+    }      
+    UnloadShader(post_shader);
     runtime.level = 0;
+    CloseWindow();
 }
 
 Entity::~Entity(){
@@ -163,6 +165,9 @@ void Entity::set_velocity(Vec3 vel){
 }
 
 Vec3 Entity::get_velocity(){
+    if(get_physics().is_valid){
+	return get_physics().velocity;
+    }
     return Vec3{0,0,0};
 }
 void Entity::serialize(Serializer * ser) const{
@@ -239,7 +244,6 @@ void run_destructors(){
 		assert(runtime.level->entities[idx] == 0);
 	}while(index>0);
 	runtime.level->destroy_queue.clear();
-
 }
 
 
@@ -455,16 +459,26 @@ Level * Level::interface_deserialize(Deserializer&des){
     return new Level(Level::deserialize(&des));
 }
 Level::~Level(){
-    for(auto & i:models){
-	    UnloadModel(i.second);
+    for(size_t i =0; i<entities.size(); i++){
+	delete entities[i];
     }
     for(auto &i:textures){
 	    UnloadTexture(i.second);
     }
+    for(auto & i:models_to_unload){
+	UnloadModel(i);
+    }
     for(auto &i:sounds){
 	UnloadSound(i.second);
     }
-    UnloadShader(shader);
+    Log * cur = logs;
+    while(cur){
+	Log * old = cur;
+	cur = cur->next;
+	delete old;
+    }
+    UnloadShader(shader); 
+
 }
 void load_level(const char* path){
     get_level().should_load = true;
@@ -485,6 +499,7 @@ Model path_load_model(const std::string&mod, const std::vector<std::string>& tex
 	printf("loading %s\n", name.c_str());
 	out = LoadModel(name.c_str());
     }
+    get_level().models_to_unload.push_back(out);
     for(size_t i =0; i<textures.size(); i++){
 	if(!loaded_textures.contains(textures[i])){
 	    loaded_textures[textures[i]] = LoadTexture(textures[i].c_str());

@@ -66,6 +66,7 @@ enum Tag:uint32_t{
         std::vector<Event> event_queue;
 	std::vector<uint32_t> destroy_queue;
         unordered_map<string, Model> models;
+        std::vector<Model> models_to_unload;
         unordered_map<string, std::vector<string>> mesh_textures;
         unordered_map<string, Texture> textures;
         unordered_map<string,Sound> sounds;

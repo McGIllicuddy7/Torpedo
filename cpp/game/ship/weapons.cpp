@@ -38,6 +38,7 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction,Vec3 base_vel, Quat ro
 		Missile * miss= e.downcast<Missile>();
 		miss->target = target;
 		miss->homing = homing;
+		miss->ship.accel_value = 3;
 		miss->ship.parent = e;
 		e.get()->add_tag(tag_movable);
 		e.get()->get_mesh().meshes["base"] = m;
@@ -56,7 +57,7 @@ void WeaponsComp::fire_missile(Vec3 start, Vec3 direction,Vec3 base_vel, Quat ro
     //col.bb = BoundingBox{Vec3{-1.91526,-0.309, -0.309}/2.0, Vec3{1.0067,0.309, 0.309}/2.0};
 		col.bb = BoundingBox{mscale, scale};
 		phys.colliders.push_back(col);
-		phys.velocity = direction*2.0*KM_TO_UNITS+base_vel;
+		phys.velocity =direction*1.0+ base_vel;
 		e.get()->get_physics()= phys;
 		e.downcast<Missile>()->spawned_by_player = spawned_by_player;	
 }
@@ -72,10 +73,10 @@ void Projectile::on_tick(){
 	}
 	assert(!pending_kill);
 	remaining_time -= 1.0/60.0;	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./60.0));
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./120),{id});
 	if(a){
 		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
-		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
+		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*1./60)), 1.0);
 		if(spawned_by_player){
 			log("bullet impact",2.0);
 		}
@@ -137,10 +138,10 @@ remaining_time -= 1.0/60.0;
 	}else{
 		ship.use_target = false;
 	}	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./30.0));
-	if(a){
-		apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);
-		spawn_explosion(get_location()-get_forward_vector(), 30.0);
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./120.),{id});
+	if(a){		
+		spawn_explosion(get_location(), 30.0);
+		apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);	
 		if(spawned_by_player){
 			log("missile impact", 2.0);
 		}

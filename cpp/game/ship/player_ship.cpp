@@ -65,7 +65,7 @@ void PlayerShip::on_tick(){
 		});});
 		c = line_trace( start,end,{id});
 		if(c){
-			apply_damage(get_as_ref(this),*c,get_forward_vector(), 10);
+			apply_damage(get_as_ref(this),*c,get_forward_vector(), 42);
 		}
 	}
 	ship.update();	
