@@ -76,8 +76,8 @@ void ShipComp::update(){
 void ShipComp::on_damage(Vec3 direction, double amount){
     health -= amount;
     char buff[100];
-    snprintf(buff, 99, "took:%f damage health:%f", amount,health);
-    log(buff, 10.);
+    snprintf(buff, 99, "took %f damage, health:%f",amount, health);
+    log(buff, 2.0);
     if(health<=0.0){
 	spawn_explosion((parent.get()->get_location()-Vec3::from(Vector3Normalize(parent.get()->get_velocity()))), 100.0);
 	destroy_entity(parent);

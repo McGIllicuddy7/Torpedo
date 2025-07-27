@@ -73,10 +73,10 @@ void Projectile::on_tick(){
 	}
 	assert(!pending_kill);
 	remaining_time -= 1.0/60.0;	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./120),{id});
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./30),{id});
 	if(a){
-		apply_damage(get_as_ref(this), *a, get_forward_vector(),10.0);
-		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*1./60)), 1.0);
+		apply_damage(get_as_ref(this), *a, get_forward_vector(),32.0);
+		spawn_explosion((get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./60)), 1.0);
 		if(spawned_by_player){
 			log("bullet impact",2.0);
 		}
@@ -138,14 +138,23 @@ remaining_time -= 1.0/60.0;
 	}else{
 		ship.use_target = false;
 	}	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./120.),{id});
+	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./30.),{id});
 	if(a){		
-		spawn_explosion(get_location(), 30.0);
-		apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);	
-		if(spawned_by_player){
-			log("missile impact", 2.0);
+		if(!a->get()->has_tag(tag_projectile)){	
+			spawn_explosion(get_location(), 30.0);
+			for(int i =0; i<256; i++){
+				Vec3 v = random_vector()*10.00;
+				auto p = line_trace(get_location(), get_location()+v, {id});
+				if(p){
+					apply_damage(get_as_ref(this), *p, get_forward_vector(),23);	
+				}
+			}
+			//apply_damage(get_as_ref(this), *a, get_forward_vector(),100.0);	
+			if(spawned_by_player){
+				log("missile impact", 2.0);
+			}
+			destroy_entity(get_as_ref(this));
 		}
-		destroy_entity(get_as_ref(this));
 	}
 	if(remaining_time<0.0){
 		spawn_explosion(get_location(), 30.0);
