@@ -73,10 +73,10 @@ void Projectile::on_tick(){
 	}
 	assert(!pending_kill);
 	remaining_time -= 1.0/60.0;	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./30),{id});
+	auto a=line_trace(get_location(), get_location()+Vec3::from((get_physics().velocity)*1./60),{id});
 	if(a){
 		apply_damage(get_as_ref(this), *a, get_forward_vector(),32.0);
-		spawn_explosion((get_location()+Vec3::from(Vector3Normalize(get_velocity())*1./60)), 1.0);
+		//spawn_explosion((get_location()), 1.0);
 		if(spawned_by_player){
 			log("bullet impact",2.0);
 		}
@@ -86,7 +86,7 @@ void Projectile::on_tick(){
 	snprintf(buff, 255,"remaining time:%d, distance travelled:%d km\n",(int)remaining_time, (int)((144.0-remaining_time)*Vector3Length(get_physics().velocity)*UNITS_TO_KM));
 	log(buff, 0.01);
 	if(remaining_time<0.0){	
-		spawn_explosion((get_location()-Vec3::from(Vector3Normalize(get_velocity())*0.1)), 1.0);
+		spawn_explosion((get_location()-Vec3::from(get_velocity()*1./30.0)), 1.0);
 		destroy_entity(EntityRef{id, runtime.level->generations[id]});
 		pending_kill = true;
 		log("bullet timeout",2.0);
@@ -138,7 +138,7 @@ remaining_time -= 1.0/60.0;
 	}else{
 		ship.use_target = false;
 	}	
-	auto a=line_trace(get_location(), get_location()+Vec3::from(Vector3Normalize(get_physics().velocity)*1./30.),{id});
+	auto a=line_trace(get_location(), get_location()+Vec3::from(get_physics().velocity*1./30.),{id});
 	if(a){		
 		if(!a->get()->has_tag(tag_projectile)){	
 			spawn_explosion(get_location(), 30.0);

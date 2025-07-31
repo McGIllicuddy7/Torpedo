@@ -1,0 +1,73 @@
+#version 330
+
+// Input vertex attributes (from vertex shader)
+in vec2 fragTexCoord;
+in vec4 fragColor;
+in vec3 fragNormal;
+in vec3 fragPosition;
+// Input uniform values
+uniform sampler2D diffuse;
+//uniform sampler2D normals;
+//uniform vec4 colDiffuse;
+// Output fragment color
+out vec4 finalColor;
+void main()
+{
+    vec3 light_pos = vec3(500000, 0.0,0.0);
+    vec3 delt = light_pos-fragPosition;
+    float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
+    dist /= 10000000;
+    vec3 norm = fragNormal;
+    float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
+    delta /= dist; 
+    if (delta<0.4){
+        delta = 0.4;
+    }
+    if(delta>1.0){
+        delta = 1.0;
+    }
+     vec4 col =texture(diffuse, fragTexCoord);  
+    float a = col.a;
+    col = col*delta;
+    vec4 col0 = col;
+//    col = atan(col);
+    float min = 1.0/255.0;
+    if(col.r< min &&col0.r>min){
+        col.r = min;
+    }
+    if(col.g< min &&col0.g>min){
+        col.g = min;
+    }
+    if(col.b< min &&col0.b>min){
+        col.b = min;
+    }
+    finalColor =col;
+/*    if(col.r >= 1.0 || col.g >= 1.0 || col.b >= 1.0){
+        finalColor = col;
+    }*/
+    finalColor.a = a; 
+    /*
+    vec3 light_pos = vec3(-10.0, 0.0,0.0);
+    vec3 delt = light_pos-position;
+    float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
+    vec4 norm = texture(normals,fragTexCoord);
+    float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
+    delta /= dist;
+    delta*=5.0;
+    if (delta<0.2){
+        delta = 0.2;
+    }
+    else if(delta>1.0){
+        delta = 1.0;
+        
+    }
+    finalColor = delta * texture(diffuse, fragTexCoord);
+    */
+    /*
+    float dx = fragTexCoord.x-0.5;
+    float dy = fragTexCoord.y-0.5;
+    finalColor = vec4(1.0, 0.8,0.8, 1.0);
+    if (dx*dx+dy*dy>0.5){
+        finalColor.a = 0.0;
+    }*/
+}

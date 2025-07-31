@@ -4,7 +4,23 @@
 #include "../../engine/particles.hpp"
 constexpr double  UNITS_TO_KM = 1.;
 constexpr double KM_TO_UNITS  = 1./UNITS_TO_KM;
-namespace Torpedo{
+template<typename T, void(*to_call)(T&)> struct Timer{
+	double remaining_time;
+	T capture;
+	bool is_valid;
+	void update(double dt){
+		if(!is_valid){
+			return;
+		}
+		remaining_time	 -= dt;
+		if(remaining_time<0){
+			to_call(capture);
+			is_valid = false;
+		}
+	
+	}
+};
+namespace Torpedo{ 
 enum class Alignment{
 	PlayerAligned, EnemyAligned
 };
@@ -12,7 +28,12 @@ struct WeaponsComp{
 	void fire_projectile(Vec3 start, Vec3 direction,Vec3 base_vel,Quat rot, bool spawned_by_player = false);
 	void fire_missile(Vec3 start, Vec3 direction, Vec3 base_vel,Quat rot, EntityRef target,bool homing, bool spawned_by_player = false);
 };
-
+struct AIComp{
+	Alignment Align;
+	EntityRef parent;	
+	static void test(EntityRef&);
+	Timer<EntityRef, AIComp::test> timer;
+};
 struct ShipComp{
 	bool use_desired_rotation = false;	
 	bool use_desired_position = false;
