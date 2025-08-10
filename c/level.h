@@ -1,4 +1,6 @@
+#pragma once
 #include "base.h"
+enable_hash_type(String, Model);
 typedef struct Log{
 	struct Log * next;
 	char data[256];
@@ -41,10 +43,12 @@ typedef struct {
 	boolVec alive;
 	PhysicsCompVec physics;
 	MeshCompVec meshes;
+	StringModelHashTable *models;
 	Shader shader;
 	bool should_save;
         bool should_load;
         const char * save_name;
+	void ** components;
         const char *load_name;
 }Level;
 typedef struct{

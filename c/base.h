@@ -58,7 +58,7 @@ static inline Vec4 Vec4_scale(Vec4 self, double v){
 	return (Vec4){self.x*v, self.y*v, self.z*v,self.w*v};
 }
 static inline Vec4 Vec4_mul(Vec4 left, Vec4 right){
-        return Vec4{left.x*right.x, left.y*right.y, left.z*right.z, left.w*right.w};
+        return (Vec4){left.x*right.x, left.y*right.y, left.z*right.z, left.w*right.w};
 }
 static inline Vector4 Vec4_to_Vector4(Vec4 v){
 	return (Vector4){(float)v.x, (float)v.y, (float)v.z, (float)v.w};
@@ -147,7 +147,7 @@ static inline Vec3 random_vector(){
     double x = sin(theta)*cos(phi);
     double y = sin(theta)*sin(phi);
     double z = cos(theta);
-    return Vec3{x,y,z};
+    return (Vec3){x,y,z};
 }
 static inline Vec3 to_global_vector(Vec3 input, Vec3 forward, Vec3 right, Vec3 up){
     Vec3 out = {0,0,0};
