@@ -56,3 +56,6 @@ typedef struct{
 }Runtime;
 extern Runtime runtime;
 void apply_damage(EntityRef source, EntityRef target, Vec3 normal,double damage);
+EntityRef create_entity();
+void destroy_entity(EntityRef target);
+

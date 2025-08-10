@@ -6,9 +6,9 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
 
         Matrix old = md->transform;
         md->transform = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation)); 
-        Vector3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_right_vector(trans), get_up_vector(trans)));
-        DrawModel(md, loc,1.0,i.second.color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
-        md.transform = old;
+        Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_right_vector(trans), get_up_vector(trans)));
+        DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
+        md->transform = old;
 /*        b.min += trans.translation;
         b.max += trans.translation;
         DrawBoundingBox(b, GREEN);
@@ -16,7 +16,7 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
     }
 }
 void game_render(Camera * cam){
-    BeginDrawing(); ClearBackground(DARKBLUE);
+    BeginDrawing(); ClearBackground((Color){16, 16, 32, 255});
     BeginMode3D(*cam);
     Arena * arena= arena_create();
     for(size_t i =0; i<runtime.level->meshes.length; i++){

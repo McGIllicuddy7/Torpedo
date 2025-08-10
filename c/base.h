@@ -93,6 +93,15 @@ static inline Transform Trans_to_Transform(Trans trans){
 	out.scale = Vec3_to_Vector3(trans.scale);
 	return out;
 }
+static inline Vec3 get_up_vector(Trans trans){
+	return Vec3_from_Vector3(Vector3RotateByQuaternion((Vector3){0,0,1}, Vec4_to_Vector4(trans.rotation)));
+}
+static inline Vec3 get_right_vector(Trans trans){
+	return Vec3_from_Vector3(Vector3RotateByQuaternion((Vector3){0,1,0}, Vec4_to_Vector4(trans.rotation)));
+}
+static inline Vec3 get_forward_vector(Trans trans){
+	return Vec3_from_Vector3(Vector3RotateByQuaternion((Vector3){1,0,0}, Vec4_to_Vector4(trans.rotation)));
+}
 typedef struct {
 	Vec3 norm;
 	double depth;
