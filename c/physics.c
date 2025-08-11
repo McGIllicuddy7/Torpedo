@@ -81,11 +81,11 @@ Vec3Pair angular_collision_response(double m1, Vec3 v1, double m2, Vec3 v2, Vec3
 void physics_prepare_update(){
     comps.length =0;
     indexs.length =0;
-    for(size_t i =0; i<runtime.level->alive.length; i++){
-        if(!runtime.level->alive.items[i]){
+    for(size_t i =0; i<ENTITY_COUNT; i++){
+        if(!runtime.level->tags[i]){
             continue;
         }
-        PhysicsComp p = runtime.level->physics.items[i];
+        PhysicsComp p = get_physics_comps()[i];
         if(p.is_valid){
             v_append(indexs, i);
             v_append(comps,p);
@@ -109,8 +109,8 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
         if(col.is_valid){
             *did_hit = true;
             comps.items[i].trans.trans.translation =Vec3_add(comps.items[i].trans.trans.translation, Vec3_scale(col.col.norm,(col.col.depth+0.01)));
-            uint32_t i_gen = runtime.level->generations.items[i];
-            uint32_t j_gen = runtime.level->generations.items[j]; uint32_t ui = i;
+            uint32_t i_gen = runtime.level->generations[i];
+            uint32_t j_gen = runtime.level->generations[j]; uint32_t ui = i;
             uint32_t uj = j;
             EntityRef iref = (EntityRef){.index = ui, .generation =i_gen};
             EntityRef jref = (EntityRef){.index = uj, .generation = j_gen};
@@ -201,7 +201,7 @@ void update_physics(){
 }
 void physics_finish_update(){
     for(size_t i =0; i<comps.length; i++){
-        runtime.level->physics.items[i] = comps.items[i];
+        get_physics_comps()[i] = comps.items[i];
     }
 }
 static bool uint32_array_contains(uint32_t check, u32* to_check,size_t to_check_count){
@@ -218,15 +218,14 @@ OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore
     double min = 1000000000.0;
     u32 idx =0;
     bool hit = false;
-    for(u64 i =0; i<runtime.level->alive.length; i++){
-        if(runtime.level->alive.items[i]){
-            if(!runtime.level->physics.items[i].is_valid) continue;
-            if(runtime.level->physics.length<= i) break;
+    for(u64 i =0; i<ENTITY_COUNT; i++){
+        if(runtime.level->tags[i]){
+            if(get_physics_comps()[i].is_valid) continue; 
             if(uint32_array_contains(i, to_ignore, to_ignore_count)){
                 continue;
             }
-            for (u64 j=0; i<runtime.level->physics.items[i].collider_count; j++){
-                double h = check_collision_line_box(start, end, runtime.level->physics.items[i].trans.trans,runtime.level->physics.items[i].colliders[j].offset, runtime.level->physics.items[i].colliders[j].bb);
+            for (u64 j=0; i<get_physics_comps()[i].collider_count; j++){
+                double h = check_collision_line_box(start, end, get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[j].offset,get_physics_comps()[i].colliders[j].bb);
                 if(h>0 && h<min){
                     idx = i;
                     min = h;
@@ -236,7 +235,7 @@ OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore
         }
     }
     if(hit){
-        return (OptEntityRef){.is_valid = true, .ref =(EntityRef){.index = idx, .generation = runtime.level->generations.items[idx]}};
+        return (OptEntityRef){.is_valid = true, .ref =(EntityRef){.index = idx, .generation = runtime.level->generations[idx]}};
     }
     return (OptEntityRef){0};
 }

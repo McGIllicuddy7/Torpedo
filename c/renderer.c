@@ -1,5 +1,36 @@
 #include "renderer.h"
 #include "base.h"
+void process_3d_draw_calls(){
+    for(size_t i =0; i<runtime.level->draw3d_calls.length; i++){
+        DrawCall3D d = runtime.level->draw3d_calls.items[i];
+        if(d.draw_call_type ==draw_call_line){
+            DrawLine3D(d.draw_call_line_info.start, d.draw_call_line_info.end, d.color);
+        }else if(d.draw_call_type == draw_call_cube){
+            DrawCube(d.draw_call_cube_info.pos, d.draw_call_cube_info.w, d.draw_call_cube_info.h, d.draw_call_cube_info.d, d.color);
+        }else if(d.draw_call_type == draw_call_sphere){
+            DrawSphere(d.draw_call_sphere_info.pos, d.draw_call_sphere_info.r, d.color);
+        }
+    }
+    runtime.level->draw3d_calls.length =0;
+    runtime.level->draw3d_calls.capacity =0;
+    runtime.level->draw3d_calls.items =0;
+}
+void process_draw_calls(){
+    for(size_t i =0; i<runtime.level->draw_calls.length; i++){
+        DrawCall d = runtime.level->draw_calls.items[i];
+        if(d.draw_call_type ==draw_call_rect){
+            DrawRectangle(d.draw_call_rect_info.x, d.draw_call_rect_info.y, d.draw_call_rect_info.width, d.draw_call_rect_info.height,d.color);
+        }else if(d.draw_call_type == draw_call_text){
+            DrawText(d.draw_call_text_info.text, d.draw_call_text_info.x, d.draw_call_text_info.y, d.draw_call_text_info.height, d.color);
+        }
+        else if(d.draw_call_type == draw_call_circle){
+            DrawCircle(d.draw_call_circ_info.x, d.draw_call_circ_info.y, d.draw_call_circ_info.r, d.color);
+        }
+    }
+    runtime.level->draw_calls.length =0;
+    runtime.level->draw_calls.capacity =0;
+    runtime.level->draw_calls.items =0;
+}
 static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox b){
     for(size_t i =0 ; cmp.mesh_count; i++){
         Model *md = StringModelHashTable_find(runtime.level->models, new_string(arena,cmp.meshes[i].string));
@@ -16,17 +47,23 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
     }
 }
 void game_render(Camera * cam){
+    if(!entity_is_valid(runtime.level->player_entity)){
+        UpdateCamera(cam, CAMERA_FREE);
+    }
     BeginDrawing(); ClearBackground((Color){16, 16, 32, 255});
     BeginMode3D(*cam);
     Arena * arena= arena_create();
-    for(size_t i =0; i<runtime.level->meshes.length; i++){
-        if(runtime.level->meshes.items[i].mesh_count == 0|| !runtime.level->alive.items[i]){
+    for(size_t i =0; i<ENTITY_COUNT; i++){
+        if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i]){
             continue;
         }
-        draw_mesh_comp(arena,runtime.level->meshes.items[i], runtime.level->physics.items[i].trans.trans,runtime.level->physics.items[i].colliders[0].bb);
+        draw_mesh_comp(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
     } 
+    process_3d_draw_calls();
     arena_destroy(arena);
     EndMode3D();
+    process_draw_calls();
+    DrawFPS(900, 20);
     EndDrawing();
 
 }

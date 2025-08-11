@@ -1,6 +1,7 @@
 #include <string.h>
-#include <tgmath.h>
+
 #include "physics.h"
+#include <tgmath.h>
 
 
 typedef struct {
@@ -252,8 +253,8 @@ OptCol check_collision(
                 b_min = b_dot;
             }
         }
-        double da = abs(b_min - a_max);
-        double db = abs(a_min - b_max);
+        double da = fabs(b_min - a_max);
+        double db = fabs(a_min - b_max);
         double del =  da > db? db : da ;
         if(del < col_depth) {
             col_depth = del;

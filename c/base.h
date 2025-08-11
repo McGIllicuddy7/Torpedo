@@ -1,6 +1,4 @@
 #pragma once
-#include <tgmath.h>
-#include <stdint.h>
 #if __linux__
 #include <raylib.h>
 #include <raymath.h>
@@ -11,6 +9,9 @@
 #include </usr/local/include/raymath.h>
 #include </usr/local/include/rlgl.h>
 #endif
+#include <tgmath.h>
+#include <stdint.h>
+
 #include "utils.h"
 typedef struct {
 	double x;
