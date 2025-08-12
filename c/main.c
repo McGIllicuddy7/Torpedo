@@ -3,13 +3,17 @@
 #include "level.h"
 extern void tick();
 void draw_update(){
-    draw_cube((Vec3){0,0,0}, 1,1,1, WHITE);
+    //draw_cube((Vec3){0,0,0}, 1,1,1, WHITE);
 }
 void model_unload(Model * model){
     UnloadModel(*model);
 }
 void setup(){
-    InitWindow(1000,750, ":3");
+    srand(time(0));
+    InitWindow(1920,1080, ":3");
+    InitAudioDevice();
+    DisableCursor();
+    SetTargetFPS(61);
     runtime.static_arena = arena_create();
     runtime.level = (Level*)arena_alloc(runtime.static_arena,(sizeof(Level))); 
     Level * level = runtime.level;
@@ -37,6 +41,11 @@ void setup(){
     level->save_name = 0;
     StringModelHashTable_insert(level->models, new_string(0, "cube"),LoadModelFromMesh(GenMeshCube(1., 1., 1.)));
     register_system((System){draw_update});
+    for(int i =0; i<20; i++){
+        EntityRef e =create_debug_cube(Vec3_scale(random_vector(),10.0));
+        PhysicsComp * phys = get_physics_comp(e);
+        phys->velocity = Vec3_scale(Vec3_normalize(phys->trans.trans.translation), -1.0);
+    }
 }
 void tear_down(){
     StringModelHashTable_unmake(runtime.level->models);
@@ -51,6 +60,7 @@ void main_loop(){
 int main(){
     setup();
     main_loop();
-    CloseWindow();
+
     tear_down();
+    CloseWindow();
 }

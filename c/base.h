@@ -116,7 +116,7 @@ typedef struct{
 }Collider;
 typedef struct {	
 	TransformComp trans;
-	Collider* colliders;
+	Collider colliders[4];
 	size_t collider_count;
 	Vec3 velocity;
 	double mass;
@@ -129,10 +129,6 @@ enable_vec_type(PhysicsComp);
 static inline void PhysicsComp_reset(PhysicsComp*phys){
 	phys->is_valid = false;
 	phys->trans.trans =Trans_create();
-	if(phys->colliders){
-		free(phys->colliders);
-	}
-	phys->colliders = 0;
 	phys->collider_count = 0;
 	phys->velocity = (Vec3){0,0,0};
 	phys->angular_velocity = (Vec3){0,0,0};
@@ -148,7 +144,7 @@ typedef struct{
 }MeshPart;
 typedef struct {
 	size_t mesh_count;
-	MeshPart * meshes;
+	MeshPart meshes[4];
 }MeshComp;
 enable_vec_type(MeshComp);
 static inline Vec3 random_vector(){

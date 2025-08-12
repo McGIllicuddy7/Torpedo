@@ -32,18 +32,16 @@ void process_draw_calls(){
     runtime.level->draw_calls.items =0;
 }
 static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox b){
-    for(size_t i =0 ; cmp.mesh_count; i++){
+    for(size_t i =0 ; i<cmp.mesh_count; i++){ 
         Model *md = StringModelHashTable_find(runtime.level->models, new_string(arena,cmp.meshes[i].string));
-
         Matrix old = md->transform;
         md->transform = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation)); 
         Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_right_vector(trans), get_up_vector(trans)));
         DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
         md->transform = old;
-/*        b.min += trans.translation;
-        b.max += trans.translation;
-        DrawBoundingBox(b, GREEN);
-*/
+        b.min = Vector3Add( b.min,Vec3_to_Vector3(trans.translation));
+        b.max = Vector3Add( b.max,Vec3_to_Vector3(trans.translation));
+        //DrawBoundingBox(b, GREEN);
     }
 }
 void game_render(Camera * cam){
@@ -52,9 +50,11 @@ void game_render(Camera * cam){
     }
     BeginDrawing(); ClearBackground((Color){16, 16, 32, 255});
     BeginMode3D(*cam);
+
+    rlSetClipPlanes(0.01, 5000000);
     Arena * arena= arena_create();
     for(size_t i =0; i<ENTITY_COUNT; i++){
-        if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i]){
+        if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
             continue;
         }
         draw_mesh_comp(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);

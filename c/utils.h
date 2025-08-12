@@ -984,7 +984,7 @@ size_t hash_bytes(Byte * bytes, size_t size){
 CTILS_STATIC
 size_t hash_int(int in){
 	int tmp = in;
-	return hash_bytes((Byte *)&tmp, sizeof(tmp));
+	return in;
 }
 
 CTILS_STATIC
@@ -995,14 +995,14 @@ size_t hash_float(float fl){
 
 CTILS_STATIC
 size_t hash_long(long lg){
-	long tmp = lg;
-	return hash_bytes((Byte *)&tmp, sizeof(tmp));
+	return (size_t)(lg);
 }
 
 CTILS_STATIC
 size_t hash_double(double db){
-	double tmp = db;
-	return hash_bytes((Byte *)&tmp, sizeof(tmp));
+	union{double db; size_t v} tmp;
+	tmp.db = db;
+	return  tmp.v;
 }
 
 CTILS_STATIC

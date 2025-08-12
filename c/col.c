@@ -17,7 +17,8 @@ typedef struct{
 typedef struct{
     Vec3 items[6];
 }Vec3_6;
-VertexSet get_vertices(BoundingBox a, Trans offset, Trans a_trans){
+[[gnu::always_inline]]
+static inline VertexSet get_vertices(BoundingBox a, Trans offset, Trans a_trans){
     VertexSet verts = {{    
         (Vec3){1., 1., 1.},
         (Vec3){1., -1., 1.},
@@ -58,7 +59,8 @@ VertexSet get_vertices(BoundingBox a, Trans offset, Trans a_trans){
     }
     return verts;
 }
-bool Vec3_13_contains(Vec3_13 a, Vec3 v,size_t count){
+[[gnu::always_inline]]
+static inline bool Vec3_13_contains(Vec3_13 a, Vec3 v,size_t count){
     size_t idx = 0;
     while(idx <count){
         if (a.items[idx].x == v.x && a.items[idx].y == v.y && a.items[idx].z == v.z ){
@@ -69,7 +71,8 @@ bool Vec3_13_contains(Vec3_13 a, Vec3 v,size_t count){
     return false;
 }
 
-Vec3_13 internal_get_normals(){
+[[gnu::always_inline]]
+static inline Vec3_13 internal_get_normals(){
         Vec3_13 norms;
         for(size_t i = 0; i<13; i++){
             norms.items[i].x = 0;
@@ -121,8 +124,14 @@ Vec3_13 internal_get_normals(){
     return norms;
 }
 
-Vec3_13 get_normals(Trans a_trans, Trans a_off){
-    const Vec3_13 base_normals = internal_get_normals();
+[[gnu::always_inline]]
+static inline Vec3_13 get_normals(Trans a_trans, Trans a_off){
+    static Vec3_13 base_normals;
+    static bool normals_init = false;
+    if(!normals_init){
+        base_normals = internal_get_normals();
+        normals_init = true;
+    }
     Vec3_13 normals = base_normals;
     Matrix rot = QuaternionToMatrix(QuaternionMultiply(Vec4_to_Vector4(a_trans.rotation),Vec4_to_Vector4(a_off.rotation)));
     for(size_t i =0; i<13; i++){
@@ -130,7 +139,8 @@ Vec3_13 get_normals(Trans a_trans, Trans a_off){
     }
     return normals;
 }
-Vec3_6 get_normals_basic(Trans a_trans, Trans a_off){
+[[gnu::always_inline]]
+static inline Vec3_6 get_normals_basic(Trans a_trans, Trans a_off){
     Vec3_6 normals = {{
         (Vec3){1.0, 0., 0.},
         (Vec3){-1., 0., 0.},
@@ -193,7 +203,7 @@ OptCol check_collision(
         double a_min = -a_max;
         double b_max = a_max;
         double b_min = -b_max;
-        for(size_t j =0; j<13; j++){
+        for(size_t j =0; j<8; j++){
             double a_dot = Vec3_dot_product(a_verts.points[j], norms[i]);
             if (a_dot > a_max ){
                 a_max = a_dot;
@@ -202,7 +212,7 @@ OptCol check_collision(
                 a_min = a_dot;
             }
         }
-        for(size_t j =0; j<13; j++){
+        for(size_t j =0; j<8; j++){
             double b_dot = Vec3_dot_product(b_verts.points[j], norms[i]);
             if (b_dot > b_max ){
                 b_max = b_dot;
@@ -211,7 +221,7 @@ OptCol check_collision(
                 b_min = b_dot;
             }
         }
-        if (a_min > b_max + 0.001 || b_min > a_max + 0.001 ){
+        if (a_min > b_max + 0.001 || b_min > a_max + 0.001 ){ 
             return (OptCol){0};
         }
     }
@@ -263,7 +273,7 @@ OptCol check_collision(
     }
     Col out;
     out.norm = Vec3_scale(Vec3_normalize(col_norm),-1);
-    out.depth = col_depth;
+    out.depth = col_depth; 
     return (OptCol){.is_valid = true, .col = out};
 }
 
@@ -324,7 +334,6 @@ double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, 
     Matrix inv = MatrixInvert(mat);
     Vec3 s = Vec3_from_Vector3(Vector3Transform(Vec3_to_Vector3(Vec3_sub(start,trans.translation)),inv));
      Vec3 e= Vec3_from_Vector3(Vector3Transform(Vec3_to_Vector3(Vec3_sub(end,trans.translation)),inv));
-
     e = Vec3_add(e,trans.translation);
     s = Vec3_add(s,trans.translation);
     box.min = Vector3Add(box.min,Vec3_to_Vector3(trans.translation));

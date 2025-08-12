@@ -3,7 +3,7 @@ static PhysicsCompVec comps;
 static u32Vec indexs;
 enable_hash_type(u64, u32Vec);
 u64u32VecHashTable *grid = 0;
-static double square_size = 1.0;
+static double square_size = 1000.0;
 static double min_x = 0.0;
 static double min_y = 0.0;
 static double min_z = 0.0;
@@ -37,7 +37,7 @@ static void setup_grid(){
 	if(grid){
 		u64u32VecHashTable_unmake(grid);
 	}
-        grid = u64u32VecHashTable_create(comps.length*4,(size_t (*)(u64))hash_long,u64_equals, (void(*)(u64*))no_op_void, u32Vec_destroy);    
+        grid = u64u32VecHashTable_create(10000,(size_t (*)(u64))hash_long,u64_equals, (void(*)(u64*))no_op_void, u32Vec_destroy); 
         for(size_t j = 0; j<comps.length; j++){
             PhysicsComp i = comps.items[j];
             if(!i.can_ever_collide){
@@ -69,12 +69,12 @@ static void setup_grid(){
         if(v){
            v_append((*v), i);
         } else{
-            u32Vec vec = make(0, u32);
-            u64u32VecHashTable_insert(grid, i,vec);
+            u32Vec vec = make(frame_arena(), u32);
+            v_resize(vec, 1000);
+            v_append(vec, i);
+            u64u32VecHashTable_insert(grid, p,vec);
         }
-    }
-    size_t count = 0;
-    size_t lengths= 0;   
+    } 
 }
 Vec3Pair collision_response(double m1, Vec3 v1, double m2, Vec3 v2, Vec3 normal);
 Vec3Pair angular_collision_response(double m1, Vec3 v1, double m2, Vec3 v2, Vec3 normal);
@@ -86,10 +86,8 @@ void physics_prepare_update(){
             continue;
         }
         PhysicsComp p = get_physics_comps()[i];
-        if(p.is_valid){
-            v_append(indexs, i);
-            v_append(comps,p);
-        }
+        v_append(indexs, i);
+        v_append(comps,p); 
     }
 }
 OptCol physics_comp_check_collision(PhysicsComp a, PhysicsComp b){
@@ -122,7 +120,7 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             Vec3Pair v = collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[j].mass, comps.items[j].velocity, Vec3_normalize(col.col.norm));
             //Vec3Pair v2 = angular_collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[i].trans.trans.translation,comps.items[j].mass, comps.items[j].velocity, comps.items[j].trans.trans.translation);
             comps.items[i].velocity = v.v0;
-            comps.items[j].velocity = v.v1;  
+        comps.items[j].velocity = v.v1;  
         }
 }
 u64 update_obj(size_t i, bool * did_hit){
@@ -158,7 +156,7 @@ u64 update_obj(size_t i, bool * did_hit){
 void update_physics(){    
     setup_grid(); 
     size_t count = 0;
-    for(size_t i =0; i<comps.length; i++){ 
+    for(size_t i =0; i<comps.length; i++){
         if(!comps.items[i].can_ever_collide){
             comps.items[i].trans.trans.translation= Vec3_add(comps.items[i].trans.trans.translation,Vec3_scale(comps.items[i].velocity,1/60.0));
             continue;
@@ -167,7 +165,7 @@ void update_physics(){
         Vec3 p = comps.items[i].trans.trans.translation;
         double delta= 0.05;
         Vec3 delt  = Vec3_scale(Vec3_normalize(comps.items[i].velocity), 1./60.0);
-        if(dist == 0.0){
+        if(dist == 0.0){ 
             continue;
         }
         int dt = ceil((double)dist/delta);
@@ -193,7 +191,7 @@ void update_physics(){
             update_obj(i, &did_hit);
             if(did_hit){
                 break;
-            }
+            } 
         }
     }
     u64u32VecHashTable_unmake(grid);
@@ -220,7 +218,7 @@ OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore
     bool hit = false;
     for(u64 i =0; i<ENTITY_COUNT; i++){
         if(runtime.level->tags[i]){
-            if(get_physics_comps()[i].is_valid) continue; 
+            if(!get_physics_comps()[i].is_valid) continue; 
             if(uint32_array_contains(i, to_ignore, to_ignore_count)){
                 continue;
             }

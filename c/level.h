@@ -72,7 +72,7 @@ typedef enum:uint32_t{
 	tag_movable = 0b10,
 }Tag;
 typedef enum:uint64_t {
-	comp_movement = 0b1, 
+	comp_model= 0b1, 
 	comp_physics = 0b10,
 } OwnedComps;
 typedef struct{
@@ -148,7 +148,7 @@ bool has_component(EntityRef e,OwnedComps cmp);
 void add_component(EntityRef e, OwnedComps cmp);
 void add_tag(EntityRef e, Tag tg);
 void remove_component(EntityRef e, OwnedComps cmp);
-void remove_tag(EntityRef e, OwnedComps cmp);
+void remove_tag(EntityRef e, Tag tg);
 bool has_tag(EntityRef e, Tag tag);
 EntityRefVec get_all_entities_with_tag(Tag tag);
 EntityRefVec get_all_entities_with_component(OwnedComps cmp);
@@ -168,3 +168,7 @@ void draw_line(Vec3 start, Vec3 end,Color col);
 void draw_text(const char * text, int x, int y, int height, Color col);
 void draw_rect(int x, int y, int w, int h, Color col);
 void draw_circle(int x, int y, float r, Color col);
+PhysicsComp * get_physics_comp(EntityRef ref);
+MeshComp * get_mesh_comp(EntityRef ref);
+Level * get_level();
+EntityRef create_debug_cube(Vec3 pos);

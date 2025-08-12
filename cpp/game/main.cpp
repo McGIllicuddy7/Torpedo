@@ -8,7 +8,7 @@ void load_test_level1(){
     EntityRef enemy = create_npc_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)},Quat{0,0,0,-1},Alignment::EnemyAligned);
     #ifdef MULT
  
-    int count =1;
+    int count =5;
     for(int x = -count; x<count+1; x++){
         for(int y = -count; y<count+1; y++){
             for(int z = -count; z<count+1; z++){
@@ -45,5 +45,5 @@ void  load_test_level2(){
     EntityRef enemy = create_npc_ship(Vec3{(double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2), (double)(rand()%dims-dims/2)},Quat{0,0,0,-1},Alignment::EnemyAligned); 
 }
 int main(int argc, const char** argv){
-    Torpedo::mainloop(load_test_level2);
+    Torpedo::mainloop(load_test_level1);
 }
