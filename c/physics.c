@@ -2,8 +2,10 @@
 static PhysicsCompVec comps;
 static u32Vec indexs;
 enable_hash_type(u64, u32Vec);
+void* physics_loop(void*);
+volatile bool should_process_physics = false;
 u64u32VecHashTable *grid = 0;
-static double square_size = 1000.0;
+static double square_size =2.0;
 static double min_x = 0.0;
 static double min_y = 0.0;
 static double min_z = 0.0;
@@ -14,7 +16,7 @@ typedef struct {
     Vec3 v0;
     Vec3 v1;
 }Vec3Pair;
-static i64 compute_position(Vec3 v){
+static inline i64 compute_position(Vec3 v){
     int64_t dx =(max_x -min_x)/square_size;
     int64_t dz = (max_z-min_z)/square_size;
     int64_t dy = (max_y -min_y)/square_size;
@@ -33,11 +35,8 @@ static bool u64_equals(u64 l, u64 r){
 static void u32Vec_destroy(u32Vec * v){
     unmake((*v));
 }
-static void setup_grid(){
-	if(grid){
-		u64u32VecHashTable_unmake(grid);
-	}
-        grid = u64u32VecHashTable_create(10000,(size_t (*)(u64))hash_long,u64_equals, (void(*)(u64*))no_op_void, u32Vec_destroy); 
+static void setup_grid(){	
+        grid = u64u32VecHashTable_create(4096*16,(size_t (*)(u64))hash_long,u64_equals, (void(*)(u64*))no_op_void, u32Vec_destroy); 
         for(size_t j = 0; j<comps.length; j++){
             PhysicsComp i = comps.items[j];
             if(!i.can_ever_collide){
@@ -63,14 +62,16 @@ static void setup_grid(){
                 max_z = pos.z;
             }
     }
-    for(size_t i =0; i<comps.length; ++i){
+
+    for(size_t i =0; i<comps.length; i++){
         int64_t p =compute_position(comps.items[i].trans.trans.translation); 
+
         u32Vec * v = u64u32VecHashTable_find(grid, p);
         if(v){
            v_append((*v), i);
         } else{
             u32Vec vec = make(frame_arena(), u32);
-            v_resize(vec, 1000);
+            //v_resize(vec, 1000);
             v_append(vec, i);
             u64u32VecHashTable_insert(grid, p,vec);
         }
@@ -86,9 +87,12 @@ void physics_prepare_update(){
             continue;
         }
         PhysicsComp p = get_physics_comps()[i];
-        v_append(indexs, i);
-        v_append(comps,p); 
+        if(p.is_valid){
+            v_append(indexs, i);
+            v_append(comps,p); 
+        }
     }
+    should_process_physics = true;
 }
 OptCol physics_comp_check_collision(PhysicsComp a, PhysicsComp b){
     for(size_t i =0; i<a.collider_count; i++){
@@ -119,24 +123,25 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             }
             Vec3Pair v = collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[j].mass, comps.items[j].velocity, Vec3_normalize(col.col.norm));
             //Vec3Pair v2 = angular_collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[i].trans.trans.translation,comps.items[j].mass, comps.items[j].velocity, comps.items[j].trans.trans.translation);
-            comps.items[i].velocity = v.v0;
-        comps.items[j].velocity = v.v1;  
+            comps.items[i].velocity = Vec3_scale(v.v0, 0.5);
+            comps.items[j].velocity = Vec3_scale(v.v1,0.5); 
         }
 }
 u64 update_obj(size_t i, bool * did_hit){
         size_t count = 0;
         Vec3 v = comps.items[i].trans.trans.translation;
+        u32Vec reached = make(frame_arena(), u32);
         for(int x = -1; x<2; x++){
             for(int y =-1; y<2; y++){
                 for(int z =-1; z<2; z++){
-                    Vec3 v0 = Vec3_add(v,Vec3_scale((Vec3){(double)x,(double)y,(double)z},square_size));
+                    Vec3 v0 = Vec3_add(v,Vec3_scale((Vec3){(double)x,(double)y,(double)z},square_size/2.0));
                     int64_t p = compute_position(v0);
-                    if(p<0){
-                        continue;
+                    if(p == -1){
+                    continue;
                     }
                     u32Vec * vs = u64u32VecHashTable_find(grid,p);
-                    if(vs){
-                        for(size_t idx =0; idx<vs->length; idx++){
+                    if(vs){  
+                        for(size_t idx =0; idx<vs->length; idx++){ 
                             u32 j= vs->items[idx];
                             if(i == j){
                                 continue;
@@ -151,11 +156,13 @@ u64 update_obj(size_t i, bool * did_hit){
                 }
             }
         }
+
     return count;
 }
 void update_physics(){    
     setup_grid(); 
     size_t count = 0;
+    size_t max_count =0;
     for(size_t i =0; i<comps.length; i++){
         if(!comps.items[i].can_ever_collide){
             comps.items[i].trans.trans.translation= Vec3_add(comps.items[i].trans.trans.translation,Vec3_scale(comps.items[i].velocity,1/60.0));
@@ -163,12 +170,13 @@ void update_physics(){
         } 
         double dist = Vec3_len(comps.items[i].velocity)*1./60;
         Vec3 p = comps.items[i].trans.trans.translation;
-        double delta= 0.05;
+        double delta= 0.5;
         Vec3 delt  = Vec3_scale(Vec3_normalize(comps.items[i].velocity), 1./60.0);
         if(dist == 0.0){ 
             continue;
         }
         int dt = ceil((double)dist/delta);
+        if(dt>4)dt =4;
         comps.items[i].trans.trans.rotation = Vec4_from_Vector4(
             QuaternionFromMatrix(
                     MatrixMultiply(
@@ -180,6 +188,7 @@ void update_physics(){
                     )
             )
         );
+        size_t c = 0;
         for (int j =0; j<dt; j++){
             if(j<dt-1){
                 comps.items[i].trans.trans.translation = Vec3_add(comps.items[i].trans.trans.translation, delt);
@@ -188,20 +197,26 @@ void update_physics(){
             }
             comps.items[i].trans.trans.rotation = Vec4_from_Vector4(QuaternionNormalize(Vec4_to_Vector4(comps.items[i].trans.trans.rotation)));
             bool did_hit = false;
-            update_obj(i, &did_hit);
+            c+= update_obj(i, &did_hit); 
             if(did_hit){
                 break;
             } 
         }
+        if(c>max_count){
+                max_count =c;
+        }
+        count+=c;
     }
-    u64u32VecHashTable_unmake(grid);
-    grid =0; 
 }
 void physics_finish_update(){
+    while(should_process_physics){}
     for(size_t i =0; i<comps.length; i++){
         get_physics_comps()[i] = comps.items[i];
     }
+u64u32VecHashTable_unmake(grid);
+    grid =0; 
 }
+
 static bool uint32_array_contains(uint32_t check, u32* to_check,size_t to_check_count){
     for(int i =0; i<to_check_count; i++){
         if(to_check[i] == check){
@@ -236,4 +251,13 @@ OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore
         return (OptEntityRef){.is_valid = true, .ref =(EntityRef){.index = idx, .generation = runtime.level->generations[idx]}};
     }
     return (OptEntityRef){0};
+}
+void* physics_loop(void*v ){
+    while(true){
+        while(!should_process_physics){
+        }
+        update_physics();
+        should_process_physics = false;
+    }
+    return 0;
 }

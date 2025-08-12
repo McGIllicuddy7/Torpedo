@@ -24,7 +24,7 @@ void process_events(){
 void tick(){ 
     process_systems();
     physics_prepare_update();
-    update_physics();
+//    update_physics();
     physics_finish_update();
     process_events();
     game_render(&runtime.level->cam); 
@@ -228,8 +228,8 @@ EntityRef create_debug_cube(Vec3 pos){
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = pos;
     Collider col;
-    col.bb.min=(Vector3){-1,-1,-1};
-    col.bb.max= (Vector3){1,1,1};
+    col.bb.min=(Vector3){-0.5,-0.5,-0.5};
+    col.bb.max= (Vector3){0.5,0.5,0.5};
     phys->colliders[0] = col;
     phys->collider_count = 1;
     phys->angular_velocity = (Vec3){0,0,0};

@@ -1,5 +1,7 @@
 #include "renderer.h"
 #include "base.h"
+#include "utils.h"
+extern Arena * arena_create_sized(size_t count);
 void process_3d_draw_calls(){
     for(size_t i =0; i<runtime.level->draw3d_calls.length; i++){
         DrawCall3D d = runtime.level->draw3d_calls.items[i];
@@ -49,10 +51,12 @@ void game_render(Camera * cam){
         UpdateCamera(cam, CAMERA_FREE);
     }
     BeginDrawing(); ClearBackground((Color){16, 16, 32, 255});
+    BeginShaderMode(runtime.level->shader);
     BeginMode3D(*cam);
 
-    rlSetClipPlanes(0.01, 5000000);
-    Arena * arena= arena_create();
+//    rlSetClipPlanes(0.01, 5000000);
+    Arena *arena = arena_create_sized(4096*1024);
+ 
     for(size_t i =0; i<ENTITY_COUNT; i++){
         if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
             continue;
@@ -62,6 +66,7 @@ void game_render(Camera * cam){
     process_3d_draw_calls();
     arena_destroy(arena);
     EndMode3D();
+    EndShaderMode();
     process_draw_calls();
     DrawFPS(900, 20);
     EndDrawing();

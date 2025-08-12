@@ -1000,7 +1000,7 @@ size_t hash_long(long lg){
 
 CTILS_STATIC
 size_t hash_double(double db){
-	union{double db; size_t v} tmp;
+	union{double db; size_t v;} tmp;
 	tmp.db = db;
 	return  tmp.v;
 }

@@ -17,7 +17,7 @@ typedef struct{
 typedef struct{
     Vec3 items[6];
 }Vec3_6;
-[[gnu::always_inline]]
+
 static inline VertexSet get_vertices(BoundingBox a, Trans offset, Trans a_trans){
     VertexSet verts = {{    
         (Vec3){1., 1., 1.},
@@ -59,7 +59,6 @@ static inline VertexSet get_vertices(BoundingBox a, Trans offset, Trans a_trans)
     }
     return verts;
 }
-[[gnu::always_inline]]
 static inline bool Vec3_13_contains(Vec3_13 a, Vec3 v,size_t count){
     size_t idx = 0;
     while(idx <count){
@@ -71,7 +70,7 @@ static inline bool Vec3_13_contains(Vec3_13 a, Vec3 v,size_t count){
     return false;
 }
 
-[[gnu::always_inline]]
+
 static inline Vec3_13 internal_get_normals(){
         Vec3_13 norms;
         for(size_t i = 0; i<13; i++){
@@ -124,7 +123,7 @@ static inline Vec3_13 internal_get_normals(){
     return norms;
 }
 
-[[gnu::always_inline]]
+
 static inline Vec3_13 get_normals(Trans a_trans, Trans a_off){
     static Vec3_13 base_normals;
     static bool normals_init = false;
@@ -139,7 +138,7 @@ static inline Vec3_13 get_normals(Trans a_trans, Trans a_off){
     }
     return normals;
 }
-[[gnu::always_inline]]
+
 static inline Vec3_6 get_normals_basic(Trans a_trans, Trans a_off){
     Vec3_6 normals = {{
         (Vec3){1.0, 0., 0.},
@@ -283,7 +282,7 @@ Vec3Pair collision_response(
     double m2,
     Vec3 v2,
     Vec3 normal){
-    assert(Vec3_len(normal)>0.0);
+    assert(Vec3_len(normal)>0.001);
     Vec3 n_0 = normal;
     normal = Vec3_normalize(normal);
     Vec3 center_momentum = Vec3_add(Vec3_scale(v1 ,m1) ,Vec3_scale( v2 , m2));
