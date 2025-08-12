@@ -44,7 +44,7 @@ void setup(){
     level->save_name = 0;
     StringModelHashTable_insert(level->models, new_string(0, "cube"),LoadModelFromMesh(GenMeshCube(1., 1., 1.)));
     register_system((System){draw_update});
-    int delt = 11;
+    int delt = 10;
     double scale = 10.0;
     for(int z = -delt; z<delt+1; z++){
         for(int y =-delt; y<delt+1;y++){

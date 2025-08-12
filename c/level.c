@@ -24,10 +24,10 @@ void process_events(){
 void tick(){ 
     process_systems();
     physics_prepare_update();
-//    update_physics();
+    game_render(&runtime.level->cam); 
     physics_finish_update();
     process_events();
-    game_render(&runtime.level->cam); 
+
     arena_reset(frame_arena());
 }
 
