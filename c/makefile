@@ -1,6 +1,11 @@
- files= main.c physics.c level.c col.c renderer.c
- flags = -std=c23 -lm -O3
-libs =-lraylib -L /opt/homebrew/raylib/lib/ 
+ files= main.c physics.c level.c col.c renderer.c ship.c 
+ flags = -std=c23 -lm -O3 -g3 -lprofiler 
+libs =-lraylib -L /opt/homebrew/raylib/lib/ -I /opt/homebrew/include/ -L /opt/homebrew/lib/
+
 make: $(files)
 	gcc  $(files) $(flags) $(libs)
 	
+profile: $(files)
+	gcc  $(files) $(flags) $(libs) -D PROFILE
+	./a.out
+	pprof -png output_inside.prof

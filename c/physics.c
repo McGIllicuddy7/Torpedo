@@ -1,9 +1,10 @@
 #include "physics.h"
+#include <stdatomic.h>
 static PhysicsCompVec comps;
 static u32Vec indexs;
 enable_hash_type(u64, u32Vec);
 void* physics_loop(void*);
-volatile bool should_process_physics = false;
+atomic_int should_process_physics = false;
 u64u32VecHashTable *grid = 0;
 static double square_size =2.0;
 static double min_x = 0.0;
@@ -87,10 +88,12 @@ void physics_prepare_update(){
             continue;
         }
         PhysicsComp p = get_physics_comps()[i];
-        if(p.is_valid){
+        if(has_component((EntityRef){.index = i, .generation = runtime.level->generations[i]}, comp_physics)){
             v_append(indexs, i);
             v_append(comps,p); 
-        }
+        }else{
+			todo()
+		}
     }
     should_process_physics = true;
 }
@@ -112,19 +115,20 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             *did_hit = true;
             comps.items[i].trans.trans.translation =Vec3_add(comps.items[i].trans.trans.translation, Vec3_scale(col.col.norm,(col.col.depth+0.01)));
             uint32_t i_gen = runtime.level->generations[i];
-            uint32_t j_gen = runtime.level->generations[j]; uint32_t ui = i;
-            uint32_t uj = j;
+            uint32_t j_gen = runtime.level->generations[j];
+            uint32_t ui = indexs.items[i];
+            uint32_t uj = indexs.items[j];
             EntityRef iref = (EntityRef){.index = ui, .generation =i_gen};
             EntityRef jref = (EntityRef){.index = uj, .generation = j_gen};
-            apply_damage(iref,jref,col.col.norm,10);
-            apply_damage(jref, iref, Vec3_scale(col.col.norm,-1), 10);
+            apply_damage(iref,jref,col.col.norm,11);
+            apply_damage(jref, iref, Vec3_scale(col.col.norm,-1), 11);
             if(comps.items[i].destroy_on_impact || comps.items[j].destroy_on_impact){
                 return;
             }
             Vec3Pair v = collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[j].mass, comps.items[j].velocity, Vec3_normalize(col.col.norm));
             //Vec3Pair v2 = angular_collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[i].trans.trans.translation,comps.items[j].mass, comps.items[j].velocity, comps.items[j].trans.trans.translation);
-            comps.items[i].velocity = Vec3_scale(v.v0, 0.5);
-            comps.items[j].velocity = Vec3_scale(v.v1,0.5); 
+            comps.items[i].velocity = Vec3_scale(v.v0, 0.42);
+            comps.items[j].velocity = Vec3_scale(v.v1,0.42); 
         }
 }
 u64 update_obj(size_t i, bool * did_hit){
@@ -211,7 +215,7 @@ void update_physics(){
 void physics_finish_update(){
     while(should_process_physics){}
     for(size_t i =0; i<comps.length; i++){
-        get_physics_comps()[i] = comps.items[i];
+        get_physics_comps()[indexs.items[i]] = comps.items[i];
     }
 u64u32VecHashTable_unmake(grid);
     grid =0; 
@@ -237,7 +241,7 @@ OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore
             if(uint32_array_contains(i, to_ignore, to_ignore_count)){
                 continue;
             }
-            for (u64 j=0; i<get_physics_comps()[i].collider_count; j++){
+            for (u64 j=0; j<get_physics_comps()[i].collider_count; j++){
                 double h = check_collision_line_box(start, end, get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[j].offset,get_physics_comps()[i].colliders[j].bb);
                 if(h>0 && h<min){
                     idx = i;

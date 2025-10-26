@@ -13,15 +13,15 @@ uniform sampler2D diffuse;
 out vec4 finalColor;
 void main()
 {
-    vec3 light_pos = vec3(500000, 0.0,0.0);
+    vec3 light_pos = vec3(300, 0.0,0.0);
     vec3 delt = light_pos-fragPosition;
     float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
-    dist /= 10000000;
+    dist /= 100;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
     delta /= dist; 
-    if (delta<0.4){
-        delta = 0.4;
+    if (delta<0.01){
+        delta = 0.01;
     }
     if(delta>1.0){
         delta = 1.0;
@@ -31,7 +31,7 @@ void main()
     col = col*delta;
     vec4 col0 = col;
 //    col = atan(col);
-    float min = 1.0/255.0;
+    float min = 1.0/10000.0;
     if(col.r< min &&col0.r>min){
         col.r = min;
     }

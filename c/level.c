@@ -1,8 +1,15 @@
+#include "utils.h"
 #include "level.h"
 #include "physics.h"
 #include "renderer.h"
 #include "base.h"
+extern Arena * arena_create_sized(size_t count);
 Runtime runtime;
+extern void draw_update();
+void model_unload(Model * model){
+    UnloadModel(*model);
+}
+void finalize_entity(EntityRef target);
 Arena * frame_arena(){
     return runtime.level->frame_arena;
 }
@@ -10,6 +17,10 @@ Arena * static_arena(){
     return runtime.static_arena;
 }
 void apply_damage(EntityRef source, EntityRef target,  Vec3 direction, double damage){
+    if(!entity_is_valid(source) || !entity_is_valid(target)){
+        return;
+    }
+    get_level()->damage_handler(source, target, direction, damage);
 }
 void process_systems(){
     for(size_t i =0; i<runtime.level->systems.length; i++){
@@ -21,13 +32,43 @@ void process_events(){
     }
     runtime.level->events.length =0;
 }
-void tick(){ 
-    process_systems();
-    physics_prepare_update();
-    game_render(&runtime.level->cam); 
-    physics_finish_update();
-    process_events();
+void finalize_entities(){
+	static int hit = false;
+	if(runtime.level->destroy_queue.length){
+	printf("to destroy count:%zu\n", runtime.level->destroy_queue.length);
+	}
 
+	for(size_t i =0; i<runtime.level->destroy_queue.length; i++){
+		if(entity_is_valid(runtime.level->destroy_queue.items[i])){
+		finalize_entity(runtime.level->destroy_queue.items[i]); printf("destroyed %u\n", runtime.level->destroy_queue.items[i].index);
+
+		}
+	}
+	if(hit){
+		//todo();
+	}
+	if(runtime.level->destroy_queue.length != 0){
+		hit = true;
+	}
+	runtime.level->destroy_queue.length =0;
+}
+void tick(){ 
+    static int t = 0;
+    const int tc  = 0;
+    if(t == tc){
+        process_systems();
+        physics_prepare_update();
+    }
+    game_render(&runtime.level->cam); 
+    if(t == tc){
+        physics_finish_update();
+        process_events();
+        finalize_entities();
+    }
+    t+= 1;
+    if(t>tc){
+        t = 0;
+    }
     arena_reset(frame_arena());
 }
 
@@ -138,21 +179,24 @@ EntityRef create_entity(){
     }
     return entity_null();
 }
+void finalize_entity(EntityRef target){
+	if(!entity_is_valid(target)){
+	        return;
+	}
+	    get_tags_ptr()[target.index] =(Tag)0;
+	    runtime.level->owned_comps[target.index] = (OwnedComps)0;
+	    for(size_t i =0; i<COMPONENT_COUNT; i++){
+	        void (*dest)(void *, u32) = runtime.level->handlers[i].destructor;
+	        if(dest){
+	            dest(runtime.level->components[i], target.index);
+	        }
+	    }
+}
 void destroy_entity(EntityRef target){
-    if(!entity_is_valid(target)){
-        return;
-    }
-    get_tags_ptr()[target.index] =(Tag)0;
-    runtime.level->owned_comps[target.index] = (OwnedComps)0;
-    for(size_t i =0; i<COMPONENT_COUNT; i++){
-        void (*dest)(void *, u32) = runtime.level->handlers[i].destructor;
-        if(dest){
-            dest(runtime.level->components[i], target.index);
-        }
-    }
+	v_append(get_level()->destroy_queue,target);
 }
 bool has_component(EntityRef e,OwnedComps cmp){
-    return runtime.level->owned_comps[e.index] ==cmp;
+    return (runtime.level->owned_comps[e.index] &cmp )!= 0;
 }
 void add_component(EntityRef e, OwnedComps cmp){
     *((u64*)&runtime.level->owned_comps[e.index] )|= (u64)cmp;
@@ -241,4 +285,42 @@ EntityRef create_debug_cube(Vec3 pos){
     mesh->meshes[0].string = "cube";
     mesh->mesh_count =1;
     return out;
+}
+
+Level * create_level(){
+    InitWindow(1920,1080, ":3");
+    InitAudioDevice();
+    DisableCursor();
+    SetTargetFPS(61);
+    runtime.static_arena = arena_create();
+    runtime.level = (Level*)arena_alloc(runtime.static_arena,(sizeof(Level))); 
+    Level * level = runtime.level;
+	level->destroy_queue = make(runtime.static_arena, EntityRef);
+    level->frame_arena = arena_create_sized(4096*1024);
+    level->generations = (u32*)arena_alloc(runtime.static_arena, (sizeof(u32))*ENTITY_COUNT);
+    level->events = make(frame_arena(), Event);
+    level->systems = make(runtime.static_arena, System);
+    level->hooks = make(runtime.static_arena, EventHandler);
+    level->player_entity= entity_null();
+    level->cam.up = (Vector3){0,0,1};
+    level->cam.target = (Vector3){1,0,0};
+    level->cam.fovy = 120;
+    level->cam.position = (Vector3){0,0,0};
+    level->cam.projection = CAMERA_PERSPECTIVE;
+    level->tags = (Tag*)arena_alloc(runtime.static_arena,ENTITY_COUNT*sizeof(Tag));
+    level->owned_comps=(OwnedComps*)arena_alloc(runtime.static_arena,ENTITY_COUNT*sizeof(OwnedComps));
+    level->components = (void**)arena_alloc(runtime.static_arena,COMPONENT_COUNT*sizeof(void*));
+    level->components[MESH_COMPS_IDX] = arena_alloc(runtime.static_arena,ENTITY_COUNT*sizeof(MeshComp));
+    level->components[PHYSICS_COMPS_IDX] = arena_alloc(runtime.static_arena,ENTITY_COUNT*sizeof(PhysicsComp));
+    level->shader = LoadShader("shaders/vertex.glsl", "shaders/frag.glsl");
+    level->models = StringModelHashTable_create(4096,hash_string, string_equals, unmake_string, model_unload);
+    level->should_load = false;
+    level->should_save = false;
+    level->load_name =0;
+    level->save_name = 0;
+    level->damage_handler = 0;
+    level->cam_player_offset = Trans_create();
+    StringModelHashTable_insert(level->models, new_string(0, "cube"),LoadModelFromMesh(GenMeshCube(1., 1., 1.)));
+    register_system((System){draw_update});
+    return level;
 }

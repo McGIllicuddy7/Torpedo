@@ -67,11 +67,11 @@ typedef struct {
 	Color color;
 }DrawCall3D;
 enable_vec_type(DrawCall3D);
-typedef enum:uint32_t{
+typedef enum: uint32_t{
 	tag_alive = 0b1,
 	tag_movable = 0b10,
 }Tag;
-typedef enum:uint64_t {
+typedef enum: uint64_t {
 	comp_model= 0b1, 
 	comp_physics = 0b10,
 } OwnedComps;
@@ -111,16 +111,17 @@ typedef struct{
 typedef struct {
 	EntityRef player_entity;
 	Camera3D cam;
+	Trans cam_player_offset;
 	u32* generations;	
 	Tag* tags;
 	OwnedComps * owned_comps;	
 	StringModelHashTable *models;
 	Shader shader;
 	bool should_save;
-        bool should_load;
-        const char * save_name;
+    bool should_load;
+    const char * save_name;
 	void ** components;
-        const char *load_name;
+    const char *load_name;
 	Arena * frame_arena;
 	EventVec events;
 	LogVec logs;
@@ -129,6 +130,8 @@ typedef struct {
 	SystemVec systems;
 	EventHandlerVec hooks;
 	ComponentHandler handlers[COMPONENT_COUNT];
+	void (*damage_handler)(EntityRef source, EntityRef target,  Vec3 direction, double damage);
+	EntityRefVec destroy_queue;
 }Level;
 typedef struct{
 	Arena * static_arena;
@@ -172,3 +175,4 @@ PhysicsComp * get_physics_comp(EntityRef ref);
 MeshComp * get_mesh_comp(EntityRef ref);
 Level * get_level();
 EntityRef create_debug_cube(Vec3 pos);
+Level *create_level();

@@ -52,10 +52,21 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
 void game_render(Camera * cam){
     if(!entity_is_valid(runtime.level->player_entity)){
         UpdateCamera(cam, CAMERA_FREE);
+    } else{
+        Transform base = Trans_to_Transform(get_physics_comp(runtime.level->player_entity)->trans.trans);
+        auto m =QuaternionToMatrix(base.rotation);
+        Transform offset = Trans_to_Transform(runtime.level->cam_player_offset);
+        cam->position = Vector3Add(base.translation, Vector3Transform(offset.translation, m));
+        Matrix mat = MatrixMultiply(QuaternionToMatrix(offset.rotation),QuaternionToMatrix(base.rotation));
+        cam->target = Vector3Add(Vector3Transform((Vector3){1,0,0},mat), cam->position);
+        cam->up = Vector3Transform((Vector3){0,0,1},mat);
     }
-    BeginDrawing(); ClearBackground((Color){16, 16, 32, 255});
+    BeginDrawing(); 
+    ClearBackground((Color){16, 16, 32, 255});
     BeginShaderMode(runtime.level->shader);
     BeginMode3D(*cam);
+    rlSetClipPlanes(0.0001, 10000.0);
+   // rlDisableBackfaceCulling();
 
 //    rlSetClipPlanes(0.01, 5000000);
     Arena *arena = arena_create_sized(4096*1024);
