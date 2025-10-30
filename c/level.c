@@ -302,7 +302,7 @@ EntityRef create_debug_cube(Vec3 pos){
 }
 
 Level * create_level(){
-    InitWindow(1920,1080, ":3");
+    InitWindow(GetScreenWidth(),GetScreenHeight(), ":3");
     InitAudioDevice();
     DisableCursor();
     SetTargetFPS(61);

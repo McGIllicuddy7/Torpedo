@@ -4,8 +4,10 @@
 #include "utils.h" 
 #include "ship.h"
 #include "level.h"
+#ifdef PROFILE
 //#include <gperftools/profiler.h>
 #include </opt/homebrew/include/gperftools/profiler.h>
+#endif
 #include <pthread.h>
 extern void tick();
 extern void* physics_loop(void*);
