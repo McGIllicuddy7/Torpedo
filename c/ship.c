@@ -53,20 +53,13 @@ void update_ship(EntityRef ship){
 		}
 
 	}else if(s->input.input_mode == InputMoveTo){
-
+		todo();
 	}else{
 		todo();
 	}
 
 }
-void ai_update(EntityRef ship, ShipComp * s){
-	/*if(entity_is_valid(s->target)){
-		if(has_view_to(ship, s->target)){
 
-		}
-	}*/
-
-}
 void human_update(EntityRef ship, ShipComp*s){
 	Vec3 vel_inp = {0,0,0};
 	Vector2 rot_inp = {0,0};
@@ -90,10 +83,18 @@ void human_update(EntityRef ship, ShipComp*s){
 	if(IsKeyDown(KEY_E)){
 		s->input.rot_input.x += 0.005;
 	}
+	if(IsKeyDown(KEY_R)){
+		get_level()->should_load= true;
+		get_level()->load_name = "test.bin";
+	}
+	if(IsKeyDown(KEY_T)){
+		get_level()->should_save = true;
+		get_level()->save_name = "test.bin";
+	}
 	rot_inp = GetMouseDelta();
 	s->input.input = vel_inp;
-	s->input.rot_input.y = rot_inp.y*0.0005;
-	s->input.rot_input.z = -rot_inp.x*0.0005;
+	s->input.rot_input.y = rot_inp.y*0.001;
+	s->input.rot_input.z = -rot_inp.x*0.001;
 
 }
 EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
@@ -138,3 +139,16 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
 bool has_view_to(EntityRef r, EntityRef k){
 	return false;
 }
+void ship_serialize(Stream * s, void *ptr){
+	ShipComp * p= ptr;
+	for(int i =0; i<ENTITY_COUNT; i++){
+		reflect_serialize(s, REFLECT(ShipComp, p+i));
+	}
+}
+void ship_deserialize(Allocator al, Stream * s, void * ptr){
+	ShipComp * p= ptr;
+	for(int i =0; i<ENTITY_COUNT; i++){
+		reflect_deserialize(al,s, REFLECT(ShipComp, p+i));
+	}
+}
+ComponentHandler ship_handler = {.destructor = 0, .serialize = ship_serialize, .deserialize = ship_deserialize};

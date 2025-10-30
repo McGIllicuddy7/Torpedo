@@ -1,6 +1,7 @@
 #pragma once
 #include "base.h"
-#define ENTITY_COUNT 65536
+//#define ENTITY_COUNT 32000
+#define ENTITY_COUNT 512
 #define COMPONENT_COUNT 64
 #define PHYSICS_COMPS_IDX 0
 #define MESH_COMPS_IDX 1
@@ -10,11 +11,13 @@ typedef struct Log{
 	char data[256];
 	double remaining_time;
 }Log;
+REFLECT_STRUCT(Log, REFLECT_PTR(Log, Log, next,1), REFLECT_FIELD(Log,char, data  ), REFLECT_FIELD(Log, double, remaining_time))
 typedef enum{
 		draw_call_text,
 		draw_call_circle,
 		draw_call_rect,
 } DrawCallType;
+
 enable_vec_type(Log);
 typedef struct {
 	DrawCallType draw_call_type;
@@ -79,6 +82,8 @@ typedef struct{
 	uint32_t index;
 	uint32_t generation;
 } EntityRef;
+REFLECT_VALUE Type uint32_tINFO= UNSIGNED_intINFO;
+REFLECT_STRUCT(EntityRef, REFLECT_FIELD(EntityRef, uint32_t,index ), REFLECT_FIELD(EntityRef, uint32_t,generation ))
 enable_vec_type(EntityRef);
 typedef enum{
 	ApplyDamage = 0b1,
@@ -88,6 +93,7 @@ typedef struct{
         Vec3 point;
         double damage;
 } ApplyDamageInfo;
+REFLECT_STRUCT(ApplyDamageInfo, REFLECT_FIELD(ApplyDamageInfo, Vec3, direction), REFLECT_FIELD(ApplyDamageInfo, Vec3, point),  REFLECT_FIELD(ApplyDamageInfo,double,damage))
 typedef struct{
 	EntityRef target;
 	EntityRef source;
@@ -96,6 +102,11 @@ typedef struct{
 		ApplyDamageInfo apply_damage;
 	};
 }Event;
+REFLECT_STRUCT(Event,REFLECT_FIELD(Event, EntityRef, target), REFLECT_FIELD(Event, EntityRef, source), 
+	       REFLECT_FIELD(Event, int, source), REFLECT_FIELD(Event, ApplyDamageInfo,apply_damage)
+	       )
+
+
 typedef struct {
 	void (*update)();
 } System;
@@ -107,6 +118,8 @@ enable_vec_type(System);
 enable_vec_type(EventHandler);
 typedef struct{
 	void (*destructor)(void*, u32 idx);
+	void (*serialize)(Stream * stream, void*);
+	void (*deserialize)(Allocator al,Stream * stream, void*);
 } ComponentHandler;
 typedef struct {
 	EntityRef player_entity;
@@ -118,10 +131,10 @@ typedef struct {
 	StringModelHashTable *models;
 	Shader shader;
 	bool should_save;
-    bool should_load;
-    const char * save_name;
+	bool should_load;
+	const char * save_name;
 	void ** components;
-    const char *load_name;
+	const char *load_name;
 	Arena * frame_arena;
 	EventVec events;
 	LogVec logs;
@@ -130,11 +143,14 @@ typedef struct {
 	SystemVec systems;
 	EventHandlerVec hooks;
 	ComponentHandler handlers[COMPONENT_COUNT];
+	size_t actual_comp_count;
 	void (*damage_handler)(EntityRef source, EntityRef target,  Vec3 direction, double damage);
 	EntityRefVec destroy_queue;
 }Level;
+
 typedef struct{
 	Arena * static_arena;
+	Arena * level_arena;
 	void (*on_startup)(void*);
 	void *startup_data;
 	Level * level;
@@ -142,6 +158,9 @@ typedef struct{
 PhysicsComp *get_physics_comps();
 MeshComp * get_mesh_comps();
 extern Runtime runtime;
+extern ComponentHandler physics_handler;
+extern ComponentHandler mesh_handler;
+
 void apply_damage(EntityRef source, EntityRef target, Vec3 normal,double damage);
 EntityRef create_entity();
 void destroy_entity(EntityRef target);
@@ -176,3 +195,5 @@ MeshComp * get_mesh_comp(EntityRef ref);
 Level * get_level();
 EntityRef create_debug_cube(Vec3 pos);
 Level *create_level();
+void save_level(const char * path);
+void load_level(const char * path);

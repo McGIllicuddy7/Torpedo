@@ -52,7 +52,20 @@ void finalize_entities(){
 	}
 	runtime.level->destroy_queue.length =0;
 }
+void handle_saving(){
+	Level * lv = get_level();
+	if(lv->should_save){
+		save_level(lv->save_name);
+		lv->should_save = false;
+	}
+	if(lv->should_load){
+		load_level(lv->load_name);
+		lv->should_load = false;
+	}
+}
 void tick(){ 
+    get_level()->should_load = false;
+    get_level()->should_save = false;
     static int t = 0;
     const int tc  = 0;
     if(t == tc){
@@ -70,6 +83,7 @@ void tick(){
         t = 0;
     }
     arena_reset(frame_arena());
+    handle_saving();
 }
 
 PhysicsComp *get_physics_comps(){
@@ -292,12 +306,13 @@ Level * create_level(){
     InitAudioDevice();
     DisableCursor();
     SetTargetFPS(61);
-    runtime.static_arena = arena_create();
+    runtime.static_arena = arena_create_sized(4096*32);
     runtime.level = (Level*)arena_alloc(runtime.static_arena,(sizeof(Level))); 
+runtime.level_arena = arena_create_sized(4096*4096);
     Level * level = runtime.level;
-	level->destroy_queue = make(runtime.static_arena, EntityRef);
+	level->destroy_queue = make(runtime.level_arena, EntityRef);
     level->frame_arena = arena_create_sized(4096*1024);
-    level->generations = (u32*)arena_alloc(runtime.static_arena, (sizeof(u32))*ENTITY_COUNT);
+    level->generations = (u32*)arena_alloc(0, (sizeof(u32))*ENTITY_COUNT);
     level->events = make(frame_arena(), Event);
     level->systems = make(runtime.static_arena, System);
     level->hooks = make(runtime.static_arena, EventHandler);
@@ -324,3 +339,65 @@ Level * create_level(){
     register_system((System){draw_update});
     return level;
 }
+void save_level(const char * path){	
+	Stream s = stream_create();
+	Level * lv = get_level();
+	reflect_serialize(&s, REFLECT(EntityRef, &lv->player_entity));
+	stream_write(&s, &lv->cam, sizeof(lv->cam));
+	reflect_serialize(&s, REFLECT(Trans, &lv->cam_player_offset));
+	stream_write(&s, lv->generations, sizeof(u32)*ENTITY_COUNT);
+	stream_write(&s, lv->tags, sizeof(Tag)*ENTITY_COUNT);
+	stream_write(&s, lv->owned_comps, ENTITY_COUNT*sizeof(OwnedComps));
+	for(int i =0; i<lv->actual_comp_count; i++){
+		lv->handlers[i].serialize(&s, lv->components[i]);
+	}
+	FILE * f = fopen(path, "wb");
+	stream_write_to_file(&s, f);
+	fclose(f);
+	stream_destroy(&s);
+}
+
+void load_level(const char * path){
+	arena_reset(runtime.level_arena);
+	Allocator al = from_arena(runtime.level_arena);
+	Stream s = stream_from_file(path);
+	Level * lv = get_level();
+	reflect_deserialize(al,&s, REFLECT(EntityRef, &lv->player_entity));
+	stream_read(&s, &lv->cam, sizeof(lv->cam));
+	reflect_deserialize(al,&s, REFLECT(Trans, &lv->cam_player_offset));
+	stream_read(&s, lv->generations, sizeof(u32)*ENTITY_COUNT);
+	stream_read(&s, lv->tags, sizeof(Tag)*ENTITY_COUNT);
+	stream_read(&s, lv->owned_comps, ENTITY_COUNT*sizeof(OwnedComps));
+	for(int i =0; i<lv->actual_comp_count; i++){
+		lv->handlers[i].deserialize(al,&s, lv->components[i]);
+	}
+	stream_destroy(&s);
+}
+void physics_serialize(Stream * stream,void * ptr){
+	PhysicsComp * p = ptr;
+	for(int i=0; i<ENTITY_COUNT; i++){
+		reflect_serialize(stream, REFLECT(PhysicsComp, p+i));
+	}
+}
+void physics_deserialize(Allocator al,Stream * stream, void * ptr){
+	PhysicsComp * p = ptr;
+	for(int i=0; i<ENTITY_COUNT; i++){
+		reflect_deserialize(al,stream, REFLECT(PhysicsComp, p+i));	
+	}
+}
+void mesh_serialize(Stream * stream,void * ptr){
+	MeshComp * p = ptr;
+	for(int i=0; i<ENTITY_COUNT; i++){
+		reflect_serialize(stream, REFLECT(MeshComp, p+i));
+	}
+}
+void mesh_deserialize(Allocator al,Stream * stream, void * ptr){
+	MeshComp * p = ptr;
+	for(int i=0; i<ENTITY_COUNT; i++){
+		reflect_deserialize(al,stream, REFLECT(MeshComp, p+i));
+	}
+}
+ComponentHandler physics_handler = {.destructor = 0, .serialize = physics_serialize, .deserialize = physics_deserialize};
+ComponentHandler mesh_handler = {.destructor = 0, .serialize = mesh_serialize, .deserialize = mesh_deserialize};
+
+

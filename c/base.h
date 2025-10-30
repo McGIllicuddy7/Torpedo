@@ -13,11 +13,21 @@
 #include <stdint.h>
 
 #include "utils.h"
+#include "lolth.h"
+REFLECT_STRUCT(Vector3, REFLECT_FIELD(Vector3, float, x), REFLECT_FIELD(Vector3, float, y), REFLECT_FIELD(Vector3, float, z))
+REFLECT_STRUCT(BoundingBox, REFLECT_FIELD(BoundingBox,Vector3, min), REFLECT_FIELD(BoundingBox, Vector3, max))
+REFLECT_STRUCT(Color, REFLECT_FIELD(Color, char, r),REFLECT_FIELD(Color, char, g),REFLECT_FIELD(Color, char, b),REFLECT_FIELD(Color, char, a))
+
 typedef struct {
 	double x;
 	double y;
 	double z;
 }Vec3;
+REFLECT_STRUCT(Vec3,
+	REFLECT_FIELD(Vec3, double,x),
+	REFLECT_FIELD(Vec3, double,y),
+	REFLECT_FIELD(Vec3, double,z),
+);
 static inline Vec3 Vec3_add(Vec3 left, Vec3 right){
 	return (Vec3){left.x+right.x, left.y+right.y, left.z+right.z};
 }
@@ -49,6 +59,14 @@ typedef struct{
 	double z;
 	double w;
 }Vec4;
+REFLECT_STRUCT(Vec4,
+	REFLECT_FIELD(Vec4, double,x),
+	REFLECT_FIELD(Vec4, double,y),
+	REFLECT_FIELD(Vec4, double,z),
+	REFLECT_FIELD(Vec4, double,w),
+
+);
+
 static inline Vec4 Vec4_add(Vec4 left, Vec4 right){
 	return (Vec4){left.x+right.x, left.y+right.y, left.z+right.z, left.w+right.w};
 }
@@ -73,6 +91,7 @@ typedef struct{
 	Vec3 scale;
 	Vec4 rotation;
 }Trans;
+REFLECT_STRUCT(Trans, REFLECT_FIELD(Trans, Vec3, translation), REFLECT_FIELD(Trans, Vec3, scale), REFLECT_FIELD(Trans, Vec4, rotation))
 static inline Trans Trans_create(){
 	Trans out;
         out.translation =  (Vec3){0,0,0};
@@ -107,13 +126,16 @@ typedef struct {
 	Vec3 norm;
 	double depth;
 }Col;
+REFLECT_STRUCT(Col, REFLECT_FIELD(Col, Vec3, norm), REFLECT_FIELD(Col, double, depth))
 typedef struct {
 	Trans trans;
 }TransformComp;
+REFLECT_STRUCT(TransformComp, REFLECT_FIELD(TransformComp, Trans, trans))
 typedef struct{
 	Trans offset;
 	BoundingBox bb;
 }Collider;
+REFLECT_STRUCT(Collider, REFLECT_FIELD(Collider,Trans, offset), REFLECT_FIELD(Collider, BoundingBox, bb));
 typedef struct {	
 	TransformComp trans;
 	Collider colliders[4];
@@ -125,6 +147,9 @@ typedef struct {
 	bool can_ever_collide;
 	bool is_valid;
 }PhysicsComp;
+REFLECT_STRUCT(PhysicsComp, REFLECT_FIELD(PhysicsComp, TransformComp, trans),REFLECT_FIELD(PhysicsComp, Collider, colliders), REFLECT_FIELD(PhysicsComp, size_t, collider_count),REFLECT_FIELD(PhysicsComp, Vec3, velocity), REFLECT_FIELD(PhysicsComp, double, mass), REFLECT_FIELD(PhysicsComp,Vec3, angular_velocity), REFLECT_FIELD(PhysicsComp, bool, destroy_on_impact), 
+ REFLECT_FIELD(PhysicsComp, bool, can_ever_collide),
+ REFLECT_FIELD(PhysicsComp, bool, is_valid))
 enable_vec_type(PhysicsComp);
 static inline void PhysicsComp_reset(PhysicsComp*phys){
 	phys->is_valid = false;
@@ -142,10 +167,12 @@ typedef struct{
 	Trans offset;
 	Color color;
 }MeshPart;
+REFLECT_STRUCT(MeshPart,REFLECT_CSTR(MeshPart, string), REFLECT_FIELD(MeshPart, Trans, offset), REFLECT_FIELD(MeshPart, Color, color))
 typedef struct {
 	size_t mesh_count;
 	MeshPart meshes[4];
 }MeshComp;
+REFLECT_STRUCT(MeshComp, REFLECT_FIELD(MeshComp, size_t, mesh_count), REFLECT_FIELD(MeshComp,MeshPart, meshes))
 enable_vec_type(MeshComp);
 static inline Vec3 random_vector(){
     double theta = (double)(rand()%100'000)/100'000.0*2.0*PI;
@@ -170,5 +197,12 @@ static inline double get_input_axis(int key_negative, int key_positive){
 	if(IsKeyDown(key_positive)){
 		out += 1;
 	}
+	return out;
+}
+static inline Allocator from_arena(Arena * arena){
+	Allocator out;
+	out.ptr = arena;
+	out.alloc = (void*(*)(void*, size_t))arena_alloc;
+	out.dealloc= (void(*)(void*, void*))arena_free;
 	return out;
 }

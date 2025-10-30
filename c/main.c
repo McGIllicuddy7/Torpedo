@@ -1,4 +1,5 @@
-
+#define LOLTH_IMPLEMENTATION
+#include "lolth.h"
 #define CTILS_IMPLEMENTATION
 #include "utils.h" 
 #include "ship.h"
@@ -16,10 +17,14 @@ void setup(){
     srand(time(0));
     Level * level = create_level();
     register_system((System){ship_update});
-    level->components[SHIP_COMPS_IDX] = arena_alloc(runtime.static_arena, ENTITY_COUNT*sizeof(ShipComp));
+    level->components[SHIP_COMPS_IDX] = arena_alloc(0, ENTITY_COUNT*sizeof(ShipComp));
     StringModelHashTable_insert(level->models, new_string(0, "ship"),LoadModel("assets/ship.glb"));
-    int delt = 10;
+    int delt = 2;
     level->damage_handler = ship_handle_damage;
+    level->handlers[MESH_COMPS_IDX] = mesh_handler;
+    level->handlers[PHYSICS_COMPS_IDX] = physics_handler;
+    level->handlers[SHIP_COMPS_IDX] = ship_handler;
+    level->actual_comp_count = 3;
     double scale = 10.0;
     for(int z = -delt; z<delt+1; z++){
         for(int y =-delt; y<delt+1;y++){
@@ -31,7 +36,7 @@ void setup(){
             }
         }
     }
-    EntityRef s = create_ship((Vec3){100, 0,0,}, (Vec3){1,0,0}, true);
+    EntityRef s = create_ship((Vec3){100, 0,0,}, (Vec3){1,0,0}, true);	
 }
 void tear_down(){
     StringModelHashTable_unmake(runtime.level->models);
