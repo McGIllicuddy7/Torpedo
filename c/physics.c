@@ -113,7 +113,7 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
         OptCol col = physics_comp_check_collision(comps.items[i], comps.items[j]);
         if(col.is_valid){
             *did_hit = true;
-            comps.items[i].trans.trans.translation =Vec3_add(comps.items[i].trans.trans.translation, Vec3_scale(col.col.norm,(col.col.depth+0.01)));
+            comps.items[i].trans.trans.translation =Vec3_add(comps.items[i].trans.trans.translation, Vec3_scale(col.col.norm,(col.col.depth)*0.5));
             uint32_t i_gen = runtime.level->generations[i];
             uint32_t j_gen = runtime.level->generations[j];
             uint32_t ui = indexs.items[i];
@@ -127,8 +127,8 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             }
             Vec3Pair v = collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[j].mass, comps.items[j].velocity, Vec3_normalize(col.col.norm));
             //Vec3Pair v2 = angular_collision_response(comps.items[i].mass, comps.items[i].velocity, comps.items[i].trans.trans.translation,comps.items[j].mass, comps.items[j].velocity, comps.items[j].trans.trans.translation);
-            comps.items[i].velocity = Vec3_scale(v.v0, 0.42);
-            comps.items[j].velocity = Vec3_scale(v.v1,0.42); 
+            comps.items[i].velocity = Vec3_scale(v.v0, 1.0);
+            comps.items[j].velocity = Vec3_scale(v.v1,1.0); 
         }
 }
 u64 update_obj(size_t i, bool * did_hit){
@@ -174,7 +174,7 @@ void update_physics(){
         } 
         double dist = Vec3_len(comps.items[i].velocity)*1./60;
         Vec3 p = comps.items[i].trans.trans.translation;
-        double delta= 0.5;
+        double delta= 0.01;
         Vec3 delt  = Vec3_scale(Vec3_normalize(comps.items[i].velocity), 1./60.0);
         if(dist == 0.0){ 
             continue;
@@ -231,7 +231,7 @@ static bool uint32_array_contains(uint32_t check, u32* to_check,size_t to_check_
 }
 extern double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, BoundingBox box);
 
-OptEntityRef line_trance(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_count){
+OptEntityRef line_trace(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_count){
     double min = 1000000000.0;
     u32 idx =0;
     bool hit = false;
@@ -270,6 +270,9 @@ EntityRefVec sphere_trace(Arena * arena,Vec3 start, double radius, uint32_t to_i
 	for(int i=0; i<ENTITY_COUNT;i++){
 		if(runtime.level->tags[i]){
 			EntityRef e = entity_ref_from_index(i);
+			if(Vec3_dist(ent_get_location(e), start)<radius){
+				v_append(out, e);
+			}
 			
 		}
 	}

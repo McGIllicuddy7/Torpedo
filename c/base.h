@@ -41,7 +41,7 @@ static inline Vec3 Vec3_normalize(Vec3 v){
 	return Vec3_scale(v, 1.0/(Vec3_len(v)));
 }
 static inline Vec3 Vec3_sub(Vec3 left, Vec3 right){
-	return (Vec3){left.x+right.x, left.y+right.y, left.z+right.z};
+	return (Vec3){left.x-right.x, left.y-right.y, left.z-right.z};
 }
 static inline double Vec3_dot_product(Vec3 a, Vec3 b){
 	return a.x*b.x+a.y*b.y+a.z*b.z;
@@ -74,7 +74,7 @@ static inline Vec4 Vec4_add(Vec4 left, Vec4 right){
 	return (Vec4){left.x+right.x, left.y+right.y, left.z+right.z, left.w+right.w};
 }
 static inline Vec4 Vec4_sub(Vec4 left, Vec4 right){
-	return (Vec4){left.x+right.x, left.y+right.y, left.z+right.z,left.w+right.w};
+	return (Vec4){left.x-right.x, left.y-right.y, left.z-right.z,left.w-right.w};
 }
 static inline Vec4 Vec4_scale(Vec4 self, double v){
 	return (Vec4){self.x*v, self.y*v, self.z*v,self.w*v};

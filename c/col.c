@@ -220,7 +220,7 @@ OptCol check_collision(
                 b_min = b_dot;
             }
         }
-        if (a_min > b_max + 0.001 || b_min > a_max + 0.001 ){ 
+        if (a_min > b_max + 0.0001 || b_min > a_max + 0.0001 ){ 
             return (OptCol){0};
         }
     }
@@ -271,7 +271,7 @@ OptCol check_collision(
         }
     }
     Col out;
-    out.norm = Vec3_scale(Vec3_normalize(col_norm),-1);
+    out.norm = Vec3_normalize(col_norm);
     out.depth = col_depth; 
     return (OptCol){.is_valid = true, .col = out};
 }
@@ -286,8 +286,8 @@ Vec3Pair collision_response(
     Vec3 n_0 = normal;
     normal = Vec3_normalize(normal);
     Vec3 center_momentum = Vec3_add(Vec3_scale(v1 ,m1) ,Vec3_scale( v2 , m2));
-    Vec3 momentum_1 = Vec3_sub(v1 , Vec3_scale(center_momentum,1./(m1+m2)));
-    Vec3 momentum_2 = Vec3_sub(v2 , Vec3_scale(center_momentum,1./(m1+m2)));
+    Vec3 momentum_1 = Vec3_sub(Vec3_scale(v1,1./m1) , Vec3_scale(center_momentum,1./(m1+m2)));
+    Vec3 momentum_2 = Vec3_sub(Vec3_scale(v2, 1./m2) , Vec3_scale(center_momentum,1./(m1+m2)));
     momentum_1 = Vec3_from_Vector3(Vector3Reflect(Vec3_to_Vector3(momentum_1), Vec3_to_Vector3(normal)));
     momentum_2 = Vec3_from_Vector3(Vector3Reflect(Vec3_to_Vector3(momentum_2), Vec3_to_Vector3(normal)));
     Vec3 out1 = Vec3_add(momentum_1, Vec3_scale(center_momentum,1./(m1+m2) ));
@@ -322,8 +322,8 @@ double check_collision_aabb(Vec3 start, Vec3 direction, BoundingBox box){
     if(tmin>tmax){
         return -1;
     } 
-    Vec3 p = Vec3_add(start,Vec3_scale(direction,tmin));
-    if(p.x>box.max.x || p.x<box.min.x || p.y>box.max.y|| p.y<box.min.y || p.z>box.max.z || p.z<box.min.z){
+    Vec3 p = Vec3_add(start,Vec3_scale(direction,-tmin));
+    if(p.x>=box.max.x || p.x<=box.min.x || p.y>=box.max.y|| p.y<=box.min.y || p.z>=box.max.z || p.z<=box.min.z){
         return -1;
     }
     return tmin; 

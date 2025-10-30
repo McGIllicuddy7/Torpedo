@@ -42,7 +42,7 @@ void update_ship(EntityRef ship){
 		Vec3 inp = Vec3_from_Vector3(Vector3Transform(Vec3_to_Vector3(s->input.input), rot_matrix));
 		if(Vec3_len(phys->velocity)>0.0){
 			float delta = floor(Vec3_dot_product(inp, phys->velocity))*0.8;
-			phys->velocity = Vec3_sub(
+			phys->velocity = Vec3_add(
 				phys->velocity, 
 				Vec3_scale(Vec3_normalize(phys->velocity),delta));
 		}
@@ -67,7 +67,7 @@ void update_ship(EntityRef ship){
 void human_update(EntityRef ship, ShipComp*s){
 	Vec3 vel_inp = {0,0,0};
 	Vector2 rot_inp = {0,0};
-	double acc = 0.05;
+	double acc = s->acc;
 	if(IsKeyDown(KEY_W)){
 		vel_inp.x += acc;
 	}
@@ -105,7 +105,7 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
     EntityRef out = create_entity();
     add_component(out, comp_physics);
     add_component(out, comp_model);
-	add_component(out, comp_ship);
+    add_component(out, comp_ship);
     PhysicsComp * phys = get_physics_comp(out);
     assert(phys);
     phys->is_valid = true;
@@ -114,7 +114,7 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
     phys->velocity = (Vec3){0,0,0};
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = location;
-	phys->trans.trans.rotation = Vec4_from_Vector4(QuaternionFromEuler(angle.x, angle.y, angle.z));
+    phys->trans.trans.rotation = Vec4_from_Vector4(QuaternionFromEuler(angle.x, angle.y, angle.z));
     Collider col;
     col.bb.min=(Vector3){-0.5,-0.5,-0.5};
     col.bb.max= (Vector3){0.5,0.5,0.5};
@@ -130,6 +130,7 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
     mesh->mesh_count =1;
 	ShipComp * ship = get_ship_comp(out);
 	memset(&ship->input, 0, sizeof(ship->input));
+	ship->acc = 0.1;
 	ship->input.is_ai = !player;
 	ship->input.mode = Rocket;
 	ship->input.input_mode = InputHuman;
@@ -137,6 +138,11 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
 		get_level()->player_entity = out;
 		get_level()->cam_player_offset.translation.x +=0.40;
 		get_level()->cam_player_offset.translation.z +=0.095;	
+	}else{
+		ship->ai_info.state = Patrol;
+		ship->ai_info.home_base = location;
+		ship->ai_info.move_to_point = location;
+		ship->input.input_mode = InputAi;
 	}
     return out;
 }

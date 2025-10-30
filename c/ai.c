@@ -1,9 +1,11 @@
 #include "ship.h"
+#include "physics.h"
 extern AiState what_is_to_be_done(EntityRef ref, ShipComp * s,AiState state);
-extern void handle_patrol(EntityRef ref, ShipComp * s,AiState state);
-extern void handle_skirmish(EntityRef ref, ShipComp * s,AiState state);
-extern void handle_direct_attack(EntityRef ref, ShipComp * s,AiState state);
-extern void handle_search_for(EntityRef ref, ShipComp * s,AiState state);
+extern AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state);
+extern AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state);
+extern AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state);
+extern AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state);
+extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state);
 
 
 
@@ -78,40 +80,66 @@ retry:
 
 void ai_update(EntityRef ship, ShipComp * s){
 	s->ai_info.state = what_is_to_be_done(ship, s, s->ai_info.state);
+	ai_handle_movement(ship, s, s->ai_info.state);
 }
 AiState what_is_to_be_done(EntityRef ref,ShipComp *s, AiState state){
 	switch(state){
 		case Patrol:{
-			handle_patrol(ref, s, state);
+			return handle_patrol(ref, s, state);
 			break;
 		}
 		case Skirmish:{
-			handle_skirmish(ref, s, state);
+			return handle_skirmish(ref, s, state);
 			break;
 		}
 		case SearchFor:{
-			handle_search_for(ref, s, state);
+			return handle_search_for(ref, s, state);
 			break;
 		}
 		case DirectAttack:{
-			handle_direct_attack(ref, s, state);
+			return handle_direct_attack(ref, s, state);
 			break;
 		}
+	}	
+}
+AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state){
+	AiInfo * info = &s->ai_info;
+	Vec3 loc = ent_get_location(ref);
+	if(Vec3_dist(loc, info->move_to_point)<1.0){
+		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 300), info->home_base);
+	}	
+	return Patrol;
+}
+AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
+	AiInfo * info = &s->ai_info;
+	todo();
+	return Skirmish;
+}
+AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
+	AiInfo * info = &s->ai_info;
+	todo();
+	return DirectAttack;
+}
+AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state){
+	AiInfo * info = &s->ai_info;
+	todo();
+	return SearchFor;
+}
+
+extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
+	Vec3 vel = ent_get_velocity(ref);
+	Vec3 pos = ent_get_location(ref);
+	Vec3 future_pos= Vec3_add(pos, Vec3_scale(vel, 5.0));
+	draw_sphere(s->ai_info.move_to_point, 0.1, GREEN);
+	if(line_trace(pos, future_pos, (u32[]){ref.index}, 1).is_valid){	
+		Vector3 p = Vec3_to_Vector3(ent_get_left_vector(ref));
+		Vector3 d = Vec3_to_Vector3(ent_get_forward_vector(ref));
+		double r = ((double)(rand()%1000))*2*PI/(1000);
+		Vec3 dir = Vec3_from_Vector3(Vector3RotateByAxisAngle(p, d, r));	
+		dir = Vec3_scale(Vec3_normalize(dir), s->acc);
+		s->input.input = dir;
+	}else{
+		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*2);
 	}
-
-	return state;
 }
-void handle_patrol(EntityRef ref, ShipComp * s,AiState state){
-	todo();
-}
-void handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
-	todo();
-}
-void handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
-	todo();
-}
-void handle_search_for(EntityRef ref, ShipComp * s,AiState state){
-	todo();
-}
-
 

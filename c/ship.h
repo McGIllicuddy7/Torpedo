@@ -24,9 +24,11 @@ typedef enum{
 }Team;
 typedef struct {	
 	Vec3 move_to_point;
+	Vec3 home_base;
 	AiState state;
 }AiInfo;
-REFLECT_STRUCT(AiInfo, REFLECT_FIELD(AiInfo, Vec3,move_to_point), REFLECT_FIELD(AiInfo, int, state))
+REFLECT_STRUCT(AiInfo, REFLECT_FIELD(AiInfo, Vec3,move_to_point),
+	       REFLECT_FIELD(AiInfo, Vec3, home_base),REFLECT_FIELD(AiInfo, int, state))
 typedef struct{
 	bool is_ai;
 	InputMode input_mode;
@@ -45,8 +47,9 @@ typedef struct {
 	EntityRef target;
 	AiInfo ai_info;
 	Team team;
+	double acc;
 }ShipComp;
-REFLECT_STRUCT(ShipComp, REFLECT_FIELD(ShipComp,InputData, input), REFLECT_FIELD(ShipComp,EntityRef,target), REFLECT_FIELD(ShipComp, int, team))
+REFLECT_STRUCT(ShipComp, REFLECT_FIELD(ShipComp,InputData, input), REFLECT_FIELD(ShipComp,EntityRef,target), REFLECT_FIELD(ShipComp, int, team), REFLECT_FIELD(ShipComp,double,acc))
 void ship_update();
 ShipComp * get_ship_comp(EntityRef ref);
 ShipComp * get_ship_comps();

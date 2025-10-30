@@ -417,5 +417,9 @@ Vec3 ent_get_up_vector(EntityRef ref){
 EntityRef entity_ref_from_index(int idx){
 	return (EntityRef){.index = idx, .generation = get_level()->generations[idx]};
 }
+Vec3 ent_get_velocity(EntityRef ref){
+	return get_physics_comp(ref)->velocity;
+}
+
 
 

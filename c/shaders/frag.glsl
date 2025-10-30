@@ -16,12 +16,12 @@ void main()
     vec3 light_pos = vec3(300, 0.0,0.0);
     vec3 delt = light_pos-fragPosition;
     float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
-    dist /= 100;
+    dist /= 10000;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
     delta /= dist; 
-    if (delta<0.01){
-        delta = 0.01;
+    if (delta<0.1){
+        delta = 0.1;
     }
     if(delta>1.0){
         delta = 1.0;

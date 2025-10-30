@@ -1,7 +1,7 @@
 #pragma once
 #include "base.h"
 //#define ENTITY_COUNT 32000
-#define ENTITY_COUNT 512
+#define ENTITY_COUNT 32000
 #define COMPONENT_COUNT 64
 #define PHYSICS_COMPS_IDX 0
 #define MESH_COMPS_IDX 1
@@ -202,4 +202,5 @@ Quat ent_get_orientation(EntityRef ref);
 Vec3 ent_get_forward_vector(EntityRef ref);
 Vec3 ent_get_left_vector(EntityRef ref);
 Vec3 ent_get_up_vector(EntityRef ref);
+Vec3 ent_get_velocity(EntityRef ref);
 EntityRef entity_ref_from_index(int idx);
