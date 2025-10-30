@@ -44,50 +44,35 @@ Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc){
 	int hit = 0;
 retry:
 	for(int i =0; i<512; i++){
-		double v_x =  0.5 * a.x* t*t +b.x*t + vel.x-des_vel.x; 
-		double v_y =  0.5 * a.y* t*t +b.y*t + vel.y-des_vel.y;
-		double v_z =  0.5 * a.z* t*t +b.z*t + vel.z-des_vel.z;
-		double x_x = 1./6. * a.x*t*t*t + 0.5 *b.x*t*t + vel.x* t + pos.x-end.x;
-		double x_y = 1./6. * a.y*t*t*t + 0.5 *b.y*t*t + vel.y* t + pos.y-end.y;
-		double x_z = 1./6. * a.z*t*t*t + 0.5 *b.z*t*t + vel.z* t + pos.z-end.z;	
-		double dx_xda = 1./6.*t*t*t;
-		double dx_yda = 1./6.*t*t*t;
-		double dx_zda = 1./6.*t*t*t;
+		const double x_x = 1./6. * a.x*t*t*t + 0.5 *b.x*t*t + vel.x* t + pos.x-end.x;
+		const double x_y = 1./6. * a.y*t*t*t + 0.5 *b.y*t*t + vel.y* t + pos.y-end.y;
+		const double x_z = 1./6. * a.z*t*t*t + 0.5 *b.z*t*t + vel.z* t + pos.z-end.z;	
+		const double dx_xda = 1./6.*t*t*t;
+		const double dx_yda = 1./6.*t*t*t;
+		const double dx_zda = 1./6.*t*t*t;
 		a.x -= x_x /(dx_xda)*0.1;
 		a.y -= x_y /(dx_yda)*0.1;
 		a.z -= x_z /(dx_zda)*0.1;
-		double dx_xdb = 0.5*t*t;
-		double dx_ydb = 0.5*t*t;
-		double dx_zdb = 0.5*t*t;
+		const double dx_xdb = 0.5*t*t;
+		const double dx_ydb = 0.5*t*t;
+		const double dx_zdb = 0.5*t*t;
 		b.x -= x_x/(dx_xdb)*0.1;
 		b.y -= x_y/(dx_ydb)*0.1;
 		b.z -= x_z/(dx_zdb)*0.1;	
 	}
 	for(int i =0; i<2048; i++){
-		double x_x = 1./6. * a.x*t*t*t + 0.5 *b.x*t*t + vel.x* t + pos.x-end.x;
-		double x_y = 1./6. * a.y*t*t*t + 0.5 *b.y*t*t + vel.y* t + pos.y-end.y;
-		double x_z = 1./6. * a.z*t*t*t + 0.5 *b.z*t*t + vel.z* t + pos.z-end.z;	
-		double v_x =  0.5 * a.x* t*t +b.x*t + vel.x-des_vel.x; 
-		double v_y =  0.5 * a.y* t*t +b.y*t + vel.y-des_vel.y;
-		double v_z =  0.5 * a.z* t*t +b.z*t + vel.z-des_vel.z;
-		double dx_xda = 1./6.*t*t*t;
-		double dx_yda = 1./6.*t*t*t;
-		double dx_zda = 1./6.*t*t*t;
-		double dx_xdb = 0.2*t*t;
-		double dx_ydb = 0.2*t*t;
-		double dx_zdb = 0.2*t*t;
-		double dv_xdb = t;
-		double dv_ydb = t;
-		double dv_zdb = t;
-		double dv_xda = 0.5*t*t;
-		double dv_yda = 0.5*t*t;
-		double dv_zda  = 0.5*t*t;
-		double da_xdb = 1./3. *t;
-		double da_ydb = 1./3. *t;
-		double da_zdb = 1./3. *t;
-		double db_x = v_x/(dv_xdb)*0.1;
-		double db_y = v_y/(dv_ydb)*0.1;
-		double db_z = v_z/(dv_zdb)*0.1;
+		const double v_x =  0.5 * a.x* t*t +b.x*t + vel.x-des_vel.x; 
+		const double v_y =  0.5 * a.y* t*t +b.y*t + vel.y-des_vel.y;
+		const double v_z =  0.5 * a.z* t*t +b.z*t + vel.z-des_vel.z;
+		const double dv_xdb = t;
+		const double dv_ydb = t;
+		const double dv_zdb = t;
+		const double da_xdb = 1./3. *t;
+		const double da_ydb = 1./3. *t;
+		const double da_zdb = 1./3. *t;
+		const double db_x = v_x/(dv_xdb)*0.1;
+		const double db_y = v_y/(dv_ydb)*0.1;
+		const double db_z = v_z/(dv_zdb)*0.1;
 		b.x+= db_x;
 		b.y+= db_y;
 		b.z += db_z;
@@ -101,22 +86,14 @@ retry:
 		max_acc = ac2;
 	}
 	if(max_acc>acc){
-		t*= 1.5;
+		t*= 1.25;
 		goto retry;
 	}	
-	if(max_acc<acc/2&& !hit){
-		hit = 1;
-		t /= 2;
+	if(max_acc<acc/1.25&& hit>3){
+		hit += 1;
+		t /= 1.25;
 		goto retry;
 	}
-	double x_x = 1./6. * a.x*t*t*t + 0.5 *b.x*t*t + vel.x* t + pos.x-end.x;
-	double x_y = 1./6. * a.y*t*t*t + 0.5 *b.y*t*t + vel.y* t + pos.y-end.y;
-	double x_z = 1./6. * a.z*t*t*t + 0.5 *b.z*t*t + vel.z* t + pos.z-end.z;	
-	double v_x =  0.5 * a.x* t*t +b.x*t + vel.x-des_vel.x; 
-	double v_y =  0.5 * a.y* t*t +b.y*t + vel.y-des_vel.y;
-	double v_z =  0.5 * a.z* t*t +b.z*t + vel.z-des_vel.z;
-	Vec3 posf= {x_x, x_y, x_z};
-	Vec3 velf = {v_x, v_y, v_z};
 /*	if(Vec3_dist(posf, pos)>5.0){
 		printf("unreachable position,velocity combination with linear acceleration\n");
 //		assert(0);
@@ -130,7 +107,7 @@ Vec3 random_vec(int amount){
 void simulate(){
 	Vec3 pos = random_vec(1000);
 	Vec3 end = random_vec(1000);
-	Vec3 vel = random_vec(1);
+	Vec3 vel = random_vec(10);
 //	pos= (Vec3){0, 0,0};
 //	end = (Vec3){40,0, 0};
 	double acc = 1;
@@ -141,10 +118,9 @@ void simulate(){
 			break;
 		}
 		Vec3 imp = next_impulse(pos, end, vel, (Vec3){0,0,0},acc);
-		vel = Vec3_add(vel, Vec3_scale(imp, dt));
+		vel = Vec3_add(vel, imp);
 		pos = Vec3_add(pos, Vec3_scale(vel, dt));		
-//		pos = Vec3_add(pos, Vec3_scale(imp, dt*dt*0.5));
-		if(count%1000){
+		if(count%10000){
 			printf("pos:%f %f %f, end: %f %f %f, vel: %f %f %f\n", pos.x, pos.y, pos.z, end.x, end.y,end.z, vel.x, vel.y, vel.z); }	
 		count+=1;
 	}
