@@ -16,3 +16,4 @@ void physics_prepare_update();
 void update_physics();
 void physics_finish_update();
 OptEntityRef line_trace(Vec3 start, Vec3 end, uint32_t  to_ignore[], size_t to_ignore_count);
+EntityRefVec sphere_trace(Arena * arena,Vec3 start, double radius, uint32_t to_ignore[], size_t to_ignore_count);

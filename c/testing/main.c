@@ -40,7 +40,7 @@ Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc){
 	//1/6at^3 + 1/2bt^2 + v_0t + x_0-x_1 = 0
 	Vec3 a ={0,0,0};
 	Vec3 b ={0,0,0};
-	double t = Vec3_dist(pos, end)/(acc);
+	double t = Vec3_dist(pos, end)/(acc*acc);
 	int hit = 0;
 retry:
 	for(int i =0; i<512; i++){
@@ -60,7 +60,7 @@ retry:
 		b.y -= x_y/(dx_ydb)*0.1;
 		b.z -= x_z/(dx_zdb)*0.1;	
 	}
-	for(int i =0; i<2048; i++){
+	for(int i =0; i<1024; i++){
 		const double v_x =  0.5 * a.x* t*t +b.x*t + vel.x-des_vel.x; 
 		const double v_y =  0.5 * a.y* t*t +b.y*t + vel.y-des_vel.y;
 		const double v_z =  0.5 * a.z* t*t +b.z*t + vel.z-des_vel.z;
@@ -86,12 +86,12 @@ retry:
 		max_acc = ac2;
 	}
 	if(max_acc>acc){
-		t*= 1.25;
+		t*= 2;
 		goto retry;
 	}	
-	if(max_acc<acc/1.25&& hit>3){
+	if(max_acc<acc/1.1&& hit<5){
 		hit += 1;
-		t /= 1.25;
+		t /= 2.0;
 		goto retry;
 	}
 /*	if(Vec3_dist(posf, pos)>5.0){
@@ -105,12 +105,14 @@ Vec3 random_vec(int amount){
 	return (Vec3){rand()%(amount*2)-amount, rand()%(amount*2)-amount, rand()%(amount*2)-amount};
 }
 void simulate(){
-	Vec3 pos = random_vec(1000);
-	Vec3 end = random_vec(1000);
+	Vec3 pos = random_vec(10000);
+	Vec3 start = pos;
+	Vec3 end = random_vec(10000);
 	Vec3 vel = random_vec(10);
+//	vel= (Vec3){0,0,0};
 //	pos= (Vec3){0, 0,0};
 //	end = (Vec3){40,0, 0};
-	double acc = 1;
+	double acc = 50;
 	double dt = 1./60.0;
 	size_t count = 0;
 	while(1){
@@ -118,13 +120,15 @@ void simulate(){
 			break;
 		}
 		Vec3 imp = next_impulse(pos, end, vel, (Vec3){0,0,0},acc);
-		vel = Vec3_add(vel, imp);
+		vel = Vec3_add(vel, Vec3_scale(imp,dt));
 		pos = Vec3_add(pos, Vec3_scale(vel, dt));		
-		if(count%10000){
-			printf("pos:%f %f %f, end: %f %f %f, vel: %f %f %f\n", pos.x, pos.y, pos.z, end.x, end.y,end.z, vel.x, vel.y, vel.z); }	
+		if(count%60== 0){
+			printf("pos:%f %f %f, end: %f %f %f, vel: %f %f %f\n", pos.x, pos.y, pos.z, end.x, end.y,end.z, vel.x, vel.y, vel.z); 
+		}	
 		count+=1;
 	}
 	printf("pos:%f %f %f, end: %f %f %f, vel: %f %f %f\n", pos.x, pos.y, pos.z, end.x, end.y,end.z, vel.x, vel.y, vel.z);
+	printf("travelled %f meters in %f seconds, averaging:%f meters per second\n", Vec3_dist(start, end), (double)count/60.0, Vec3_dist(start, end)/((double)count/60.0));
 	printf("count:%zu\n", count);
 }
 int main(void){	

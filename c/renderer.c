@@ -40,7 +40,7 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
         md->transform = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation)); 
         Shader s = md->materials[0].shader;
         md->materials[0].shader = get_level()->shader;
-        Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_right_vector(trans), get_up_vector(trans)));
+        Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_left_vector(trans), get_up_vector(trans)));
         DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
         md->transform = old;
         md->materials[0].shader = s;

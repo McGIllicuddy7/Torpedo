@@ -46,6 +46,9 @@ static inline Vec3 Vec3_sub(Vec3 left, Vec3 right){
 static inline double Vec3_dot_product(Vec3 a, Vec3 b){
 	return a.x*b.x+a.y*b.y+a.z*b.z;
 }
+static inline double Vec3_dist(Vec3 a, Vec3 b){
+	return Vec3_len(Vec3_sub(a,b));
+}
 
 static inline Vector3 Vec3_to_Vector3(Vec3 self){
 	return (Vector3){(float)self.x, (float)self.y, (float)self.z};
@@ -116,7 +119,7 @@ static inline Transform Trans_to_Transform(Trans trans){
 static inline Vec3 get_up_vector(Trans trans){
 	return Vec3_from_Vector3(Vector3RotateByQuaternion((Vector3){0,0,1}, Vec4_to_Vector4(trans.rotation)));
 }
-static inline Vec3 get_right_vector(Trans trans){
+static inline Vec3 get_left_vector(Trans trans){
 	return Vec3_from_Vector3(Vector3RotateByQuaternion((Vector3){0,1,0}, Vec4_to_Vector4(trans.rotation)));
 }
 static inline Vec3 get_forward_vector(Trans trans){

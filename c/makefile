@@ -1,4 +1,4 @@
- files= main.c physics.c level.c col.c renderer.c ship.c 
+ files= main.c physics.c level.c col.c renderer.c ship.c  ai.c
  flags = -std=c23 -lm -O3 -g3 -lprofiler 
 libs =-lraylib -L /opt/homebrew/raylib/lib/ -I /opt/homebrew/include/ -L /opt/homebrew/lib/
 

@@ -265,3 +265,13 @@ void* physics_loop(void*v ){
     }
     return 0;
 }
+EntityRefVec sphere_trace(Arena * arena,Vec3 start, double radius, uint32_t to_ignore[], size_t to_ignore_count){
+	EntityRefVec out = make(arena, EntityRef);	
+	for(int i=0; i<ENTITY_COUNT;i++){
+		if(runtime.level->tags[i]){
+			EntityRef e = entity_ref_from_index(i);
+			
+		}
+	}
+	return out;
+}

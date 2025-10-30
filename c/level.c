@@ -399,5 +399,23 @@ void mesh_deserialize(Allocator al,Stream * stream, void * ptr){
 }
 ComponentHandler physics_handler = {.destructor = 0, .serialize = physics_serialize, .deserialize = physics_deserialize};
 ComponentHandler mesh_handler = {.destructor = 0, .serialize = mesh_serialize, .deserialize = mesh_deserialize};
+Vec3 ent_get_location(EntityRef ref){
+	return get_physics_comp(ref)->trans.trans.translation;
+}
+Quat ent_get_orientation(EntityRef ref){
+	return get_physics_comp(ref)->trans.trans.rotation;
+}
+Vec3 ent_get_forward_vector(EntityRef ref){
+	return get_forward_vector(get_physics_comp(ref)->trans.trans);
+}
+Vec3 ent_get_left_vector(EntityRef ref){
+	return get_left_vector(get_physics_comp(ref)->trans.trans);
+}
+Vec3 ent_get_up_vector(EntityRef ref){
+	return get_up_vector(get_physics_comp(ref)->trans.trans);
+}
+EntityRef entity_ref_from_index(int idx){
+	return (EntityRef){.index = idx, .generation = get_level()->generations[idx]};
+}
 
 

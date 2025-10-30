@@ -54,7 +54,11 @@ void update_ship(EntityRef ship){
 
 	}else if(s->input.input_mode == InputMoveTo){
 		todo();
-	}else{
+	}else if(s->input.input_mode == InputAi){
+		PhysicsComp * phys = get_physics_comp(ship);
+		phys->velocity = Vec3_add(phys->velocity, s->input.input);
+	}
+	else{
 		todo();
 	}
 
