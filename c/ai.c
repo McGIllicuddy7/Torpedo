@@ -66,12 +66,12 @@ retry:
 		max_acc = ac2;
 	}
 	if(max_acc>acc){
-		t*= 2;
+		t*= 1.1;
 		goto retry;
 	}	
 	if(max_acc<acc/1.1&& hit<5){
 		hit += 1;
-		t /= 2.0;
+		t /= 1.1;
 		goto retry;
 	}
 	return b;
@@ -106,7 +106,7 @@ AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
 	Vec3 loc = ent_get_location(ref);
 	if(Vec3_dist(loc, info->move_to_point)<1.0){
-		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 300), info->home_base);
+		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 100), info->home_base);
 	}	
 	return Patrol;
 }
@@ -139,7 +139,7 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 		dir = Vec3_scale(Vec3_normalize(dir), s->acc);
 		s->input.input = dir;
 	}else{
-		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*2);
+		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*8);
 	}
 }
 

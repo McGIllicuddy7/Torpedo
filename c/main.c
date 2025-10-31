@@ -38,8 +38,8 @@ void setup(){
             }
         }
     }
-//    EntityRef s = create_ship((Vec3){100, 0,0,}, (Vec3){1,0,0}, true);	
-//	EntityRef e = create_ship((Vec3){-100, 0,0}, (Vec3){1,0,0}, false);
+    EntityRef s = create_ship((Vec3){100, 0,0,}, (Vec3){1,0,0}, true);	
+    EntityRef e = create_ship((Vec3){100, 15,0}, (Vec3){1,0,0}, false);
 }
 void tear_down(){
     StringModelHashTable_unmake(runtime.level->models);

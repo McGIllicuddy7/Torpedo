@@ -50,6 +50,15 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
     }
 }
 void game_render(Camera * cam){
+    static bool stars_init = false;
+    static Vec3 stars[128] = {0};
+    const int star_count = 128;
+    if(!stars_init){
+        for(int i =0; i<star_count; i++){
+            stars[i] = Vec3_scale(random_vector(),rand()%200+100);
+        }
+        stars_init = true;
+    }
     if(!entity_is_valid(runtime.level->player_entity)){
         UpdateCamera(cam, CAMERA_FREE);
     } else{
@@ -66,9 +75,15 @@ void game_render(Camera * cam){
     BeginShaderMode(runtime.level->shader);
     BeginMode3D(*cam);
     rlSetClipPlanes(0.0001, 10000.0);
-   // rlDisableBackfaceCulling();
+    for(int i =0; i<star_count; i++){
+        DrawSphere(Vector3Add(cam->position, Vec3_to_Vector3(stars[i])),0.1, (Color){250, 250, 255, 255});
+    }
+    EndMode3D();
 
+    BeginMode3D(*cam);
+   // rlDisableBackfaceCulling();
 //    rlSetClipPlanes(0.01, 5000000);
+    BeginShaderMode(runtime.level->shader);
     Arena *arena = arena_create_sized(4096*1024);
  
     for(size_t i =0; i<ENTITY_COUNT; i++){

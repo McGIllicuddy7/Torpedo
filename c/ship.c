@@ -48,8 +48,8 @@ void update_ship(EntityRef ship){
 		}
 
 		phys->velocity = Vec3_add(phys->velocity, inp);
-		if(Vec3_len(phys->velocity)>100.0){
-			phys->velocity = Vec3_scale(Vec3_normalize(phys->velocity),100.0);
+		if(Vec3_len(phys->velocity)>10.0){
+			phys->velocity = Vec3_scale(Vec3_normalize(phys->velocity),10.0);
 		}
 
 	}else if(s->input.input_mode == InputMoveTo){
@@ -57,6 +57,10 @@ void update_ship(EntityRef ship){
 	}else if(s->input.input_mode == InputAi){
 		PhysicsComp * phys = get_physics_comp(ship);
 		phys->velocity = Vec3_add(phys->velocity, s->input.input);
+		if(Vec3_len(phys->velocity)>10.0){
+			phys->velocity = Vec3_scale(Vec3_normalize(phys->velocity),10.0);
+		}
+
 	}
 	else{
 		todo();
