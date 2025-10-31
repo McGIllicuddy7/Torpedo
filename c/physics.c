@@ -5,6 +5,7 @@ static u32Vec indexs;
 enable_hash_type(u64, u32Vec);
 void* physics_loop(void*);
 atomic_int should_process_physics = false;
+extern double calc_damage_to(PhysicsComp source, PhysicsComp target, Vec3 normal);
 u64u32VecHashTable *grid = 0;
 static double square_size =2.0;
 static double min_x = 0.0;
@@ -120,8 +121,8 @@ static inline void update_pair(size_t i, size_t j, bool * did_hit){
             uint32_t uj = indexs.items[j];
             EntityRef iref = (EntityRef){.index = ui, .generation =i_gen};
             EntityRef jref = (EntityRef){.index = uj, .generation = j_gen};
-            apply_damage(iref,jref,col.col.norm,11);
-            apply_damage(jref, iref, Vec3_scale(col.col.norm,-1), 11);
+            apply_damage(iref,jref,col.col.norm,calc_damage_to(comps.items[i], comps.items[j], col.col.norm));
+            apply_damage(jref, iref, Vec3_scale(col.col.norm,-1), calc_damage_to(comps.items[i], comps.items[j], col.col.norm));
             if(comps.items[i].destroy_on_impact || comps.items[j].destroy_on_impact){
                 return;
             }
@@ -232,7 +233,7 @@ static bool uint32_array_contains(uint32_t check, u32* to_check,size_t to_check_
 extern double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, BoundingBox box);
 
 OptEntityRef line_trace(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_count){
-    double min = 1000000000.0;
+    double min = INFINITY;
     u32 idx =0;
     bool hit = false;
     for(u64 i =0; i<ENTITY_COUNT; i++){
@@ -278,3 +279,14 @@ EntityRefVec sphere_trace(Arena * arena,Vec3 start, double radius, uint32_t to_i
 	}
 	return out;
 }
+
+ double calc_damage_to(PhysicsComp source,PhysicsComp target, Vec3 normal){
+    Vec3 rel_vel = Vec3_sub(target.velocity,source.velocity);
+    double v = Vec3_dot_product(rel_vel, normal);
+    double base = v*v*source.mass;
+    double vx = source.colliders[0].bb.max.x -source.colliders[0].bb.min.x;
+    double vy = source.colliders[0].bb.max.y -source.colliders[0].bb.min.y;
+    double vz = source.colliders[0].bb.max.z -source.colliders[0].bb.min.z;
+    double a = fmin(vx*vy, fmin(vy*vz, vx*vz));
+    return v/a;
+ }

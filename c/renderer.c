@@ -49,13 +49,28 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
         //DrawBoundingBox(b, GREEN);
     }
 }
+static void draw_mesh_comp_unlit( Arena * arena,MeshComp cmp, Trans trans, BoundingBox b){
+    for(size_t i =0 ; i<cmp.mesh_count; i++){ 
+        Model *md = StringModelHashTable_find(runtime.level->models, new_string(arena,cmp.meshes[i].string));
+        Matrix old = md->transform;
+        md->transform = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation)); 
+        //Shader s = md->materials[0].shader;
+       // md->materials[0].shader = get_level()->shader;
+        Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_left_vector(trans), get_up_vector(trans)));
+        DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
+        md->transform = old;
+        //md->materials[0].shader = s;
+        b.min = Vector3Add( b.min,Vec3_to_Vector3(trans.translation));
+        b.max = Vector3Add( b.max,Vec3_to_Vector3(trans.translation));
+    }
+}
 void game_render(Camera * cam){
     static bool stars_init = false;
-    static Vec3 stars[128] = {0};
-    const int star_count = 128;
+    static Vec3 stars[512] = {0};
+    const int star_count = 512;
     if(!stars_init){
         for(int i =0; i<star_count; i++){
-            stars[i] = Vec3_scale(random_vector(),rand()%200+100);
+            stars[i] = Vec3_scale(random_vector(),30);
         }
         stars_init = true;
     }
@@ -72,31 +87,45 @@ void game_render(Camera * cam){
     }
     BeginDrawing(); 
     ClearBackground((Color){16, 16, 32, 255});
-    BeginShaderMode(runtime.level->shader);
     BeginMode3D(*cam);
     rlSetClipPlanes(0.0001, 10000.0);
     for(int i =0; i<star_count; i++){
-        DrawSphere(Vector3Add(cam->position, Vec3_to_Vector3(stars[i])),0.1, (Color){250, 250, 255, 255});
+        DrawCubeV(Vector3Add(cam->position, Vec3_to_Vector3(stars[i])),(Vector3){0.1, 0.1, 0.1}, (Color){250, 250, 255, 255});
     }
     EndMode3D();
-
     BeginMode3D(*cam);
+    BeginShaderMode(runtime.level->shader);
    // rlDisableBackfaceCulling();
 //    rlSetClipPlanes(0.01, 5000000);
-    BeginShaderMode(runtime.level->shader);
     Arena *arena = arena_create_sized(4096*1024);
+    for(size_t i =0; i<ENTITY_COUNT; i++){
+        if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
+            continue;
+        }
+        if(get_mesh_comps()[i].lit){
+            continue;
+        }
+        draw_mesh_comp_unlit(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
+    } 
+    BeginShaderMode(runtime.level->shader);
+
  
     for(size_t i =0; i<ENTITY_COUNT; i++){
         if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
             continue;
         }
+        if(!get_mesh_comps()[i].lit){
+            continue;
+        }
         draw_mesh_comp(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
     } 
+    EndShaderMode();  
+
     process_3d_draw_calls();
     arena_destroy(arena);
     EndMode3D();
-    EndShaderMode();
     process_draw_calls();
+    DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 3, RED);
     DrawFPS(900, 20);
     EndDrawing();
 

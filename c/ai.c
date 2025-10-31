@@ -6,9 +6,8 @@ extern AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state);
 extern AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state);
 extern AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state);
 extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state);
-
-
-
+extern OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s);
+extern void ship_fire_machine_gun(EntityRef ship, ShipComp*s);
 Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc){
 	//A(t) = at+ b
 	//V(t) = 1/2at^2+ bt + v_0
@@ -79,8 +78,15 @@ retry:
 
 
 void ai_update(EntityRef ship, ShipComp * s){
+	s->ai_info.heart_beat-= GetFrameTime();
+	if(s->ai_info.heart_beat<=0.0){
+		s->ai_info.heart_beat = 0.0;
+	}
 	s->ai_info.state = what_is_to_be_done(ship, s, s->ai_info.state);
 	ai_handle_movement(ship, s, s->ai_info.state);
+	if(s->ai_info.heart_beat<=0.0){
+		s->ai_info.heart_beat = 0.8;
+	}
 }
 AiState what_is_to_be_done(EntityRef ref,ShipComp *s, AiState state){
 	switch(state){
@@ -108,16 +114,63 @@ AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state){
 	if(Vec3_dist(loc, info->move_to_point)<1.0){
 		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 100), info->home_base);
 	}	
+	if(s->ai_info.heart_beat == 0.0){
+		OptEntityRef e = can_see_priority_enemy(ref,s);
+		if(e.is_valid){
+			s->target = e.ref;
+			return Skirmish;
+		}else{
+			s->target = (EntityRef){0,0};
+		}
+	}
 	return Patrol;
 }
 AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
-	todo();
+	ship_fire_machine_gun(ref, s);
+	Vec3 loc = ent_get_location(ref);
+	if(!entity_is_valid(s->target)){
+		return Patrol;
+	}
+	if(Vec3_dist(loc, info->move_to_point)<1.0){
+		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 100), loc);
+	}	
+	if(s->ai_info.heart_beat == 0.0){
+		OptEntityRef e = can_see_priority_enemy(ref,s);
+		if(e.is_valid){
+			s->target = e.ref;
+			if(Vec3_dist(ent_get_location(e.ref), ent_get_location(ref))<100.0){
+				return DirectAttack;
+			}
+			return Skirmish;
+		}else{
+			s->target = (EntityRef){0,0};
+			return Patrol;
+		}
+	}	
 	return Skirmish;
 }
 AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
-	todo();
+	ship_fire_machine_gun(ref, s);
+	Vec3 loc = ent_get_location(ref);
+	if(!entity_is_valid(s->target)){
+		return Patrol;
+	}
+	info->move_to_point = Vec3_add(ent_get_location(s->target), Vec3_scale(ent_get_forward_vector(s->target), -5.0));
+	if(s->ai_info.heart_beat == 0.0){
+		OptEntityRef e = can_see_priority_enemy(ref,s);
+		if(e.is_valid){
+			s->target = e.ref;
+			if(Vec3_dist(ent_get_location(e.ref), ent_get_location(ref))<100.0){
+				return DirectAttack;
+			}
+			return Skirmish;
+		}else{
+			s->target = (EntityRef){0,0};
+			return Patrol;
+		}
+	}	
 	return DirectAttack;
 }
 AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state){
@@ -131,15 +184,44 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	Vec3 pos = ent_get_location(ref);
 	Vec3 future_pos= Vec3_add(pos, Vec3_scale(vel, 5.0));
 	draw_sphere(s->ai_info.move_to_point, 0.1, GREEN);
-	if(line_trace(pos, future_pos, (u32[]){ref.index}, 1).is_valid){	
-		Vector3 p = Vec3_to_Vector3(ent_get_left_vector(ref));
-		Vector3 d = Vec3_to_Vector3(ent_get_forward_vector(ref));
-		double r = ((double)(rand()%1000))*2*PI/(1000);
-		Vec3 dir = Vec3_from_Vector3(Vector3RotateByAxisAngle(p, d, r));	
-		dir = Vec3_scale(Vec3_normalize(dir), s->acc);
-		s->input.input = dir;
+	bool hit = line_trace(pos, future_pos, (u32[]){ref.index}, 1).is_valid;
+	if(hit || s->ai_info.panic_time>0.0){	
+		if(hit){
+			if(s->ai_info.panic_time == 0.0){
+				Vector3 p = Vec3_to_Vector3(ent_get_left_vector(ref));
+				Vector3 d = Vec3_to_Vector3(ent_get_forward_vector(ref));
+				double r = ((double)(rand()%1000))*2*PI/(1000);
+				Vec3 dir = Vec3_from_Vector3(Vector3RotateByAxisAngle(p, d, r));	
+				dir = Vec3_scale(Vec3_normalize(dir), 0.2);
+				s->input.input = dir;
+			}
+			s->ai_info.panic_time += 2;
+
+		}else{
+			s->ai_info.panic_time-=GetFrameTime();
+			if(s->ai_info.panic_time<0.0){
+				s->ai_info.panic_time = 0.0;
+			}
+		}
 	}else{
 		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*8);
 	}
 }
 
+OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
+	EntityRefVec entities = sphere_trace(frame_arena(), ent_get_location(ref), 100.0, (uint32_t []){ref.index}, 1);
+	for(size_t i=0; i<entities.length; i++){
+		EntityRef e = entities.items[i];
+		if(has_component(e, comp_ship)){
+			OptEntityRef e2 = line_trace(ent_get_location(ref), ent_get_location(e), (uint32_t[]){ref.index, e.index}, 2);
+			if(e2.is_valid){
+				continue;
+			}
+			if(entity_eq(ref, e)){
+				continue;
+			}
+			return (OptEntityRef){.is_valid = true, .ref = e};
+		}
+	}
+	return (OptEntityRef){0};
+}

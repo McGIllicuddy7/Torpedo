@@ -16,22 +16,19 @@ void main()
     vec3 light_pos = vec3(300, 0.0,0.0);
     vec3 delt = light_pos-fragPosition;
     float dist = delt.x*delt.x+delt.y*delt.y+delt.z*delt.z;
-    dist /= 1000;
+    dist = 32;
     vec3 norm = fragNormal;
     float delta = norm.x*delt.x+norm.y*delt.y+norm.z*delt.z;
     delta /= dist; 
-    if (delta<0.1){
-        delta = 0.1;
-    }
-    if(delta>1.0){
-        delta = 1.0;
+    if(delta>0.9){
+        delta = 0.9;
     }
      vec4 col =texture(diffuse, fragTexCoord);  
     float a = col.a;
     col = col*delta;
     vec4 col0 = col;
 //    col = atan(col);
-    float min = 1.0/10000.0;
+    float min = 1.0;
     if(col.r< min &&col0.r>min){
         col.r = min;
     }

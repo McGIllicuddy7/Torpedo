@@ -286,8 +286,9 @@ EntityRef create_debug_cube(Vec3 pos){
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = pos;
     Collider col;
-    col.bb.min=(Vector3){-0.5,-0.5,-0.5};
-    col.bb.max= (Vector3){0.5,0.5,0.5};
+    double delt = 0.5;
+    col.bb.min=(Vector3){-delt, -delt, -delt};
+    col.bb.max= (Vector3){delt, delt, delt};
     phys->colliders[0] = col;
     phys->collider_count = 1;
     phys->angular_velocity = (Vec3){0,0,0};
@@ -297,6 +298,7 @@ EntityRef create_debug_cube(Vec3 pos){
     mesh->meshes[0].color = WHITE;
     mesh->meshes[0].offset = Trans_create();
     mesh->meshes[0].string = "cube";
+    mesh->lit = true;
     mesh->mesh_count =1;
     return out;
 }
@@ -308,7 +310,7 @@ Level * create_level(){
     SetTargetFPS(61);
     runtime.static_arena = arena_create_sized(4096*32);
     runtime.level = (Level*)arena_alloc(runtime.static_arena,(sizeof(Level))); 
-runtime.level_arena = arena_create_sized(4096*4096);
+    runtime.level_arena = arena_create_sized(4096*4096);
     Level * level = runtime.level;
 	level->destroy_queue = make(runtime.level_arena, EntityRef);
     level->frame_arena = arena_create_sized(4096*1024);
@@ -336,6 +338,9 @@ runtime.level_arena = arena_create_sized(4096*4096);
     level->damage_handler = 0;
     level->cam_player_offset = Trans_create();
     StringModelHashTable_insert(level->models, new_string(0, "cube"),LoadModelFromMesh(GenMeshCube(1., 1., 1.)));
+    Model bullet = LoadModelFromMesh(GenMeshCube(.5, .025, .025));
+   // bullet.materials[0] = LoadMaterialDefault();
+    StringModelHashTable_insert(level->models, new_string(0, "bullet"),bullet);
     register_system((System){draw_update});
     return level;
 }

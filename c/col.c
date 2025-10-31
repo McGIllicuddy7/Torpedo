@@ -305,29 +305,7 @@ static inline double max(double a, double b){
     if(a<b) return b;
     return a;
 }
-double check_collision_aabb(Vec3 start, Vec3 direction, BoundingBox box){
-    double tmin = 0.0, tmax = INFINITY; 
-    double t1x = (box.min.x -start.x) * 1.0/direction.x;
-    double t2x = (box.max.x - start.x) * 1.0/direction.x;
-    tmin = max(tmin, min(min(t1x, t2x),tmax));
-    tmax = min(tmax, max(max(t1x, t2x),tmin));
-    double t1y = (box.min.y -start.y) * 1.0/direction.y;
-    double  t2y = (box.max.y - start.y) * 1.0/direction.y;
-    tmin = max(tmin, min(min(t1y, t2y),tmax));
-    tmax = min(tmax, max(max(t1y, t2y),tmin)); 
-    double t1z = (box.min.z -start.z) * 1.0/direction.z;
-    double t2z = (box.max.z - start.z) * 1.0/direction.z;
-    tmin = max(tmin, min(min(t1z, t2z),tmax));
-    tmax = min(tmax, max(max(t1z, t2z),tmin)); 
-    if(tmin>tmax){
-        return -1;
-    } 
-    Vec3 p = Vec3_add(start,Vec3_scale(direction,-tmin));
-    if(p.x>=box.max.x || p.x<=box.min.x || p.y>=box.max.y|| p.y<=box.min.y || p.z>=box.max.z || p.z<=box.min.z){
-        return -1;
-    }
-    return tmin; 
-}
+
 double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, BoundingBox box){ 
     Matrix mat = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation));
     Matrix inv = MatrixInvert(mat);
@@ -338,8 +316,14 @@ double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans offset, 
     box.min = Vector3Add(box.min,Vec3_to_Vector3(trans.translation));
     box.max =  Vector3Add(box.max,Vec3_to_Vector3(trans.translation));
     Vec3 dir =Vec3_normalize(Vec3_sub(e,s));
-    double h = check_collision_aabb(s,dir, box);
-    return h;
+    Ray r;
+    r.position = Vec3_to_Vector3(s);
+    r.direction = Vec3_to_Vector3(dir);
+    RayCollision v = GetRayCollisionBox(r, box);
+    if(!v.hit){
+        return -1.0;
+    }
+    return v.distance;
 }
 
 

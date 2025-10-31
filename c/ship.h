@@ -3,6 +3,8 @@
 #include "level.h"
 #define SHIP_COMPS_IDX 2
 #define comp_ship 0b100
+#define comp_projectile 0b1000
+#define PROJECTILE_COMPS_IDX 3
 typedef enum{
 	Patrol,
 	SearchFor,
@@ -26,9 +28,21 @@ typedef struct {
 	Vec3 move_to_point;
 	Vec3 home_base;
 	AiState state;
+	double heart_beat;
+	double panic_time;
 }AiInfo;
 REFLECT_STRUCT(AiInfo, REFLECT_FIELD(AiInfo, Vec3,move_to_point),
-	       REFLECT_FIELD(AiInfo, Vec3, home_base),REFLECT_FIELD(AiInfo, int, state))
+	       REFLECT_FIELD(AiInfo, Vec3, home_base),REFLECT_FIELD(AiInfo, int, state),
+		   REFLECT_FIELD(AiInfo, double, heart_beat),
+		   REFLECT_FIELD(AiInfo, double, panic_time),
+		)
+	
+typedef struct {
+	double machine_gun_cooldown;
+	double machine_gun_remaining_time;
+	int machine_gun_ammo;
+}WeaponData;
+REFLECT_STRUCT(WeaponData, REFLECT_FIELD(WeaponData, double, machine_gun_cooldown), REFLECT_FIELD(WeaponData, double, machine_gun_remaining_time),REFLECT_FIELD(WeaponData,int, machine_gun_ammo))
 typedef struct{
 	bool is_ai;
 	InputMode input_mode;
@@ -48,14 +62,26 @@ typedef struct {
 	AiInfo ai_info;
 	Team team;
 	double acc;
+	WeaponData weapon_data;
 }ShipComp;
-REFLECT_STRUCT(ShipComp, REFLECT_FIELD(ShipComp,InputData, input), REFLECT_FIELD(ShipComp,EntityRef,target), REFLECT_FIELD(ShipComp, int, team), REFLECT_FIELD(ShipComp,double,acc))
-void ship_update();
+REFLECT_STRUCT(ShipComp, REFLECT_FIELD(ShipComp,InputData, input), REFLECT_FIELD(ShipComp,EntityRef,target), REFLECT_FIELD(ShipComp, int, team), REFLECT_FIELD(ShipComp,double,acc), REFLECT_FIELD(ShipComp, WeaponData, weapon_data))
 ShipComp * get_ship_comp(EntityRef ref);
 ShipComp * get_ship_comps();
+void ship_update();
+typedef struct {
+	double lifetime;
+}ProjectileComp;
+REFLECT_STRUCT(ProjectileComp, REFLECT_FIELD(ProjectileComp, double, lifetime))
+ProjectileComp* get_projectile_comp(EntityRef ref);
+ProjectileComp * get_projectile_comps();
+void projectile_update();
+
 void ship_handle_damage(EntityRef source, EntityRef target,  Vec3 direction, double damage);
 
 EntityRef create_ship(Vec3 location, Vec3 angle, bool player);
 bool has_view_to(EntityRef r, EntityRef k);
 extern ComponentHandler ship_handler;
+extern ComponentHandler projectile_handler;
 Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc);
+
+EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel);

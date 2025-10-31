@@ -19,13 +19,16 @@ void setup(){
     srand(time(0));
     Level * level = create_level();
     register_system((System){ship_update});
+    register_system((System){projectile_update});
     level->components[SHIP_COMPS_IDX] = arena_alloc(0, ENTITY_COUNT*sizeof(ShipComp));
+    level->components[PROJECTILE_COMPS_IDX] = arena_alloc(0, ENTITY_COUNT*sizeof(ProjectileComp));
     StringModelHashTable_insert(level->models, new_string(0, "ship"),LoadModel("assets/ship.glb"));
-    int delt = 1;
+    int delt = 5;
     level->damage_handler = ship_handle_damage;
     level->handlers[MESH_COMPS_IDX] = mesh_handler;
     level->handlers[PHYSICS_COMPS_IDX] = physics_handler;
     level->handlers[SHIP_COMPS_IDX] = ship_handler;
+    level->handlers[PROJECTILE_COMPS_IDX] = projectile_handler;
     level->actual_comp_count = 1;
     double scale = 10.0;
     for(int z = -delt; z<delt+1; z++){

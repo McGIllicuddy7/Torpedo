@@ -174,8 +174,9 @@ REFLECT_STRUCT(MeshPart,REFLECT_CSTR(MeshPart, string), REFLECT_FIELD(MeshPart, 
 typedef struct {
 	size_t mesh_count;
 	MeshPart meshes[4];
+	bool lit;
 }MeshComp;
-REFLECT_STRUCT(MeshComp, REFLECT_FIELD(MeshComp, size_t, mesh_count), REFLECT_FIELD(MeshComp,MeshPart, meshes))
+REFLECT_STRUCT(MeshComp, REFLECT_FIELD(MeshComp, size_t, mesh_count), REFLECT_FIELD(MeshComp,MeshPart, meshes), REFLECT_FIELD(MeshComp, bool, lit))
 enable_vec_type(MeshComp);
 static inline Vec3 random_vector(){
     double theta = (double)(rand()%100'000)/100'000.0*2.0*PI;
