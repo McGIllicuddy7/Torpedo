@@ -264,7 +264,7 @@ void update_weapons(ShipComp *s){
 }
 void ship_fire_machine_gun(EntityRef ship, ShipComp*s){
 		if(s->weapon_data.machine_gun_remaining_time == 0.0 && s->weapon_data.machine_gun_ammo>0 ){
-			Vec3 pos = Vec3_add(ent_get_location(ship), Vec3_scale(ent_get_forward_vector(ship), 5.0));
+			Vec3 pos = Vec3_add(ent_get_location(ship), Vec3_scale(ent_get_forward_vector(ship), 1.0));
 			Vec3 delt1 = Vec3_scale(ent_get_left_vector(ship), 0.1);
 			Vec3 delt2 = Vec3_scale(ent_get_left_vector(ship), -0.1);
 			fire_bullet(Vec3_add(pos,delt1),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship));	

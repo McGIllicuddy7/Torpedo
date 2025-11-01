@@ -8,6 +8,7 @@ extern AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state);
 extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state);
 extern OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s);
 extern void ship_fire_machine_gun(EntityRef ship, ShipComp*s);
+extern bool ai_should_attack(EntityRef ref, ShipComp * s);
 Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc){
 	//A(t) = at+ b
 	//V(t) = 1/2at^2+ bt + v_0
@@ -127,7 +128,9 @@ AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state){
 }
 AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
-	ship_fire_machine_gun(ref, s);
+	if(ai_should_attack(ref, s)){
+		ship_fire_machine_gun(ref, s);
+	}
 	Vec3 loc = ent_get_location(ref);
 	if(!entity_is_valid(s->target)){
 		return Patrol;
@@ -152,7 +155,9 @@ AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
 }
 AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
-	ship_fire_machine_gun(ref, s);
+	if(ai_should_attack(ref, s)){
+		ship_fire_machine_gun(ref, s);
+	}
 	Vec3 loc = ent_get_location(ref);
 	if(!entity_is_valid(s->target)){
 		return Patrol;
@@ -178,7 +183,24 @@ AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state){
 	todo();
 	return SearchFor;
 }
+/*
 
+
+    Normalize the input vector (the direction where the player is looking).
+
+    Calculate the cross product of the forward vector and this direction vector to get the rotation axis.
+
+    Calculate the dot product to get the cosine of the angle between these vectors, which is used to calculate the angle of rotation.
+
+    Create the quaternion using the axis and the angle.
+
+*/
+Quat look_at_quat(Vec3 p){
+	Vector3 r = Vec3_to_Vector3(p);
+	Quaternion q1 = QuaternionFromAxisAngle((Vector3){1,0,0}, Vector3DotProduct(r, (Vector3){1,0,0}));
+	Quaternion q2 = QuaternionFromAxisAngle((Vector3){0,0,1}, Vector3DotProduct(r, (Vector3){0,0,1}));
+	return Vec4_from_Vector4(QuaternionMultiply(QuaternionFromEuler(0.0, 0.0, -90.0),QuaternionMultiply(q1, q2)));
+}
 extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	Vec3 vel = ent_get_velocity(ref);
 	Vec3 pos = ent_get_location(ref);
@@ -204,8 +226,15 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 			}
 		}
 	}else{
-		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*8);
+		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*2);
 	}
+	if(!entity_is_valid(s->target)){
+		get_physics_comp(ref)->trans.trans.rotation = look_at_quat(Vec3_normalize(get_physics_comp(ref)->velocity));
+	}else{
+		get_physics_comp(ref)->trans.trans.rotation = look_at_quat(Vec3_normalize(Vec3_sub(Vec3_add(ent_get_location(s->target), random_vector()), ent_get_location(ref))));
+	}
+
+
 }
 
 OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
@@ -224,4 +253,7 @@ OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
 		}
 	}
 	return (OptEntityRef){0};
+}
+bool ai_should_attack(EntityRef ref, ShipComp * s){
+	return true;
 }

@@ -23,7 +23,7 @@ void setup(){
     level->components[SHIP_COMPS_IDX] = arena_alloc(0, ENTITY_COUNT*sizeof(ShipComp));
     level->components[PROJECTILE_COMPS_IDX] = arena_alloc(0, ENTITY_COUNT*sizeof(ProjectileComp));
     StringModelHashTable_insert(level->models, new_string(0, "ship"),LoadModel("assets/ship.glb"));
-    int delt = 5;
+    int delt = 0;
     level->damage_handler = ship_handle_damage;
     level->handlers[MESH_COMPS_IDX] = mesh_handler;
     level->handlers[PHYSICS_COMPS_IDX] = physics_handler;
@@ -41,8 +41,8 @@ void setup(){
             }
         }
     }
-    EntityRef s = create_ship((Vec3){100, 0,0,}, (Vec3){1,0,0}, true);	
-    EntityRef e = create_ship((Vec3){100, 15,0}, (Vec3){1,0,0}, false);
+    EntityRef s = create_ship((Vec3){50, 0,0,}, (Vec3){1,0,0}, true);	
+    EntityRef e = create_ship((Vec3){-50,0,0}, (Vec3){1,0,0}, false);
 }
 void tear_down(){
     StringModelHashTable_unmake(runtime.level->models);
