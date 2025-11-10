@@ -210,3 +210,4 @@ static inline Allocator from_arena(Arena * arena){
 	out.dealloc= (void(*)(void*, void*))arena_free;
 	return out;
 }
+

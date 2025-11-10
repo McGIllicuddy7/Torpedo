@@ -183,29 +183,10 @@ AiState handle_search_for(EntityRef ref, ShipComp * s,AiState state){
 	todo();
 	return SearchFor;
 }
-/*
-
-
-    Normalize the input vector (the direction where the player is looking).
-
-    Calculate the cross product of the forward vector and this direction vector to get the rotation axis.
-
-    Calculate the dot product to get the cosine of the angle between these vectors, which is used to calculate the angle of rotation.
-
-    Create the quaternion using the axis and the angle.
-
-*/
-Quat look_at_quat(Vec3 p){
-	Vector3 r = Vec3_to_Vector3(p);
-	Quaternion q1 = QuaternionFromAxisAngle((Vector3){1,0,0}, Vector3DotProduct(r, (Vector3){1,0,0}));
-	Quaternion q2 = QuaternionFromAxisAngle((Vector3){0,0,1}, Vector3DotProduct(r, (Vector3){0,0,1}));
-	return Vec4_from_Vector4(QuaternionMultiply(QuaternionFromEuler(0.0, 0.0, -90.0),QuaternionMultiply(q1, q2)));
-}
 extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	Vec3 vel = ent_get_velocity(ref);
 	Vec3 pos = ent_get_location(ref);
-	Vec3 future_pos= Vec3_add(pos, Vec3_scale(vel, 5.0));
-	draw_sphere(s->ai_info.move_to_point, 0.1, GREEN);
+	Vec3 future_pos= Vec3_add(pos, Vec3_scale(vel, 5.0));	
 	bool hit = line_trace(pos, future_pos, (u32[]){ref.index}, 1).is_valid;
 	if(hit || s->ai_info.panic_time>0.0){	
 		if(hit){
@@ -228,18 +209,7 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	}else{
 		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*2);
 	}
-	if(!entity_is_valid(s->target)){
-		get_physics_comp(ref)->trans.trans.rotation = look_at_quat(Vec3_normalize(get_physics_comp(ref)->velocity));
-	}else{
-		get_physics_comp(ref)->trans.trans.rotation = look_at_quat(Vec3_normalize(Vec3_sub(Vec3_add(ent_get_location(s->target), random_vector()), ent_get_location(ref))));
-	}
-	Vector3 min = {0,0,0};
-	for(int dx = -3; dx<4;dx++){
-		for(int dy = -3; dy<4; dy++){
-			for(int dz = -3; dz<4; dz++){
-			}
-		}
-	}
+
 }
 
 OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
@@ -261,4 +231,33 @@ OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
 }
 bool ai_should_attack(EntityRef ref, ShipComp * s){
 	return true;
+}
+Vector3 QuaternionForwardVector(Quaternion q){
+	Vector3  out = {1,0,0};
+	return Vector3RotateByQuaternion(out,q);
+}
+Quat rotate_toward_vector_smol(EntityRef r, Vec3 target){
+	Quaternion out = Vec4_to_Vector4(ent_get_orientation(r));
+	Quaternion base = out;
+	Vector3 t = Vec3_to_Vector3(target);
+	float min = 0.0; 
+	if(Vec3_len(target)<0.1){
+		return Vec4_from_Vector4(out);
+	}
+	min = Vector3DotProduct(t, QuaternionForwardVector(out));
+	for(int x = -3; x<4; x++){
+		for(int y = -3; y<4; y++){
+			for(int z = -3; z<4; z++){
+				float dx=x;
+				float dy = y;
+				float dz = z;
+				dx*= 0.005; dy*= 0.005; dz*= 0.005;
+				Quaternion q = QuaternionFromEuler(dx,dy,dz);
+				q = QuaternionMultiply(q, base);
+
+			}
+		}
+	}
+	return Vec4_from_Vector4(out);
+
 }

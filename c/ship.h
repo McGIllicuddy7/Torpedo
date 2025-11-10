@@ -27,14 +27,18 @@ typedef enum{
 typedef struct {	
 	Vec3 move_to_point;
 	Vec3 home_base;
+	Vec3 target_dir;
 	AiState state;
 	double heart_beat;
 	double panic_time;
 }AiInfo;
 REFLECT_STRUCT(AiInfo, REFLECT_FIELD(AiInfo, Vec3,move_to_point),
-	       REFLECT_FIELD(AiInfo, Vec3, home_base),REFLECT_FIELD(AiInfo, int, state),
+	       REFLECT_FIELD(AiInfo, Vec3, home_base),
+	       	REFLECT_FIELD(AiInfo, Vec3, target_dir),
+	       REFLECT_FIELD(AiInfo, int, state),
 		   REFLECT_FIELD(AiInfo, double, heart_beat),
 		   REFLECT_FIELD(AiInfo, double, panic_time),
+	       		
 		)
 	
 typedef struct {
@@ -86,3 +90,4 @@ extern ComponentHandler projectile_handler;
 Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc);
 
 EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, EntityRef parent);
+Quat rotate_toward_vector_smol(EntityRef r, Vec3 target);
