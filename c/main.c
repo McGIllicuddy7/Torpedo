@@ -6,7 +6,8 @@
 #include "level.h"
 #ifdef PROFILE
 //#include <gperftools/profiler.h>
-#include </opt/homebrew/include/gperftools/profiler.h>
+//#include </opt/homebrew/include/gperftools/profiler.h>
+#include </home/linuxbrew/.linuxbrew/include/gperftools/profiler.h>
 #endif
 #include <pthread.h>
 extern void tick();
@@ -42,7 +43,7 @@ void setup(){
         }
     }
     EntityRef s = create_ship((Vec3){50, 0,0,}, (Vec3){1,0,0}, true);	
-    EntityRef e = create_ship((Vec3){-50,0,0}, (Vec3){1,0,0}, false);
+    EntityRef e = create_ship((Vec3){0,0,0}, (Vec3){1,0,0}, false);
 }
 void tear_down(){
     StringModelHashTable_unmake(runtime.level->models);

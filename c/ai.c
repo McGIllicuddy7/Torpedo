@@ -233,8 +233,13 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	}else{
 		get_physics_comp(ref)->trans.trans.rotation = look_at_quat(Vec3_normalize(Vec3_sub(Vec3_add(ent_get_location(s->target), random_vector()), ent_get_location(ref))));
 	}
-
-
+	Vector3 min = {0,0,0};
+	for(int dx = -3; dx<4;dx++){
+		for(int dy = -3; dy<4; dy++){
+			for(int dz = -3; dz<4; dz++){
+			}
+		}
+	}
 }
 
 OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){

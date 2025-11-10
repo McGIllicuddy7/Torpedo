@@ -35,7 +35,7 @@ void process_events(){
 void finalize_entities(){
 	static int hit = false;
 	if(runtime.level->destroy_queue.length){
-	printf("to destroy count:%zu\n", runtime.level->destroy_queue.length);
+//	printf("to destroy count:%zu\n", runtime.level->destroy_queue.length);
 	}
 
 	for(size_t i =0; i<runtime.level->destroy_queue.length; i++){
@@ -307,7 +307,7 @@ Level * create_level(){
     InitWindow(GetScreenWidth(),GetScreenHeight(), ":3");
     InitAudioDevice();
     DisableCursor();
-    SetTargetFPS(61);
+//    SetTargetFPS(61);
     runtime.static_arena = arena_create_sized(4096*32);
     runtime.level = (Level*)arena_alloc(runtime.static_arena,(sizeof(Level))); 
     runtime.level_arena = arena_create_sized(4096*4096);

@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdbool.h>
 typedef struct {
 	 void* ptr;
 	 void *(*alloc)(void *, size_t count);

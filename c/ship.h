@@ -70,8 +70,9 @@ ShipComp * get_ship_comps();
 void ship_update();
 typedef struct {
 	double lifetime;
+	EntityRef parent;
 }ProjectileComp;
-REFLECT_STRUCT(ProjectileComp, REFLECT_FIELD(ProjectileComp, double, lifetime))
+REFLECT_STRUCT(ProjectileComp, REFLECT_FIELD(ProjectileComp, double, lifetime), REFLECT_FIELD(ProjectileComp, EntityRef, parent))
 ProjectileComp* get_projectile_comp(EntityRef ref);
 ProjectileComp * get_projectile_comps();
 void projectile_update();
@@ -84,4 +85,4 @@ extern ComponentHandler ship_handler;
 extern ComponentHandler projectile_handler;
 Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc);
 
-EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel);
+EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, EntityRef parent);

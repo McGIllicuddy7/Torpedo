@@ -1,7 +1,7 @@
 #pragma once
 #include "base.h"
 //#define ENTITY_COUNT 32000
-#define ENTITY_COUNT 32000
+#define ENTITY_COUNT 16000
 #define COMPONENT_COUNT 64
 #define PHYSICS_COMPS_IDX 0
 #define MESH_COMPS_IDX 1

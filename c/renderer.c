@@ -66,8 +66,8 @@ static void draw_mesh_comp_unlit( Arena * arena,MeshComp cmp, Trans trans, Bound
 }
 void game_render(Camera * cam){
     static bool stars_init = false;
-    static Vec3 stars[512] = {0};
-    const int star_count = 512;
+    static Vec3 stars[1024] = {0};
+    const int star_count = 1024;
     if(!stars_init){
         for(int i =0; i<star_count; i++){
             stars[i] = Vec3_scale(random_vector(),30);
@@ -78,7 +78,7 @@ void game_render(Camera * cam){
         UpdateCamera(cam, CAMERA_FREE);
     } else{
         Transform base = Trans_to_Transform(get_physics_comp(runtime.level->player_entity)->trans.trans);
-        auto m =QuaternionToMatrix(base.rotation);
+        Matrix m =QuaternionToMatrix(base.rotation);
         Transform offset = Trans_to_Transform(runtime.level->cam_player_offset);
         cam->position = Vector3Add(base.translation, Vector3Transform(offset.translation, m));
         Matrix mat = MatrixMultiply(QuaternionToMatrix(offset.rotation),QuaternionToMatrix(base.rotation));
@@ -107,9 +107,7 @@ void game_render(Camera * cam){
         }
         draw_mesh_comp_unlit(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
     } 
-    BeginShaderMode(runtime.level->shader);
-
- 
+    BeginShaderMode(runtime.level->shader); 
     for(size_t i =0; i<ENTITY_COUNT; i++){
         if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
             continue;
@@ -119,8 +117,7 @@ void game_render(Camera * cam){
         }
         draw_mesh_comp(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
     } 
-    EndShaderMode();  
-
+    EndShaderMode();
     process_3d_draw_calls();
     arena_destroy(arena);
     EndMode3D();

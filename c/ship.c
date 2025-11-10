@@ -148,7 +148,7 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
     mesh->mesh_count =1;
 	mesh->lit = true;
 	ShipComp * ship = get_ship_comp(out);
-	memset(&ship->input, 0, sizeof(ship->input));
+	memset(&(ship->input), 0, sizeof(ship->input));
 	ship->acc = 0.1;
 	ship->input.is_ai = !player;
 	ship->input.mode = Rocket;
@@ -184,7 +184,7 @@ void ship_deserialize(Allocator al, Stream * s, void * ptr){
 	}
 }
 ComponentHandler ship_handler = {.destructor = 0, .serialize = ship_serialize, .deserialize = ship_deserialize};
-EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel){
+EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, EntityRef e){
     EntityRef out = create_entity();
     add_component(out, comp_physics);
     add_component(out, comp_model);
@@ -197,10 +197,11 @@ EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel){
     phys->velocity = Vec3_add(Vec3_scale(direction,25.0), base_vel);
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = pos;
-	    phys->trans.trans.rotation = rotation;
+phys->trans.trans.rotation = rotation;
+	phys->can_ever_collide = false;
     Collider col;
-    col.bb.min=(Vector3){-0.5,- 0.005, -0.005};
-    col.bb.max= (Vector3){0.5,0.005, 0.005};
+    col.bb.min=(Vector3){-0.01,- 0.005, -0.005};
+    col.bb.max= (Vector3){0.01,0.005, 0.005};
     phys->colliders[0] = col;
     phys->collider_count = 1;
     phys->angular_velocity = (Vec3){0,0,0};
@@ -213,7 +214,8 @@ EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel){
     mesh->mesh_count =1;
 	mesh->lit = false;
 	ProjectileComp * proj = get_projectile_comp(out);
-	proj->lifetime = 5.0;
+	proj->lifetime = 1.0;
+	proj->parent = e;
     return out;
 }
 void projectile_serialize(Stream * s, void *ptr){
@@ -249,10 +251,12 @@ void update_projectile(EntityRef proj){
 	}else{
 		Vec3 base = ent_get_location(proj);
 		Vec3 next = Vec3_add(base,Vec3_scale(ent_get_velocity(proj), 1./60));
-		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index}, 1);
+		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index, p->parent.index}, 2);
 		if(e.is_valid){
-			apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
-			destroy_entity(proj);
+			if(!entity_eq(e.ref, p->parent)){
+				apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
+				destroy_entity(proj);
+			}
 		}
 	}
 }
@@ -267,8 +271,8 @@ void ship_fire_machine_gun(EntityRef ship, ShipComp*s){
 			Vec3 pos = Vec3_add(ent_get_location(ship), Vec3_scale(ent_get_forward_vector(ship), 1.0));
 			Vec3 delt1 = Vec3_scale(ent_get_left_vector(ship), 0.1);
 			Vec3 delt2 = Vec3_scale(ent_get_left_vector(ship), -0.1);
-			fire_bullet(Vec3_add(pos,delt1),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship));	
-			fire_bullet(Vec3_add(pos,delt2),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship));
+			fire_bullet(Vec3_add(pos,delt1),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship),ship);	
+			fire_bullet(Vec3_add(pos,delt2),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship),ship);
 			s->weapon_data.machine_gun_remaining_time = s->weapon_data.machine_gun_cooldown;
 			s->weapon_data.machine_gun_ammo -= 1;
 		}

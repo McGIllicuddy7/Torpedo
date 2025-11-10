@@ -179,8 +179,8 @@ typedef struct {
 REFLECT_STRUCT(MeshComp, REFLECT_FIELD(MeshComp, size_t, mesh_count), REFLECT_FIELD(MeshComp,MeshPart, meshes), REFLECT_FIELD(MeshComp, bool, lit))
 enable_vec_type(MeshComp);
 static inline Vec3 random_vector(){
-    double theta = (double)(rand()%100'000)/100'000.0*2.0*PI;
-    double phi = (double)(rand()%100'000)/100'000.0*2.0*PI;
+    double theta = (double)(rand()%100000)/100000.0*2.0*PI;
+    double phi = (double)(rand()%100000)/100000.0*2.0*PI;
     double x = sin(theta)*cos(phi);
     double y = sin(theta)*sin(phi);
     double z = cos(theta);
