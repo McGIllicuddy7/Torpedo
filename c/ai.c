@@ -111,31 +111,35 @@ AiState what_is_to_be_done(EntityRef ref,ShipComp *s, AiState state){
 }
 AiState handle_patrol(EntityRef ref, ShipComp * s,AiState state){
 	AiInfo * info = &s->ai_info;
-	Vec3 loc = ent_get_location(ref);
+	Vec3 loc = ent_get_location(ref);	
 	if(Vec3_dist(loc, info->move_to_point)<1.0){
 		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 100), info->home_base);
 	}	
 	if(s->ai_info.heart_beat == 0.0){
 		OptEntityRef e = can_see_priority_enemy(ref,s);
 		if(e.is_valid){
-			s->target = e.ref;
+			s->target = e.ref;	
+			s->ai_info.target_dir = ent_get_location(e.ref);
 			return Skirmish;
 		}else{
 			s->target = (EntityRef){0,0};
+			s->ai_info.target_dir = ent_get_velocity(ref);
 		}
 	}
 	return Patrol;
 }
 AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
+	if(!entity_is_valid(s->target)){
+		s->ai_info.target_dir = ent_get_location(ref);
+		return Patrol;
+	}
 	AiInfo * info = &s->ai_info;
+	s->ai_info.target_dir = ent_get_location(s->target);
 	if(ai_should_attack(ref, s)){
 		ship_fire_machine_gun(ref, s);
 	}
 	Vec3 loc = ent_get_location(ref);
-	if(!entity_is_valid(s->target)){
-		return Patrol;
-	}
-	if(Vec3_dist(loc, info->move_to_point)<1.0){
+		if(Vec3_dist(loc, info->move_to_point)<1.0){
 		info->move_to_point = Vec3_add(Vec3_scale(random_vector(), 100), loc);
 	}	
 	if(s->ai_info.heart_beat == 0.0){
@@ -154,15 +158,17 @@ AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
 	return Skirmish;
 }
 AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
+	if(!entity_is_valid(s->target)){
+		s->ai_info.target_dir = ent_get_location(ref);
+		return Patrol;
+	}
 	AiInfo * info = &s->ai_info;
 	if(ai_should_attack(ref, s)){
 		ship_fire_machine_gun(ref, s);
 	}
 	Vec3 loc = ent_get_location(ref);
-	if(!entity_is_valid(s->target)){
-		return Patrol;
-	}
-	info->move_to_point = Vec3_add(ent_get_location(s->target), Vec3_scale(ent_get_forward_vector(s->target), -5.0));
+	s->ai_info.target_dir = ent_get_location(s->target);
+		info->move_to_point = Vec3_add(ent_get_location(s->target), Vec3_scale(ent_get_forward_vector(s->target), -5.0));
 	if(s->ai_info.heart_beat == 0.0){
 		OptEntityRef e = can_see_priority_enemy(ref,s);
 		if(e.is_valid){
@@ -209,7 +215,7 @@ extern void ai_handle_movement(EntityRef ref, ShipComp * s, AiState state){
 	}else{
 		s->input.input = next_impulse(pos, s->ai_info.move_to_point, vel, (Vec3){0,0,0}, s->acc*2);
 	}
-
+	get_physics_comp(ref)->trans.trans.rotation = rotate_toward_vector_smol(ref, s->ai_info.target_dir);
 }
 
 OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
@@ -230,18 +236,27 @@ OptEntityRef can_see_priority_enemy(EntityRef ref ,ShipComp *s){
 	return (OptEntityRef){0};
 }
 bool ai_should_attack(EntityRef ref, ShipComp * s){
-	return true;
+	if(!entity_is_valid(s->target)){
+		return false;
+	}
+	Vec3 tloc = ent_get_location(s->target);
+	Vec3 sloc = ent_get_location(ref);
+	Vec3 dv = Vec3_sub(tloc, sloc);
+	Vec3 nv = Vec3_normalize(dv);
+	return Vec3_dot_product(ent_get_forward_vector(ref),nv)>0.8;
 }
 Vector3 QuaternionForwardVector(Quaternion q){
 	Vector3  out = {1,0,0};
-	return Vector3RotateByQuaternion(out,q);
+	Matrix m = QuaternionToMatrix(q);
+	return Vector3Transform(out, m);
 }
 Quat rotate_toward_vector_smol(EntityRef r, Vec3 target){
 	Quaternion out = Vec4_to_Vector4(ent_get_orientation(r));
 	Quaternion base = out;
 	Vector3 t = Vec3_to_Vector3(target);
+	t = Vector3Normalize(t);
 	float min = 0.0; 
-	if(Vec3_len(target)<0.1){
+	if(Vec3_len(target)<0.01){
 		return Vec4_from_Vector4(out);
 	}
 	min = Vector3DotProduct(t, QuaternionForwardVector(out));
@@ -251,10 +266,15 @@ Quat rotate_toward_vector_smol(EntityRef r, Vec3 target){
 				float dx=x;
 				float dy = y;
 				float dz = z;
-				dx*= 0.005; dy*= 0.005; dz*= 0.005;
+				dx*= 0.001; dy*= 0.001; dz*= 0.001;
 				Quaternion q = QuaternionFromEuler(dx,dy,dz);
 				q = QuaternionMultiply(q, base);
-
+				Vector3 v = QuaternionForwardVector(q);
+				float f = Vector3DotProduct(v, t);
+				if(f>min){
+					out = q;
+					min = f;
+				}
 			}
 		}
 	}

@@ -249,15 +249,15 @@ void update_projectile(EntityRef proj){
 	if(p->lifetime<0){
 		destroy_entity(proj);
 	}else{
-		/*Vec3 base = ent_get_location(proj);
+		Vec3 base = ent_get_location(proj);
 		Vec3 next = Vec3_add(base,Vec3_normalize(ent_get_velocity(proj)));
 		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index, p->parent.index}, 2);
 		if(e.is_valid){
 			if(!entity_eq(e.ref, p->parent)){
-				//apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
+				apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
 				destroy_entity(proj);
 			}
-		}*/
+		}
 	}
 }
 void update_weapons(ShipComp *s){

@@ -234,6 +234,7 @@ extern double check_collision_line_box(Vec3 start, Vec3 end, Trans trans,Trans o
 
 OptEntityRef line_trace(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_count){
     double min = INFINITY;
+    double max = Vec3_dist(start, end);
     u32 idx =0;
     bool hit = false;
     for(u64 i =0; i<ENTITY_COUNT; i++){
@@ -244,7 +245,7 @@ OptEntityRef line_trace(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_
             }
             for (u64 j=0; j<get_physics_comps()[i].collider_count; j++){
                 double h = check_collision_line_box(start, end, get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[j].offset,get_physics_comps()[i].colliders[j].bb);
-                if(h>0 && h<min){
+                if(h>0 && h<min && h<max){
                     idx = i;
                     min = h;
                     hit = true;
