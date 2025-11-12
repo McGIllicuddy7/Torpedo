@@ -28,7 +28,7 @@ ShipComp * get_ship_comp(EntityRef ref){
 	return &get_ship_comps()[ref.index];
 }
 void ship_handle_damage(EntityRef source, EntityRef target,  Vec3 direction, double damage){
-	if(damage>20.0){
+	if(damage>100.0){
 		destroy_entity(target);
 	}
 }
@@ -117,6 +117,7 @@ void human_update(EntityRef ship, ShipComp*s){
 	s->input.input = vel_inp;
 	s->input.rot_input.y = rot_inp.y*0.001;
 	s->input.rot_input.z = -rot_inp.x*0.001;
+	human_update_gui(ship, s);
 
 }
 EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
@@ -149,12 +150,12 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
 	mesh->lit = true;
 	ShipComp * ship = get_ship_comp(out);
 	memset(&(ship->input), 0, sizeof(ship->input));
-	ship->acc = 0.1;
+	ship->acc = 0.01;
 	ship->input.is_ai = !player;
 	ship->input.mode = Rocket;
 	ship->input.input_mode = InputHuman;
 	ship->weapon_data.machine_gun_ammo = 1500;
-	ship->weapon_data.machine_gun_cooldown  =1./12.;
+	ship->weapon_data.machine_gun_cooldown  =1./15.;
 	ship->weapon_data.machine_gun_remaining_time = 0.0;
 	if(player){
 		get_level()->player_entity = out;
@@ -194,11 +195,12 @@ EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, En
     phys->is_valid = true;
     phys->mass = 0.001;
     phys->is_valid = true;
-    phys->velocity = Vec3_add(Vec3_scale(direction,25.0), base_vel);
+    phys->velocity = Vec3_add(Vec3_scale(direction,40.0), base_vel);
+	phys->velocity = Vec3_add(phys->velocity, Vec3_scale(random_vector(),0.05));
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = pos;
-phys->trans.trans.rotation = rotation;
-	phys->can_ever_collide = false;
+    phys->trans.trans.rotation = rotation;
+    phys->can_ever_collide = false;
     Collider col;
     col.bb.min=(Vector3){-0.01,- 0.005, -0.005};
     col.bb.max= (Vector3){0.01,0.005, 0.005};
@@ -208,13 +210,13 @@ phys->trans.trans.rotation = rotation;
     phys->can_ever_collide = true;
     phys->destroy_on_impact = true;
     MeshComp * mesh = get_mesh_comp(out);
-    mesh->meshes[0].color = RED;
+    mesh->meshes[0].color = ORANGE;
     mesh->meshes[0].offset = Trans_create();
     mesh->meshes[0].string = "bullet";
     mesh->mesh_count =1;
 	mesh->lit = false;
 	ProjectileComp * proj = get_projectile_comp(out);
-	proj->lifetime = 5.0;
+	proj->lifetime = 10.0;
 	proj->parent = e;
     return out;
 }
@@ -253,7 +255,7 @@ void update_projectile(EntityRef proj){
 		Vec3 next = Vec3_add(base,Vec3_normalize(ent_get_velocity(proj)));
 		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index, p->parent.index}, 2);
 		if(e.is_valid){
-			if(!entity_eq(e.ref, p->parent)){
+			if(!entity_eq(e.ref, p->parent) && Vec3_dist(ent_get_location(proj), ent_get_location(e.ref))<1.0){
 				apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
 				destroy_entity(proj);
 			}
@@ -276,4 +278,26 @@ void ship_fire_machine_gun(EntityRef ship, ShipComp*s){
 			s->weapon_data.machine_gun_remaining_time = s->weapon_data.machine_gun_cooldown;
 			s->weapon_data.machine_gun_ammo -= 1;
 		}
+}
+void human_update_gui(EntityRef ref, ShipComp * ship){
+	double trace_rad = 500.0;
+	Vec3 loc = ent_get_location(ref);
+	EntityRefVec entities = sphere_trace(frame_arena(), loc, trace_rad, (uint32_t[]){}, 0);
+	Vec3 forward = ent_get_forward_vector(ref);
+	Vec3 left = ent_get_left_vector(ref);
+	double cx = GetScreenWidth()/2.0;
+	double cy = (GetScreenHeight()*7.5)/10.0;
+	double radius = 150.0;
+	draw_circle(cx, cy, radius, DARKGREEN);
+	for(int i =0; i<entities.length; i++){
+		Vec3 v = ent_get_location(entities.items[i]);
+		Vec3 dv = Vec3_sub(v, loc);
+		double y= -Vec3_dot_product(forward, dv)*radius/trace_rad;
+		double x = -Vec3_dot_product(left, dv)*radius/trace_rad;
+		if(has_component(entities.items[i], comp_ship)){
+			draw_circle(cx+x, cy+y, 3.0,GREEN);
+		}else if(has_component(entities.items[i], comp_projectile)){
+			draw_circle(cx+x, cy+y, 0.5,GREEN);
+		}		
+	}	
 }

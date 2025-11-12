@@ -91,3 +91,5 @@ Vec3 next_impulse(Vec3 pos, Vec3 end, Vec3 vel,Vec3 des_vel, double acc);
 
 EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, EntityRef parent);
 Quat rotate_toward_vector_smol(EntityRef r, Vec3 target);
+Vec3 approximate_target_vector(Vec3 pos, Vec3 target_pos, Vec3 vel,Vec3 target_vel, double speed);
+void human_update_gui(EntityRef ref, ShipComp * ship);

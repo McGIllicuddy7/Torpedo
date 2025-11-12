@@ -134,7 +134,13 @@ AiState handle_skirmish(EntityRef ref, ShipComp * s,AiState state){
 		return Patrol;
 	}
 	AiInfo * info = &s->ai_info;
-	s->ai_info.target_dir = ent_get_location(s->target);
+	s->ai_info.target_dir = approximate_target_vector(
+		ent_get_location(ref), 
+		ent_get_location(s->target),
+		ent_get_velocity(ref), 
+		ent_get_velocity(s->target), 40.0
+	);
+
 	if(ai_should_attack(ref, s)){
 		ship_fire_machine_gun(ref, s);
 	}
@@ -167,8 +173,13 @@ AiState handle_direct_attack(EntityRef ref, ShipComp * s,AiState state){
 		ship_fire_machine_gun(ref, s);
 	}
 	Vec3 loc = ent_get_location(ref);
-	s->ai_info.target_dir = ent_get_location(s->target);
-		info->move_to_point = Vec3_add(ent_get_location(s->target), Vec3_scale(ent_get_forward_vector(s->target), -5.0));
+	s->ai_info.target_dir = approximate_target_vector(
+		ent_get_location(ref), 
+		ent_get_location(s->target),
+		ent_get_velocity(ref), 
+		ent_get_velocity(s->target), 40.0
+	);
+	info->move_to_point = Vec3_add(ent_get_location(s->target), Vec3_scale(ent_get_forward_vector(s->target), -5.0));
 	if(s->ai_info.heart_beat == 0.0){
 		OptEntityRef e = can_see_priority_enemy(ref,s);
 		if(e.is_valid){
@@ -243,7 +254,7 @@ bool ai_should_attack(EntityRef ref, ShipComp * s){
 	Vec3 sloc = ent_get_location(ref);
 	Vec3 dv = Vec3_sub(tloc, sloc);
 	Vec3 nv = Vec3_normalize(dv);
-	return Vec3_dot_product(ent_get_forward_vector(ref),nv)>0.8;
+	return Vec3_dot_product(ent_get_forward_vector(ref),nv)>0.98;
 }
 Vector3 QuaternionForwardVector(Quaternion q){
 	Vector3  out = {1,0,0};
@@ -266,7 +277,7 @@ Quat rotate_toward_vector_smol(EntityRef r, Vec3 target){
 				float dx=x;
 				float dy = y;
 				float dz = z;
-				dx*= 0.001; dy*= 0.001; dz*= 0.001;
+				dx*= 0.01; dy*= 0.01; dz*= 0.01;
 				Quaternion q = QuaternionFromEuler(dx,dy,dz);
 				q = QuaternionMultiply(q, base);
 				Vector3 v = QuaternionForwardVector(q);
@@ -280,4 +291,11 @@ Quat rotate_toward_vector_smol(EntityRef r, Vec3 target){
 	}
 	return Vec4_from_Vector4(out);
 
+}
+Vec3 approximate_target_vector(Vec3 pos, Vec3 target_pos, Vec3 vel,Vec3 target_vel, double speed){
+	Vec3 rel_vel = Vec3_sub(target_vel, vel);
+	Vec3 rel_pos = Vec3_sub(target_pos, pos);
+	double impact_time = Vec3_len(rel_pos)/speed;
+	Vec3 offset = Vec3_scale(random_vector(), 0.1*impact_time);
+	return Vec3_add(Vec3_add(rel_pos, Vec3_scale(rel_vel, impact_time)), offset);
 }
