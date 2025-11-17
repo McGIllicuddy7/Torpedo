@@ -45,8 +45,7 @@ static void draw_mesh_comp( Arena * arena,MeshComp cmp, Trans trans, BoundingBox
         md->transform = old;
         md->materials[0].shader = s;
         b.min = Vector3Add( b.min,Vec3_to_Vector3(trans.translation));
-        b.max = Vector3Add( b.max,Vec3_to_Vector3(trans.translation));
-        //DrawBoundingBox(b, GREEN);
+        b.max = Vector3Add( b.max,Vec3_to_Vector3(trans.translation)); 
     }
 }
 static void draw_mesh_comp_unlit( Arena * arena,MeshComp cmp, Trans trans, BoundingBox b){
@@ -54,12 +53,9 @@ static void draw_mesh_comp_unlit( Arena * arena,MeshComp cmp, Trans trans, Bound
         Model *md = StringModelHashTable_find(runtime.level->models, new_string(arena,cmp.meshes[i].string));
         Matrix old = md->transform;
         md->transform = QuaternionToMatrix(Vec4_to_Vector4(trans.rotation)); 
-        //Shader s = md->materials[0].shader;
-       // md->materials[0].shader = get_level()->shader;
         Vec3 loc = Vec3_add(trans.translation,to_global_vector(cmp.meshes[i].offset.translation, get_forward_vector(trans), get_left_vector(trans), get_up_vector(trans)));
-        DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);//        printf("%f,%f,%f\n", loc.x, loc.y, loc.z);
-        md->transform = old;
-        //md->materials[0].shader = s;
+        DrawModel(*md, Vec3_to_Vector3(loc),1.0,cmp.meshes[i].color);
+        md->transform = old; 
         b.min = Vector3Add( b.min,Vec3_to_Vector3(trans.translation));
         b.max = Vector3Add( b.max,Vec3_to_Vector3(trans.translation));
     }
@@ -95,8 +91,7 @@ void game_render(Camera * cam){
     EndMode3D();
     BeginMode3D(*cam);
     BeginShaderMode(runtime.level->shader);
-   // rlDisableBackfaceCulling();
-//    rlSetClipPlanes(0.01, 5000000);
+    rlSetClipPlanes(0.01, 5000000);
     Arena *arena = arena_create_sized(4096*1024);
     for(size_t i =0; i<ENTITY_COUNT; i++){
         if(get_mesh_comps()[i].mesh_count == 0|| !runtime.level->tags[i] || !(get_level()->owned_comps[i] & comp_model)){
