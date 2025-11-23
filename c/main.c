@@ -42,7 +42,7 @@ void setup(){
             }
         }
     }
-    EntityRef s = create_ship((Vec3){50, 0,0,}, (Vec3){0,90,0}, true);	
+    EntityRef s = create_ship((Vec3){50, 0,0,}, (Vec3){0,0,0}, true);	
     EntityRef e = create_ship((Vec3){-50,0,0}, (Vec3){0,0,0}, false);
 }
 void tear_down(){

@@ -2,6 +2,8 @@
 #include "base.h"
 #include "utils.h"
 extern Arena * arena_create_sized(size_t count);
+extern void i_see_the_tv_glow(Camera3D cam, Vec3 pos);
+
 void process_3d_draw_calls(){
     for(size_t i =0; i<runtime.level->draw3d_calls.length; i++){
         DrawCall3D d = runtime.level->draw3d_calls.items[i];
@@ -64,29 +66,39 @@ void game_render(Camera * cam){
     static bool stars_init = false;
     static Vec3 stars[1024] = {0};
     const int star_count = 1024;
+    static RenderTexture target;
+    static Shader post_process;
     if(!stars_init){
+        target = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+        post_process = LoadShader("shaders/vertex.glsl", "shaders/post.glsl");
         for(int i =0; i<star_count; i++){
             stars[i] = Vec3_scale(random_vector(),30);
         }
         stars_init = true;
     }
+    Vec3 pos = {0,0,0};
     if(!entity_is_valid(runtime.level->player_entity)){
-        UpdateCamera(cam, CAMERA_FREE);
+        UpdateCamera(cam, CAMERA_FREE); 
     } else{
         Transform base = Trans_to_Transform(get_physics_comp(runtime.level->player_entity)->trans.trans);
+        pos = Vec3_from_Vector3(base.translation);  
+        base.translation = (Vector3){0,0,0};
         Matrix m =QuaternionToMatrix(base.rotation);
         Transform offset = Trans_to_Transform(runtime.level->cam_player_offset);
         cam->position = Vector3Add(base.translation, Vector3Transform(offset.translation, m));
         Matrix mat = MatrixMultiply(QuaternionToMatrix(offset.rotation),QuaternionToMatrix(base.rotation));
         cam->target = Vector3Add(Vector3Transform((Vector3){1,0,0},mat), cam->position);
-        cam->up = Vector3Transform((Vector3){0,0,1},mat);
+        cam->up = Vector3Transform((Vector3){0,0,1},mat); 
+
     }
-    BeginDrawing(); 
-    ClearBackground((Color){16, 16, 32, 255});
+    bool player_is_valid = entity_is_valid(get_level()->player_entity);
+    int player_idx  = get_level()->player_entity.index;
+    BeginTextureMode(target); 
+    ClearBackground(BLACK);
     BeginMode3D(*cam);
-    rlSetClipPlanes(0.0001, 10000.0);
+    rlSetClipPlanes(0.0001, 100000.0);
     for(int i =0; i<star_count; i++){
-        DrawCubeV(Vector3Add(cam->position, Vec3_to_Vector3(stars[i])),(Vector3){0.1, 0.1, 0.1}, (Color){250, 250, 255, 255});
+        DrawCubeV(Vector3Add(cam->position, Vec3_to_Vector3(stars[i])),(Vector3){0.1, 0.1, 0.1}, (Color){50, 50, 50, 255});
     }
     EndMode3D();
     BeginMode3D(*cam);
@@ -100,7 +112,13 @@ void game_render(Camera * cam){
         if(get_mesh_comps()[i].lit){
             continue;
         }
-        draw_mesh_comp_unlit(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
+        Trans base = get_physics_comps()[i].trans.trans;
+        if(player_is_valid && player_idx == i){
+            base.translation = (Vec3){0,0,0} ;
+        }else{
+            base.translation = Vec3_sub(base.translation, pos);
+        }
+        draw_mesh_comp_unlit(arena,get_mesh_comps()[i], base,get_physics_comps()[i].colliders[0].bb);
     } 
     BeginShaderMode(runtime.level->shader); 
     for(size_t i =0; i<ENTITY_COUNT; i++){
@@ -110,15 +128,31 @@ void game_render(Camera * cam){
         if(!get_mesh_comps()[i].lit){
             continue;
         }
-        draw_mesh_comp(arena,get_mesh_comps()[i],get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[0].bb);
+        Trans base = get_physics_comps()[i].trans.trans;
+        if(player_is_valid && player_idx == i){
+            base.translation = (Vec3){0,0,0};
+        }else{
+            base.translation = Vec3_sub(base.translation, pos);
+        }
+        draw_mesh_comp(arena,get_mesh_comps()[i], base,get_physics_comps()[i].colliders[0].bb);
     } 
     EndShaderMode();
+    Camera3D temp = *cam;
+    i_see_the_tv_glow(temp,pos);
     process_3d_draw_calls();
     arena_destroy(arena);
     EndMode3D();
+    EndTextureMode();
+    BeginDrawing();
+    ClearBackground(WHITE);
+    Vector2 size = (Vector2){GetScreenWidth(), GetScreenHeight()};
+    SetShaderValue(post_process, GetShaderLocation(post_process, "size"), &size, SHADER_UNIFORM_VEC2);
+    BeginShaderMode(post_process);
+    DrawTextureRec(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, (float)-target.texture.height }, (Vector2){ 0, 0 }, WHITE);
+    EndShaderMode();
     process_draw_calls();
     DrawCircle(GetScreenWidth()/2, GetScreenHeight()/2, 3, RED);
     DrawFPS(900, 20);
-    EndDrawing();
-
+    EndDrawing();   
+    cam->target = Vector3Add(cam->target,cam->position);
 }

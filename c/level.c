@@ -338,7 +338,7 @@ Level * create_level(){
     level->damage_handler = 0;
     level->cam_player_offset = Trans_create();
     StringModelHashTable_insert(level->models, new_string(0, "cube"),LoadModelFromMesh(GenMeshCube(1., 1., 1.)));
-    Model bullet = LoadModelFromMesh(GenMeshCube(.1, .0125, .0125));
+    Model bullet = LoadModelFromMesh(GenMeshCube(.2, .005, 0.005));
    // bullet.materials[0] = LoadMaterialDefault();
     StringModelHashTable_insert(level->models, new_string(0, "bullet"),bullet);
     register_system((System){draw_update});

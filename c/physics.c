@@ -243,6 +243,9 @@ OptEntityRef line_trace(Vec3 start, Vec3 end, u32 * to_ignore, size_t to_ignore_
             if(uint32_array_contains(i, to_ignore, to_ignore_count)){
                 continue;
             }
+            if(!get_physics_comps()[i].can_ever_collide){
+                continue;
+            }
             for (u64 j=0; j<get_physics_comps()[i].collider_count; j++){
                 double h = check_collision_line_box(start, end, get_physics_comps()[i].trans.trans,get_physics_comps()[i].colliders[j].offset,get_physics_comps()[i].colliders[j].bb);
                 if(h>0 && h<min && h<max){

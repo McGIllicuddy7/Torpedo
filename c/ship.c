@@ -150,12 +150,12 @@ EntityRef create_ship(Vec3 location, Vec3 angle, bool player){
 	mesh->lit = true;
 	ShipComp * ship = get_ship_comp(out);
 	memset(&(ship->input), 0, sizeof(ship->input));
-	ship->acc = 0.01;
+	ship->acc = 0.01/60.0;
 	ship->input.is_ai = !player;
 	ship->input.mode = Rocket;
 	ship->input.input_mode = InputHuman;
 	ship->weapon_data.machine_gun_ammo = 1500;
-	ship->weapon_data.machine_gun_cooldown  =1./15.;
+	ship->weapon_data.machine_gun_cooldown  =1./20.;
 	ship->weapon_data.machine_gun_remaining_time = 0.0;
 	if(player){
 		get_level()->player_entity = out;
@@ -195,8 +195,8 @@ EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, En
     phys->is_valid = true;
     phys->mass = 0.001;
     phys->is_valid = true;
-    phys->velocity = Vec3_add(Vec3_scale(direction,40.0), base_vel);
-	phys->velocity = Vec3_add(phys->velocity, Vec3_scale(random_vector(),0.05));
+    phys->velocity = Vec3_add(Vec3_scale(direction,5.0), base_vel);
+	phys->velocity = Vec3_add(phys->velocity, Vec3_scale(random_vector(),0.01));
     phys->trans.trans  = Trans_create();
     phys->trans.trans.translation = pos;
     phys->trans.trans.rotation = rotation;
@@ -207,16 +207,16 @@ EntityRef fire_bullet(Vec3 pos, Vec3 direction, Quat rotation, Vec3 base_vel, En
     phys->colliders[0] = col;
     phys->collider_count = 1;
     phys->angular_velocity = (Vec3){0,0,0};
-    phys->can_ever_collide = true;
+    phys->can_ever_collide = false;
     phys->destroy_on_impact = true;
     MeshComp * mesh = get_mesh_comp(out);
-    mesh->meshes[0].color = ORANGE;
+    mesh->meshes[0].color = BLUE;
     mesh->meshes[0].offset = Trans_create();
     mesh->meshes[0].string = "bullet";
     mesh->mesh_count =1;
 	mesh->lit = false;
 	ProjectileComp * proj = get_projectile_comp(out);
-	proj->lifetime = 10.0;
+	proj->lifetime = 60.0;
 	proj->parent = e;
     return out;
 }
@@ -253,10 +253,10 @@ void update_projectile(EntityRef proj){
 	}else{
 		Vec3 base = ent_get_location(proj);
 		Vec3 next = Vec3_add(base,Vec3_normalize(ent_get_velocity(proj)));
-		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index, p->parent.index}, 2);
+		OptEntityRef e = line_trace(base, next, (uint32_t[]){proj.index, p->parent.index}, 1.0);
 		if(e.is_valid){
 			if(!entity_eq(e.ref, p->parent) && Vec3_dist(ent_get_location(proj), ent_get_location(e.ref))<1.0){
-				apply_damage(proj, e.ref,ent_get_forward_vector(proj), 32);
+				apply_damage(proj, e.ref,ent_get_forward_vector(proj), 150);
 				destroy_entity(proj);
 			}
 		}
@@ -270,7 +270,7 @@ void update_weapons(ShipComp *s){
 }
 void ship_fire_machine_gun(EntityRef ship, ShipComp*s){
 		if(s->weapon_data.machine_gun_remaining_time == 0.0 && s->weapon_data.machine_gun_ammo>0 ){
-			Vec3 pos = Vec3_add(ent_get_location(ship), Vec3_scale(ent_get_forward_vector(ship), 1.0));
+			Vec3 pos = Vec3_add(ent_get_location(ship), Vec3_scale(ent_get_forward_vector(ship), 0.5));
 			Vec3 delt1 = Vec3_scale(ent_get_left_vector(ship), 0.1);
 			Vec3 delt2 = Vec3_scale(ent_get_left_vector(ship), -0.1);
 			fire_bullet(Vec3_add(pos,delt1),ent_get_forward_vector(ship), ent_get_orientation(ship), ent_get_velocity(ship),ship);	
@@ -280,7 +280,7 @@ void ship_fire_machine_gun(EntityRef ship, ShipComp*s){
 		}
 }
 void human_update_gui(EntityRef ref, ShipComp * ship){
-	double trace_rad = 500.0;
+	double trace_rad = 1000.0;
 	Vec3 loc = ent_get_location(ref);
 	EntityRefVec entities = sphere_trace(frame_arena(), loc, trace_rad, (uint32_t[]){}, 0);
 	Vec3 forward = ent_get_forward_vector(ref);
@@ -300,4 +300,18 @@ void human_update_gui(EntityRef ref, ShipComp * ship){
 			draw_circle(cx+x, cy+y, 0.5,GREEN);
 		}		
 	}	
+}
+
+void i_see_the_tv_glow(Camera3D cam, Vec3 base){
+    EntityRefVec ships = get_all_entities_with_component(comp_ship);
+	Vec3 dir = Vec3_from_Vector3(cam.target);
+	for(int i =0; i<ships.length; i++){
+		Vec3 pos = Vec3_sub(ent_get_location(ships.items[i]), base);
+		double dist = sqrt(Vec3_len(pos));
+		 Vec3 p = Vec3_normalize(pos);
+		double d1 =(-Vec3_dot_product(dir,p)+1.5)/2.0;
+		if(d1>0.0){
+			DrawSphere(Vec3_to_Vector3(pos), dist*d1/5.0, (Color){130,130, 200, 100});
+		}
+	}
 }
