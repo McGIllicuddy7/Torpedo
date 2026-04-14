@@ -40,8 +40,10 @@ pub struct EntityStruct {
     pub kind: EntityKind,
     pub is_player: bool,
     pub is_projectile: bool,
+    pub is_static: bool,
     pub position: Vector3,
     pub rotation: Quaternion,
+    pub angular_velocity: Vector3,
     pub velocity: Vector3,
     pub cached_bounds: BoundingBox,
     pub component_table: HashMap<Arc<str>, EntityComponent>,
@@ -388,6 +390,9 @@ impl Level {
             if t1r.component_table.is_empty() {
                 return;
             }
+            if t1r.is_static {
+                return;
+            }
             let pos = (
                 t1r.position.x as i32 / cell_size,
                 t1r.position.y as i32 / cell_size,
@@ -401,7 +406,7 @@ impl Level {
                         tmp_pos.1 += dy;
                         tmp_pos.2 += dz;
                         if let Some(t) = acc_table.get(&tmp_pos) {
-                            for j in t.iter().map(|j| *j) {
+                            for j in t.iter().copied() {
                                 if i == j {
                                     continue;
                                 }
@@ -423,7 +428,7 @@ impl Level {
                                 }
                                 'ob: for k in &collider_set[i].1 {
                                     for l in &t2.1 {
-                                        if k.check_collision(&l) {
+                                        if k.check_collision(l) {
                                             let mut lck = hitset.lock().unwrap();
 
                                             collided = true;
@@ -477,7 +482,7 @@ impl Level {
         for i in self.entities() {
             let mut x = i.write();
             if let Some(updater) = RUNTIME.update_table.get(&x.kind) {
-                let res = (updater)(&mut *x, delta_time);
+                let res = (updater)(&mut x, delta_time);
                 if res.is_err() {
                     todo!()
                 }
@@ -520,13 +525,13 @@ impl Level {
         cam_data.pos = cam.position;
         cam_data.target = cam.target;
         cam_data.up = cam.up;
-        let mut draw = handle.begin_drawing(&thread);
+        let mut draw = handle.begin_drawing(thread);
         draw.clear_background(Color::BLACK);
         let mut mode = draw.begin_mode3D(cam);
         for i in self.entities() {
             let j = i.read();
             let pos = j.position;
-            for (_, k) in &j.component_table {
+            for k in j.component_table.values() {
                 let comp_pos = pos + k.offset.rotate_by(j.rotation);
                 if comp_pos.distance_to(cam_data.pos) > 200. {
                     continue;
@@ -585,10 +590,10 @@ impl Level {
             match e {
                 Event::Collision {
                     this,
-                    other,
-                    this_comp,
-                    other_comp,
-                    relative_velocity,
+                    other: _,
+                    this_comp: _,
+                    other_comp: _,
+                    relative_velocity: _,
                 } => {
                     this.write().velocity *= -0.8;
                 }
@@ -696,12 +701,12 @@ pub fn raycast(start: Vector3, end: Vector3, ignored: &[Entity]) -> Option<ColDa
             continue;
         }
         for j in tmp.as_colliders() {
-            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
-                if x.dist < min_dist {
-                    x.hit_entity = i;
-                    out = Some(x);
-                    min_dist = x.dist;
-                }
+            if let Some(mut x) = j.raycast(start, (end - start).normalized())
+                && x.dist < min_dist
+            {
+                x.hit_entity = i;
+                out = Some(x);
+                min_dist = x.dist;
             }
         }
     }
@@ -720,12 +725,12 @@ pub fn raycast_projectiles(start: Vector3, end: Vector3, ignored: &[Entity]) -> 
             continue;
         }
         for j in tmp.as_colliders() {
-            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
-                if x.dist < min_dist {
-                    x.hit_entity = i;
-                    out = Some(x);
-                    min_dist = x.dist;
-                }
+            if let Some(mut x) = j.raycast(start, (end - start).normalized())
+                && x.dist < min_dist
+            {
+                x.hit_entity = i;
+                out = Some(x);
+                min_dist = x.dist;
             }
         }
     }
@@ -753,12 +758,12 @@ pub fn raycast_by_kinds(
             continue;
         }
         for j in tmp.as_colliders() {
-            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
-                if x.dist < min_dist {
-                    x.hit_entity = i;
-                    out = Some(x);
-                    min_dist = x.dist;
-                }
+            if let Some(mut x) = j.raycast(start, (end - start).normalized())
+                && x.dist < min_dist
+            {
+                x.hit_entity = i;
+                out = Some(x);
+                min_dist = x.dist;
             }
         }
     }
