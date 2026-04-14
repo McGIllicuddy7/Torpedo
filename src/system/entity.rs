@@ -9,7 +9,8 @@ use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 pub use std::any::Any;
 pub use std::collections::HashMap;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
+use std::hash::Hash;
 pub use std::sync::Arc;
 pub use std::sync::{Mutex, RwLock};
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard};
@@ -350,6 +351,7 @@ impl EntityStruct {
 impl Level {
     //make it not O(n^2)
     pub fn physics_update(&self, delta_time: f32) {
+        let cell_size = 1;
         let mut collider_set = Vec::new();
         let mut old_locs = HashMap::new();
         for i in self.entities() {
@@ -361,100 +363,44 @@ impl Level {
             y.recache_collision();
             collider_set.push((i, tmp));
         }
-        (0..collider_set.len()).into_par_iter().for_each(|i| {
+        (0..collider_set.len()).for_each(|i| {
             let mut collided = false;
-            let proj = collider_set[i].0.read().is_projectile;
-            if proj {
-                for j in 0..collider_set.len() {
-                    if j == i {
-                        continue;
-                    }
-                    if collided {
-                        break;
-                    }
-                    let t1 = &collider_set[i];
-                    let t2 = &collider_set[j];
-                    if t2.0.read().is_projectile {
-                        continue;
-                    }
-                    let b1 = t1.0.read().cached_bounds;
-                    let b2 = t2.0.read().cached_bounds;
-                    if !b1.check_collision_boxes(b2) {
-                        continue;
-                    }
-                    for k in &t1.1 {
-                        if collided {
-                            break;
-                        }
-                        for l in &t2.1 {
-                            if k.check_collision(&l) {
-                                collision_event(
-                                    t1.0,
-                                    t2.0,
-                                    k.parent_name.clone(),
-                                    l.parent_name.clone(),
-                                    k.velocity - l.velocity,
-                                );
-                                collision_event(
-                                    t2.0,
-                                    t1.0,
-                                    l.parent_name.clone(),
-                                    k.parent_name.clone(),
-                                    k.velocity - l.velocity,
-                                );
-                                collided = true;
-                                break;
-                            }
+            let t1r = collider_set[i].0.read();
+            let proj = t1r.is_projectile;
+            for j in i + 1..collider_set.len() {
+                let t2 = &collider_set[j];
+                let t2r = t2.0.read();
+                let b1 = t1r.cached_bounds;
+                let b2 = t2r.cached_bounds;
+                if !b1.check_collision_boxes(b2) {
+                    continue;
+                }
+                'ob: for k in &collider_set[i].1 {
+                    for l in &t2.1 {
+                        if k.check_collision(&l) {
+                            collided = true;
+                            collision_event(
+                                k.parent_entity,
+                                l.parent_entity,
+                                k.parent_name.clone(),
+                                l.parent_name.clone(),
+                                k.velocity - l.velocity,
+                            );
+                            collision_event(
+                                l.parent_entity,
+                                k.parent_entity,
+                                l.parent_name.clone(),
+                                k.parent_name.clone(),
+                                k.velocity - l.velocity,
+                            );
+                            break 'ob;
                         }
                     }
                 }
-                if collided {
-                    let mut wr = collider_set[i].0.write();
-                    wr.position = old_locs[&collider_set[i].0].0;
-                }
-            } else {
-                for j in i + 1..collider_set.len() {
-                    if collided {
-                        break;
-                    }
-                    let t1 = &collider_set[i];
-                    let t2 = &collider_set[j];
-                    if t2.0.read().is_projectile {
-                        continue;
-                    }
-                    let b1 = t1.0.read().cached_bounds;
-                    let b2 = t2.0.read().cached_bounds;
-                    if !b1.check_collision_boxes(b2) {
-                        continue;
-                    }
-                    for k in &t1.1 {
-                        if collided {
-                            break;
-                        }
-                        for l in &t2.1 {
-                            if k.check_collision(&l) {
-                                collision_event(
-                                    k.parent_entity,
-                                    l.parent_entity,
-                                    k.parent_name.clone(),
-                                    l.parent_name.clone(),
-                                    k.velocity - l.velocity,
-                                );
-                                collision_event(
-                                    l.parent_entity,
-                                    k.parent_entity,
-                                    l.parent_name.clone(),
-                                    k.parent_name.clone(),
-                                    k.velocity - l.velocity,
-                                );
-                                break;
-                            }
-                        }
-                    }
-                }
-                if collided {
-                    collider_set[i].0.write().position = old_locs[&collider_set[i].0].0;
-                }
+            }
+            if collided {
+                drop(t1r);
+                collider_set[i].0.write().position = old_locs[&collider_set[i].0].0;
             }
         });
     }

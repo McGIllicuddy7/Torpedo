@@ -26,119 +26,43 @@ pub struct ColData3D {
 
 impl Collider3D {
     pub fn as_vertices(&self) -> [Vector3; 8] {
-        [
-            self.pos
-                + Vector3::new(-self.width / 2., -self.height / 2., -self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(-self.width / 2., self.height / 2., -self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(self.width / 2., -self.height / 2., -self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(self.width / 2., self.height / 2., -self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(-self.width / 2., -self.height / 2., self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(-self.width / 2., self.height / 2., self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(self.width / 2., -self.height / 2., self.depth / 2.)
-                    .rotate_by(self.rotation),
-            self.pos
-                + Vector3::new(self.width / 2., self.height / 2., self.depth / 2.)
-                    .rotate_by(self.rotation),
-        ]
+        let mut idx = 0;
+        let base = Vector3::new(self.width / 2., self.height / 2., self.depth / 2.);
+        let mut out = [base; 8];
+        for x in -1..=1 {
+            for y in -1..=1 {
+                for z in -1..=1 {
+                    if x != 0 && y != 0 && z != 0 {
+                        let mut next = base;
+                        next.x *= x as f32;
+                        next.y *= y as f32;
+                        next.z *= z as f32;
+                        out[idx] = next;
+                        idx += 1;
+                    }
+                }
+            }
+        }
+        out
     }
 
     pub fn sap_vectors(&self) -> [Vector3; 26] {
-        [
-            Vector3::new(-self.width / 2., -self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(-self.width / 2., self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., -self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(-self.width / 2., -self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(-self.width / 2., self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., -self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            //tmp
-            Vector3::new(-self.width / 2., 0., 0.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., 0., 0.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0., -self.height / 2., 0.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0., self.height / 2., 0.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0., 0., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0., 0., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            //tmp2
-            Vector3::new(-self.width / 2., -self.height / 2., 0.0)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(-self.width / 2., self.height / 2., 0.0)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., -self.height / 2., 0.0)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., self.height / 2., 0.0)
-                .rotate_by(self.rotation)
-                .normalized(),
-            //tmp3
-            Vector3::new(0.0, -self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0.0, -self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0.0, self.height / 2., -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(0.0, self.height / 2., self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            //tmp4
-            Vector3::new(-self.width / 2., 0.0, -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(-self.width / 2., 0.0, self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., 0.0, -self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-            Vector3::new(self.width / 2., 0.0, self.depth / 2.)
-                .rotate_by(self.rotation)
-                .normalized(),
-        ]
+        let mut out = [Vector3::zero(); 26];
+        let mut idx = 0;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    if dx == 0 && dy == 0 && dz == 0 {
+                        continue;
+                    }
+                    out[idx] = Vector3::new(dx as f32, dy as f32, dz as f32)
+                        .normalized()
+                        .rotate_by(self.rotation);
+                    idx += 1;
+                }
+            }
+        }
+        out
     }
 
     pub fn check_collision(&self, other: &Self) -> bool {
@@ -164,11 +88,18 @@ impl Collider3D {
                 if d > omax {
                     omax = d;
                 }
-                if d < smin {
+                if d < omin {
                     omin = d;
                 }
             }
-            if smin < omin && smax < omin || smax > omax && smin > omax {
+            if (smin < omin && smax < omin) || (smax > omax && smin > omax) {
+                if self.pos.distance_to(other.pos) < 1.0 {
+                    println!(
+                        " self.vertices:{:#?}, other.vertices:{:#?}, self.pos:{:#?}, other.pos:{:#?},omin:{}, omax:{}, smin:{}, smax:{},",
+                        sverts, overts, self.pos, other.pos, omin, omax, smin, smax,
+                    );
+                    // todo!()
+                }
                 return false;
             }
         }

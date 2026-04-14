@@ -22,12 +22,17 @@ pub enum EntityComponentKind {
 
 fn main() {
     game_loop(|| {
-        for i in -5..=5 {
-            for j in -5..=5 {
-                for k in -10..=10 {
+        let d = 5;
+        for i in 0..1 {
+            for j in -d..=d {
+                for k in -d..=d {
                     create_debug_cube(
-                        Vector3::new(i as f32, j as f32, k as f32),
-                        -Vector3::new(i as f32, j as f32, k as f32).normalized() / 2.,
+                        Vector3::new(i as f32, j as f32, k as f32) * 2.,
+                        if i != 0 || j != 0 || k != 0 {
+                            -Vector3::new(i as f32, j as f32, k as f32).normalized()
+                        } else {
+                            Vector3::zero()
+                        },
                         0.5,
                         Color::color_from_hsv(
                             (j as f32 + 2.) / 5. * 360.,
