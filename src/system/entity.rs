@@ -351,10 +351,11 @@ impl EntityStruct {
 impl Level {
     //make it not O(n^2)
     pub fn physics_update(&self, delta_time: f32) {
-        let cell_size = 1;
+        let cell_size = 2;
         let mut collider_set = Vec::new();
         let mut old_locs = HashMap::new();
-        for i in self.entities() {
+        let mut acc_table: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
+        for (idx, i) in self.entities().enumerate() {
             let mut y = i.write();
             old_locs.insert(i, (y.position, y.rotation));
             let vel = y.velocity;
@@ -362,45 +363,86 @@ impl Level {
             let tmp = y.as_colliders();
             y.recache_collision();
             collider_set.push((i, tmp));
+            let pos = (
+                y.position.x as i32 / cell_size,
+                y.position.y as i32 / cell_size,
+                y.position.z as i32 / cell_size,
+            );
+            if let Some(p) = acc_table.get_mut(&pos) {
+                p.push(idx);
+            } else {
+                acc_table.insert(pos, vec![idx]);
+            }
         }
-        (0..collider_set.len()).for_each(|i| {
+        let hitset = Mutex::new(HashSet::new());
+        (0..collider_set.len()).into_par_iter().for_each(|i| {
             let mut collided = false;
-            let t1r = collider_set[i].0.read();
+            let mut t1r = collider_set[i].0.read();
+            let pos = (
+                t1r.position.x as i32 / cell_size,
+                t1r.position.y as i32 / cell_size,
+                t1r.position.z as i32 / cell_size,
+            );
             let proj = t1r.is_projectile;
-            for j in i + 1..collider_set.len() {
-                let t2 = &collider_set[j];
-                let t2r = t2.0.read();
-                let b1 = t1r.cached_bounds;
-                let b2 = t2r.cached_bounds;
-                if !b1.check_collision_boxes(b2) {
-                    continue;
-                }
-                'ob: for k in &collider_set[i].1 {
-                    for l in &t2.1 {
-                        if k.check_collision(&l) {
-                            collided = true;
-                            collision_event(
-                                k.parent_entity,
-                                l.parent_entity,
-                                k.parent_name.clone(),
-                                l.parent_name.clone(),
-                                k.velocity - l.velocity,
-                            );
-                            collision_event(
-                                l.parent_entity,
-                                k.parent_entity,
-                                l.parent_name.clone(),
-                                k.parent_name.clone(),
-                                k.velocity - l.velocity,
-                            );
-                            break 'ob;
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for dz in -1..=1 {
+                        let mut tmp_pos = pos;
+                        tmp_pos.0 += dx;
+                        tmp_pos.1 += dy;
+                        tmp_pos.2 += dz;
+                        if let Some(t) = acc_table.get(&tmp_pos) {
+                            for j in t.iter().map(|j| *j) {
+                                if i == j {
+                                    continue;
+                                }
+                                let t2 = &collider_set[j];
+                                let t2r = t2.0.read();
+                                if t2r.is_projectile {
+                                    continue;
+                                }
+                                let b1 = t1r.cached_bounds;
+                                let b2 = t2r.cached_bounds;
+                                if !b1.check_collision_boxes(b2) {
+                                    continue;
+                                }
+                                'ob: for k in &collider_set[i].1 {
+                                    for l in &t2.1 {
+                                        if k.check_collision(&l) {
+                                            let mut lck = hitset.lock().unwrap();
+
+                                            collided = true;
+                                            if !lck.contains(&(i, j)) {
+                                                collision_event(
+                                                    k.parent_entity,
+                                                    l.parent_entity,
+                                                    k.parent_name.clone(),
+                                                    l.parent_name.clone(),
+                                                    k.velocity - l.velocity,
+                                                );
+                                                collision_event(
+                                                    l.parent_entity,
+                                                    k.parent_entity,
+                                                    l.parent_name.clone(),
+                                                    k.parent_name.clone(),
+                                                    k.velocity - l.velocity,
+                                                );
+                                                lck.insert((i, j));
+                                                lck.insert((j, i));
+                                            }
+                                            break 'ob;
+                                        }
+                                    }
+                                }
+                            }
+                            if collided {
+                                drop(t1r);
+                                collider_set[i].0.write().position = old_locs[&collider_set[i].0].0;
+                                t1r = collider_set[i].0.read();
+                            }
                         }
                     }
                 }
-            }
-            if collided {
-                drop(t1r);
-                collider_set[i].0.write().position = old_locs[&collider_set[i].0].0;
             }
         });
     }
