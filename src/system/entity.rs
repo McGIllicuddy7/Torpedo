@@ -5,7 +5,7 @@ use raylib::math::Quaternion;
 pub use raylib::math::{BoundingBox, RayCollision, Vector3};
 use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt};
 use raylib::{RaylibHandle, RaylibThread};
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 pub use std::any::Any;
 pub use std::collections::HashMap;
@@ -16,7 +16,7 @@ pub use std::sync::{Mutex, RwLock};
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard};
 pub const MAX_ENTITY_COUNT: usize = 65536;
 pub type EntityUpdater = fn(&mut EntityStruct, f32) -> Result<()>;
-use crate::system::physics::Collider3D;
+use crate::system::physics::{ColData3D, Collider3D};
 
 pub use super::{EntityComponentKind, EntityKind, UPDATE_TABLE};
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -348,6 +348,7 @@ impl EntityStruct {
         1.0
     }
 }
+
 impl Level {
     //make it not O(n^2)
     pub fn physics_update(&self, delta_time: f32) {
@@ -384,6 +385,9 @@ impl Level {
         (0..collider_set.len()).into_par_iter().for_each(|i| {
             let mut collided = false;
             let mut t1r = collider_set[i].0.read();
+            if t1r.component_table.is_empty() {
+                return;
+            }
             let pos = (
                 t1r.position.x as i32 / cell_size,
                 t1r.position.y as i32 / cell_size,
@@ -407,6 +411,9 @@ impl Level {
                                     continue;
                                 }
                                 if t2r.position.distance_to(t1r.position) > 10. {
+                                    continue;
+                                }
+                                if t2r.component_table.is_empty() {
                                     continue;
                                 }
                                 let b1 = t1r.cached_bounds;
@@ -675,4 +682,85 @@ pub fn game_loop(setup: impl FnOnce()) {
     while !handle.window_should_close() {
         RUNTIME.level.tick(&mut handle, &thread);
     }
+}
+
+pub fn raycast(start: Vector3, end: Vector3, ignored: &[Entity]) -> Option<ColData3D> {
+    let mut min_dist = end.distance_to(start);
+    let mut out = None;
+    for i in RUNTIME.level.entities() {
+        if ignored.contains(&i) {
+            continue;
+        }
+        let tmp = i.read();
+        if tmp.is_projectile {
+            continue;
+        }
+        for j in tmp.as_colliders() {
+            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
+                if x.dist < min_dist {
+                    x.hit_entity = i;
+                    out = Some(x);
+                    min_dist = x.dist;
+                }
+            }
+        }
+    }
+    out
+}
+
+pub fn raycast_projectiles(start: Vector3, end: Vector3, ignored: &[Entity]) -> Option<ColData3D> {
+    let mut min_dist = end.distance_to(start);
+    let mut out = None;
+    for i in RUNTIME.level.entities() {
+        if ignored.contains(&i) {
+            continue;
+        }
+        let tmp = i.read();
+        if tmp.is_projectile {
+            continue;
+        }
+        for j in tmp.as_colliders() {
+            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
+                if x.dist < min_dist {
+                    x.hit_entity = i;
+                    out = Some(x);
+                    min_dist = x.dist;
+                }
+            }
+        }
+    }
+    out
+}
+
+pub fn raycast_by_kinds(
+    start: Vector3,
+    end: Vector3,
+    ignored: &[Entity],
+    kinds: &[EntityKind],
+) -> Option<ColData3D> {
+    let mut min_dist = end.distance_to(start);
+    let mut out = None;
+    for i in RUNTIME.level.entities() {
+        if ignored.contains(&i) {
+            continue;
+        }
+
+        let tmp = i.read();
+        if tmp.is_projectile {
+            continue;
+        }
+        if !kinds.contains(&tmp.kind) {
+            continue;
+        }
+        for j in tmp.as_colliders() {
+            if let Some(mut x) = j.raycast(start, (end - start).normalized()) {
+                if x.dist < min_dist {
+                    x.hit_entity = i;
+                    out = Some(x);
+                    min_dist = x.dist;
+                }
+            }
+        }
+    }
+    out
 }

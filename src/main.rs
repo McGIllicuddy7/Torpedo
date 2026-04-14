@@ -22,7 +22,7 @@ pub enum EntityComponentKind {
 
 fn main() {
     game_loop(|| {
-        let d = 8;
+        let d = 10;
         for i in -d..=d {
             for j in -d..=d {
                 for k in -d..=d {

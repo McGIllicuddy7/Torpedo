@@ -22,6 +22,7 @@ pub struct ColData3D {
     pub pos: Vector3,
     pub normal: Vector3,
     pub dist: f32,
+    pub hit_entity: Entity,
 }
 
 impl Collider3D {
@@ -136,6 +137,7 @@ impl Collider3D {
                 pos,
                 normal: n,
                 dist: c.distance,
+                hit_entity: Entity::default(),
             })
         } else {
             None
