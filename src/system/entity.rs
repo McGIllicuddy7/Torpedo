@@ -352,14 +352,20 @@ impl Level {
     //make it not O(n^2)
     pub fn physics_update(&self, delta_time: f32) {
         let cell_size = 2;
+        let dt = if delta_time.is_normal() && delta_time > 0.0 {
+            delta_time
+        } else {
+            1. / 60.
+        };
         let mut collider_set = Vec::new();
         let mut old_locs = HashMap::new();
         let mut acc_table: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
+        acc_table.reserve(self.entities.len() * 4);
         for (idx, i) in self.entities().enumerate() {
             let mut y = i.write();
             old_locs.insert(i, (y.position, y.rotation));
             let vel = y.velocity;
-            y.position += vel * 0.01;
+            y.position += vel * dt;
             let tmp = y.as_colliders();
             y.recache_collision();
             collider_set.push((i, tmp));
@@ -383,7 +389,6 @@ impl Level {
                 t1r.position.y as i32 / cell_size,
                 t1r.position.z as i32 / cell_size,
             );
-            let proj = t1r.is_projectile;
             for dx in -1..=1 {
                 for dy in -1..=1 {
                     for dz in -1..=1 {
@@ -399,6 +404,9 @@ impl Level {
                                 let t2 = &collider_set[j];
                                 let t2r = t2.0.read();
                                 if t2r.is_projectile {
+                                    continue;
+                                }
+                                if t2r.position.distance_to(t1r.position) > 10. {
                                     continue;
                                 }
                                 let b1 = t1r.cached_bounds;
@@ -477,12 +485,15 @@ impl Level {
         }
     }
 
-    pub fn tick(&self, handle: &mut RaylibHandle, thread: &RaylibThread) {
+    pub fn tick(&'static self, handle: &mut RaylibHandle, thread: &RaylibThread) {
         let delta_time = handle.get_frame_time();
         _ = thread;
         self.update(delta_time);
-        self.physics_update(delta_time);
+        let join = std::thread::spawn(move || {
+            self.physics_update(delta_time);
+        });
         self.graphics_update(handle, thread);
+        join.join().unwrap();
         self.poll_events();
     }
 
@@ -510,6 +521,9 @@ impl Level {
             let pos = j.position;
             for (_, k) in &j.component_table {
                 let comp_pos = pos + k.offset.rotate_by(j.rotation);
+                if comp_pos.distance_to(cam_data.pos) > 200. {
+                    continue;
+                }
                 match k.render_as {
                     RenderKind::Cube => {
                         mode.draw_cube(comp_pos, k.width, k.height, k.depth, k.color);
