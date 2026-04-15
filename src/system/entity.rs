@@ -1088,7 +1088,7 @@ macro_rules! make_trait_wrapper {
         $(,)?)*),
         (data component names: $(($data_comp_name:literal:$data_comp_kind:expr)$(,)?)*),
         ($(($var_name:ident, $var_type:ty,$source_comp:literal,$source_name:ident, $source_idx:literal, $data_getter_name:ident, $data_getter_mut_name:ident)$(,)?)*), ($(
-            ($comp_name:literal, $comp_kind:expr, $comp_type:ty, $getter_name:ident, $getter_mut_name:ident)
+            ($comp_name:literal, $comp_kind:expr, $comp_type:ident, $comp_type_mut:ident,$getter_name:ident, $getter_mut_name:ident)
         )*)) => {
         pub struct $name<'a> {
             value: EntityRef<'a>,
@@ -1112,11 +1112,11 @@ macro_rules! make_trait_wrapper {
                 }
             )*
             $(
-                pub fn $getter_name<'b>(&'b self)->$comp_type{
+                pub fn $getter_name<'b>(&'b self)->$comp_type<'b>{
                    <$comp_type>::from_ref(self.get().component_table.get($comp_name).unwrap())
                 }
-                pub fn $getter_mut_name<'b>(&'b mut self)->$comp_type{
-                   <$comp_type>::from_mut(self.get_mut().component_table.get_mut($comp_name).unwrap())
+                pub fn $getter_mut_name<'b>(&'b mut self)->$comp_type_mut<'b>{
+                   <$comp_type_mut>::from_mut(self.get_mut().component_table.get_mut($comp_name).unwrap())
                 }
             )*
             pub fn new(pos:raylib::math::Vector3,$($var_name:$var_type,)* $($arg_name:$arg_t,)*)->Entity{
@@ -1188,19 +1188,14 @@ impl<'a> ComponentRef<'a> {
 
 #[macro_export]
 macro_rules! make_component_wrapper {
-    ($name:ident,
+    ($name:ident,$mut_name:ident,
         $kind:expr,
         ($(($var_name:ident, $var_type:ty,$source_name:ident, $source_idx:literal, $getter_name:ident, $getter_mut_name:ident)$(,)?)*)) => {
-        pub struct $name<'a> {
+        pub struct $mut_name<'a> {
             value: ComponentRef<'a>,
         }
-        impl<'a> $name<'a>
+        impl<'a> $mut_name<'a>
         {
-            pub fn from_ref(v:&'a EntityComponent)->Self{
-                Self{
-                    value:ComponentRef::Reference(v)
-                }
-            }
             pub fn from_mut(v:&'a mut EntityComponent)->Self{
                 Self{
                     value:ComponentRef::ReferenceMut(v)
@@ -1220,6 +1215,31 @@ macro_rules! make_component_wrapper {
 
                 pub fn $getter_mut_name(&mut self)->&mut $var_type{
                     &mut self.value.get_mut().$source_name[$source_idx]
+                }
+            )*
+        }
+        pub struct $name<'a> {
+            value: ComponentRef<'a>,
+        }
+        impl<'a> $name<'a>
+        {
+            pub fn from_ref(v:&'a EntityComponent)->Self{
+                Self{
+                    value:ComponentRef::Reference(v)
+                }
+            }
+            pub fn from_mut(v:&'a mut EntityComponent)->Self{
+                Self{
+                    value:ComponentRef::ReferenceMut(v)
+                }
+            }
+            pub fn get(&self)->&EntityComponent{
+                self.value.get()
+            }
+
+            $(
+                pub fn $getter_name(&self)->&$var_type{
+                    &self.value.get().$source_name[$source_idx]
                 }
             )*
         }

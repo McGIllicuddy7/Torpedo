@@ -35,7 +35,7 @@ pub enum GameMode {
 }
 fn main() {
     game_loop(|| {
-        let tmp = Ship::new(Vector3::zero(), 10, 10, 20);
+        let tmp = Ship::new(Vector3::zero(), 10);
         let d = 5;
         for i in -d..=d {
             for j in -d..=d {
@@ -60,10 +60,11 @@ fn main() {
     });
 }
 
-make_trait_wrapper!(Ship, EntityKind::Object,make_ship, (constructor_args t:i32,v:i32),(data component names: ("data":EntityComponentKind::Body)), ((counter, i32, "data", i32_data, 0,get_counter, get_counter_mut)), (("ship_comp", EntityComponentKind::Body, ShipComp, get_ship_comp, get_ship_comp_mut)));
+make_trait_wrapper!(Ship, EntityKind::Object,make_ship, (constructor_args),(data component names: ("data":EntityComponentKind::Body)), ((counter, i32, "data", i32_data, 0,get_counter, get_counter_mut)), (("ship_comp", EntityComponentKind::Body, ShipComp, ShipCompMut,get_ship_comp, get_ship_comp_mut)));
 
 make_component_wrapper!(
     ShipComp,
+    ShipCompMut,
     Body,
     ((
         remaining_fuel,
@@ -75,6 +76,6 @@ make_component_wrapper!(
     ))
 );
 
-pub fn make_ship(s: &mut Ship, t: i32, v: i32) {
+pub fn make_ship(s: &mut Ship) {
     *s.get_ship_comp_mut().get_remaining_fuel_mut() = 1000.0;
 }
