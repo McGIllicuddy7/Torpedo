@@ -1,11 +1,17 @@
 pub mod system;
-use crate::system::{EntityUpdater, create_debug_cube, game_loop};
+use crate::system::{
+    ComponentRef, Entity, EntityComponent, EntityRef, EntityStruct, EntityVTableEntry,
+    EntityWrapper, GameEngineVTableEntry, create_debug_cube, create_entity, game_loop,
+};
 use raylib::{color::Color, math::Vector3};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-lazy_static::lazy_static!(
-    pub static ref UPDATE_TABLE:HashMap<EntityKind, EntityUpdater> = HashMap::new();
-);
+pub fn make_vtable() -> HashMap<EntityKind, EntityVTableEntry> {
+    HashMap::new()
+}
+pub fn make_system_vtable() -> HashMap<GameMode, GameEngineVTableEntry> {
+    HashMap::new()
+}
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Default, Hash, PartialEq, Eq)]
 #[repr(u32)]
 pub enum EntityKind {
@@ -20,9 +26,17 @@ pub enum EntityComponentKind {
     Body = 0,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Default, Hash, PartialEq, Eq)]
+#[repr(u32)]
+pub enum GameMode {
+    #[default]
+    Menu,
+    Running,
+}
 fn main() {
     game_loop(|| {
-        let d = 11;
+        let tmp = Ship::new(Vector3::zero(), 10, 10, 20);
+        let d = 5;
         for i in -d..=d {
             for j in -d..=d {
                 for k in -d..=d {
@@ -44,4 +58,23 @@ fn main() {
             }
         }
     });
+}
+
+make_trait_wrapper!(Ship, EntityKind::Object,make_ship, (constructor_args t:i32,v:i32),(data component names: ("data":EntityComponentKind::Body)), ((counter, i32, "data", i32_data, 0,get_counter, get_counter_mut)), (("ship_comp", EntityComponentKind::Body, ShipComp, get_ship_comp, get_ship_comp_mut)));
+
+make_component_wrapper!(
+    ShipComp,
+    Body,
+    ((
+        remaining_fuel,
+        f32,
+        f32_data,
+        0,
+        get_remaining_fuel,
+        get_remaining_fuel_mut
+    ))
+);
+
+pub fn make_ship(s: &mut Ship, t: i32, v: i32) {
+    *s.get_ship_comp_mut().get_remaining_fuel_mut() = 1000.0;
 }

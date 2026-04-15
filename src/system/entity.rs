@@ -4,10 +4,10 @@ use raylib::color::Color;
 use raylib::math::Quaternion;
 pub use raylib::math::{BoundingBox, RayCollision, Vector3};
 use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt};
+use raylib::shaders::Shader;
 use raylib::{RaylibHandle, RaylibThread};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-pub use std::any::Any;
 pub use std::collections::HashMap;
 use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
@@ -15,10 +15,15 @@ pub use std::sync::Arc;
 pub use std::sync::{Mutex, RwLock};
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard};
 pub const MAX_ENTITY_COUNT: usize = 65536;
-pub type EntityUpdater = fn(&mut EntityStruct, f32) -> Result<()>;
 use crate::system::physics::{ColData3D, Collider3D};
-
-pub use super::{EntityComponentKind, EntityKind, UPDATE_TABLE};
+use crate::{GameMode, make_system_vtable, make_vtable};
+lazy_static::lazy_static!(
+    pub static ref VTABLE:HashMap<EntityKind, EntityVTableEntry> = make_vtable();
+);
+lazy_static::lazy_static!(
+    pub static ref SYSTEM_VTABLE:HashMap<GameMode, GameEngineVTableEntry> = make_system_vtable();
+);
+pub use crate::{EntityComponentKind, EntityKind};
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub enum RenderKind {
     #[default]
@@ -26,6 +31,16 @@ pub enum RenderKind {
     Cylinder,
     Sphere,
     Cone,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub enum DamageType {
+    #[default]
+    Piercing,
+    Crushing,
+    Radiation,
+    Laser,
+    Incendiary,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Default, Hash, PartialEq, Eq)]
@@ -64,7 +79,7 @@ pub struct EntityComponent {
     pub f32_data: [f32; 8],
     pub entity_data: [Entity; 4],
     pub string_data: [Option<Arc<str>>; 4],
-    pub component_data: [Option<Box<EntityComponent>>; 4],
+    pub children: Vec<Arc<str>>,
     pub vector_data: [Vector3; 4],
     pub render_as: RenderKind,
     pub color: Color,
@@ -81,6 +96,70 @@ pub struct EntityDataComponent {
     pub string_data: [Option<Arc<str>>; 4],
     pub vector_data: [Vector3; 4],
 }
+
+#[derive(Debug, Clone)]
+pub struct PointDamageInfo {
+    pub source: Entity,
+    pub point: Vector3,
+    pub hit_component: Arc<str>,
+    pub amount: u32,
+    pub damage_type: DamageType,
+}
+#[derive(Debug, Clone)]
+pub struct RadialDamageInfo {
+    pub source: Entity,
+    pub source_point: Vector3,
+    pub hit_components_in_order: Vec<Arc<str>>,
+    pub amount: u32,
+    pub damage_type: DamageType,
+}
+
+#[derive(Debug, Clone)]
+pub struct CollisionInfo {
+    pub other: Entity,
+    pub this_comp: Arc<str>,
+    pub other_comp: Arc<str>,
+    pub relative_velocity: Vector3,
+}
+
+#[derive(Debug, Clone)]
+pub struct InteractInfo {
+    pub interactor: Entity,
+}
+
+pub struct EntityVTableEntry {
+    pub on_update: fn(&mut EntityStruct, f32) -> anyhow::Result<()>,
+    pub on_point_damage: fn(&mut EntityStruct, PointDamageInfo) -> anyhow::Result<()>,
+    pub on_radial_damage: fn(&mut EntityStruct, RadialDamageInfo) -> anyhow::Result<()>,
+    pub on_collision: fn(&mut EntityStruct, CollisionInfo) -> anyhow::Result<()>,
+}
+impl Default for EntityVTableEntry {
+    fn default() -> Self {
+        Self {
+            on_update: |_, _| Ok(()),
+            on_point_damage: |_, _| Ok(()),
+            on_radial_damage: |_, _| Ok(()),
+            on_collision: |_, _| Ok(()),
+        }
+    }
+}
+pub struct GameEngineVTableEntry {
+    pub on_update: fn(f32) -> anyhow::Result<()>,
+    pub on_level_load: fn() -> anyhow::Result<()>,
+    pub on_entity_created: fn(Entity) -> anyhow::Result<()>,
+    pub on_entity_destroyed: fn(Entity) -> anyhow::Result<()>,
+}
+impl Default for GameEngineVTableEntry {
+    fn default() -> Self {
+        Self {
+            on_update: |_| Ok(()),
+            on_level_load: || Ok(()),
+            on_entity_created: |_| Ok(()),
+            on_entity_destroyed: |_| Ok(()),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct EntityNicheData {
     pub is_valid: bool,
@@ -93,6 +172,7 @@ pub struct EntityNiche {
     pub cached: RwLock<EntityStruct>,
     pub data: Mutex<EntityNicheData>,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CamData {
     pub pos: Vector3,
@@ -100,6 +180,7 @@ pub struct CamData {
     pub target: Vector3,
     pub fov: f32,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Level {
     pub entities: Box<[EntityNiche]>, //always MAX_ENTITY_COUNT in length,
@@ -108,10 +189,12 @@ pub struct Level {
 }
 
 pub struct Runtime {
+    pub game_mode: Mutex<GameMode>,
     pub level: Level,
-    pub update_table: &'static HashMap<EntityKind, EntityUpdater>,
-    pub to_load_path: Mutex<Option<Arc<str>>>,
+    pub vtable: &'static HashMap<EntityKind, EntityVTableEntry>,
+    pub game_vtable: &'static HashMap<GameMode, GameEngineVTableEntry>,
     pub event_queue: Mutex<VecDeque<Event>>,
+    pub loader_info: Mutex<LoaderInfo>,
 }
 
 #[derive(Debug)]
@@ -123,22 +206,46 @@ pub enum Event {
         other_comp: Arc<str>,
         relative_velocity: Vector3,
     },
-    PointDamage {},
-    SphericalDamage {},
+    PointDamage {
+        target: Entity,
+        info: PointDamageInfo,
+    },
+    RadialDamage {
+        target: Entity,
+        info: RadialDamageInfo,
+    },
     DestroyEntity {
         to_destroy: Entity,
     },
 }
+
+//both files use same format, one transfers entities, one does not.
+#[derive(Debug, Clone)]
+pub enum LoaderInfo {
+    None,
+    LoadSave {
+        path: Arc<str>,
+    },
+    LoadLevel {
+        entities_to_bring_with: Vec<Entity>,
+        origin_moved_to: Vector3,
+        path: Arc<str>,
+    },
+}
+
 lazy_static::lazy_static!(
     pub static ref RUNTIME: Runtime = Runtime {
         level: Level::new(),
-        update_table: &UPDATE_TABLE,
-        to_load_path:Mutex::new(None),
+        vtable: &VTABLE,
         event_queue:Mutex::new(VecDeque::new()),
+        game_mode:Mutex::new(GameMode::Menu),
+        game_vtable:&SYSTEM_VTABLE,
+        loader_info:Mutex::new(LoaderInfo::None),
     };
 );
+
 impl Entity {
-    pub fn read<'a>(&'a self) -> RwLockReadGuard<'a, EntityStruct> {
+    pub fn read(&self) -> RwLockReadGuard<'static, EntityStruct> {
         if *self == Entity::default() {
             panic!("null entity");
         }
@@ -160,7 +267,7 @@ impl Entity {
         }
     }
 
-    pub fn write<'a>(&'a self) -> RwLockWriteGuard<'a, EntityStruct> {
+    pub fn write(&self) -> RwLockWriteGuard<'static, EntityStruct> {
         if *self == Entity::default() {
             panic!("null entity");
         }
@@ -176,7 +283,7 @@ impl Entity {
         }
     }
 
-    pub fn read_checked<'a>(&'a self) -> Option<RwLockReadGuard<'a, EntityStruct>> {
+    pub fn read_checked(&self) -> Option<RwLockReadGuard<'static, EntityStruct>> {
         let data = RUNTIME.level.entities.get(self.index as usize)?;
         let genr = match data.data.lock() {
             Ok(p) => p.generation,
@@ -481,7 +588,7 @@ impl Level {
         }
         for i in self.entities() {
             let mut x = i.write();
-            if let Some(updater) = RUNTIME.update_table.get(&x.kind) {
+            if let Some(updater) = RUNTIME.vtable.get(&x.kind).map(|i| i.on_update) {
                 let res = (updater)(&mut x, delta_time);
                 if res.is_err() {
                     todo!()
@@ -497,19 +604,36 @@ impl Level {
         }
     }
 
-    pub fn tick(&'static self, handle: &mut RaylibHandle, thread: &RaylibThread) {
+    pub fn tick(
+        &'static self,
+        handle: &mut RaylibHandle,
+        thread: &RaylibThread,
+        assets: &mut Assetpack,
+    ) {
         let delta_time = handle.get_frame_time();
         _ = thread;
         self.update(delta_time);
+        if let Some(x) = RUNTIME.game_vtable.get(&*RUNTIME.game_mode.lock().unwrap()) {
+            let rs = (x.on_update)(delta_time);
+            if rs.is_err() {
+                todo!()
+            }
+        }
         let join = std::thread::spawn(move || {
             self.physics_update(delta_time);
         });
-        self.graphics_update(handle, thread);
+        self.graphics_update(handle, thread, assets);
         join.join().unwrap();
         self.poll_events();
     }
 
-    pub fn graphics_update(&self, handle: &mut RaylibHandle, thread: &RaylibThread) {
+    pub fn graphics_update(
+        &self,
+        handle: &mut RaylibHandle,
+        thread: &RaylibThread,
+        assets: &mut Assetpack,
+    ) {
+        _ = assets;
         let mut cam_data = self.camera.lock().unwrap();
         let mut cam =
             Camera3D::perspective(cam_data.pos, cam_data.target, cam_data.up, cam_data.fov);
@@ -595,21 +719,54 @@ impl Level {
                     other_comp: _,
                     relative_velocity: _,
                 } => {
-                    this.write().velocity *= -0.8;
+                    if let Some(mut r) = this.write_checked() {
+                        r.velocity *= -0.8;
+                    }
                 }
-                Event::PointDamage {} => todo!(),
-                Event::SphericalDamage {} => todo!(),
+                Event::PointDamage { target, info } => {
+                    if let Some(mut et) = target.write_checked() {
+                        let kind = et.kind;
+                        if let Some(vt) = RUNTIME.vtable.get(&kind) {
+                            let rs = (vt.on_point_damage)(&mut et, info);
+                            if rs.is_err() {
+                                todo!()
+                            }
+                        }
+                    } else {
+                        todo!()
+                    }
+                }
+                Event::RadialDamage { target, info } => {
+                    if let Some(mut et) = target.write_checked() {
+                        let kind = et.kind;
+                        if let Some(vt) = RUNTIME.vtable.get(&kind) {
+                            let rs = (vt.on_radial_damage)(&mut et, info);
+                            if rs.is_err() {
+                                todo!()
+                            }
+                        }
+                    } else {
+                        todo!()
+                    }
+                }
                 Event::DestroyEntity { to_destroy } => {
                     let tmp = &self.entities[to_destroy.index as usize];
                     let mut lck = tmp.data.lock().unwrap();
                     if lck.generation == to_destroy.generation {
                         lck.is_valid = false;
                     }
+                    if let Some(gm) = RUNTIME.game_vtable.get(&get_game_mode()) {
+                        let rs = (gm.on_entity_destroyed)(to_destroy);
+                        if rs.is_err() {
+                            todo!()
+                        }
+                    }
                 }
             }
         }
     }
 }
+
 pub fn collision_event(
     this: Entity,
     other: Entity,
@@ -648,10 +805,11 @@ pub fn create_entity() -> Entity {
             let mut r2 = RUNTIME.level.entities[i].entity.write().unwrap();
             *r = EntityStruct::default();
             *r2 = EntityStruct::default();
-            return Entity {
+            let out = Entity {
                 index: i as u32,
                 generation: g.generation,
             };
+            return out;
         }
     }
     Entity::default()
@@ -684,8 +842,13 @@ pub fn create_debug_cube(at: Vector3, vel: Vector3, size: f32, color: Color) -> 
 pub fn game_loop(setup: impl FnOnce()) {
     let (mut handle, thread) = raylib::RaylibBuilder::default().build();
     setup();
+    let mut assets = Assetpack {
+        textures: HashMap::new(),
+        meshes: HashMap::new(),
+        shaders: HashMap::new(),
+    };
     while !handle.window_should_close() {
-        RUNTIME.level.tick(&mut handle, &thread);
+        RUNTIME.level.tick(&mut handle, &thread, &mut assets);
     }
 }
 
@@ -768,4 +931,297 @@ pub fn raycast_by_kinds(
         }
     }
     out
+}
+
+pub fn get_game_mode() -> GameMode {
+    *RUNTIME.game_mode.lock().unwrap()
+}
+
+pub fn set_game_mode(mode: GameMode) {
+    *RUNTIME.game_mode.lock().unwrap() = mode;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelData {
+    pub entities: HashMap<Entity, EntityStruct>,
+    pub assets: HashMap<String, Asset>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Asset {
+    Texture(DataKind),
+    Mesh(DataKind),
+    Sound(DataKind),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DataKind {
+    Path(Arc<str>),
+    Data(Arc<[u8]>),
+}
+
+pub struct Assetpack {
+    pub textures: HashMap<Arc<str>, raylib::texture::Texture2D>,
+    pub meshes: HashMap<Arc<str>, raylib::models::Model>,
+    pub shaders: HashMap<Arc<str>, Shader>,
+}
+
+pub fn transfer_entities_to(data: &mut LevelData, entities: HashMap<Entity, EntityStruct>) {
+    let mut lut = HashMap::new();
+    for i in &entities {
+        for j in 0..MAX_ENTITY_COUNT {
+            let tmp = Entity {
+                index: j as u32,
+                generation: 1,
+            };
+            if !data.entities.contains_key(&tmp) {
+                lut.insert(*i.0, tmp);
+                data.entities.insert(tmp, i.1.clone());
+                break;
+            }
+        }
+    }
+    let new_list = lut.iter().map(|i| i.1.clone()).collect::<Vec<_>>();
+    for i in new_list {
+        let gt = data.entities.get_mut(&i).unwrap();
+        for i in gt.component_table.iter_mut() {
+            i.1.parent_id = lut[&i.1.parent_id];
+            for j in &mut i.1.entity_data {
+                if lut.contains_key(&*j) {
+                    *j = lut[&*j];
+                }
+            }
+        }
+        for i in gt.data_component_table.iter_mut() {
+            i.1.parent_id = lut[&i.1.parent_id];
+            for j in &mut i.1.entity_data {
+                if lut.contains_key(&*j) {
+                    *j = lut[&*j];
+                }
+            }
+        }
+    }
+    let entity_list = data
+        .entities
+        .iter()
+        .map(|i| i.0.clone())
+        .collect::<Vec<_>>();
+    let mut lut2 = HashMap::new();
+    for i in entity_list {
+        lut2.insert(
+            i,
+            Entity {
+                index: i.index,
+                generation: 1,
+            },
+        );
+    }
+    drop(lut);
+    let mut data2 = HashMap::new();
+    for i in data.entities.iter_mut() {
+        for i in i.1.component_table.iter_mut() {
+            i.1.parent_id = lut2[&i.1.parent_id];
+            for j in &mut i.1.entity_data {
+                if lut2.contains_key(&*j) {
+                    *j = lut2[&*j];
+                } else {
+                    *j = Entity::default();
+                }
+            }
+        }
+        for i in i.1.data_component_table.iter_mut() {
+            i.1.parent_id = lut2[&i.1.parent_id];
+            for j in &mut i.1.entity_data {
+                if lut2.contains_key(&*j) {
+                    *j = lut2[&*j];
+                } else {
+                    *j = Entity::default();
+                }
+            }
+        }
+        data2.insert(lut2[&i.0], i.1.clone());
+    }
+    data.entities = data2;
+}
+pub enum EntityRef<'a> {
+    Reference(&'a mut EntityStruct),
+    Write(RwLockWriteGuard<'a, EntityStruct>),
+    Read(RwLockReadGuard<'a, EntityStruct>),
+}
+
+impl<'a> EntityRef<'a> {
+    pub fn read(&self) -> &EntityStruct {
+        match self {
+            Self::Reference(r) => *r,
+            Self::Write(r) => &**r,
+            Self::Read(r) => &**r,
+        }
+    }
+    pub fn write(&mut self) -> &mut EntityStruct {
+        match self {
+            Self::Reference(r) => *r,
+            Self::Write(r) => &mut **r,
+            Self::Read(_) => {
+                todo!()
+            }
+        }
+    }
+    pub fn try_write(&mut self) -> Option<&mut EntityStruct> {
+        match self {
+            Self::Reference(r) => Some(*r),
+            Self::Write(r) => Some(&mut **r),
+            Self::Read(_) => None,
+        }
+    }
+}
+
+pub trait EntityWrapper<'a>: Sized + 'a {
+    fn create(x: EntityRef<'a>) -> Result<Self, EntityRef<'a>>;
+}
+
+#[macro_export]
+macro_rules! make_trait_wrapper {
+    ($name:ident,
+        $kind:expr,
+        $constructor:expr, (constructor_args $(
+            $arg_name:ident:$arg_t:ty
+        $(,)?)*),
+        (data component names: $(($data_comp_name:literal:$data_comp_kind:expr)$(,)?)*),
+        ($(($var_name:ident, $var_type:ty,$source_comp:literal,$source_name:ident, $source_idx:literal, $data_getter_name:ident, $data_getter_mut_name:ident)$(,)?)*), ($(
+            ($comp_name:literal, $comp_kind:expr, $comp_type:ty, $getter_name:ident, $getter_mut_name:ident)
+        )*)) => {
+        pub struct $name<'a> {
+            value: EntityRef<'a>,
+        }
+        impl<'a> $name<'a>
+        {
+            pub fn get(&self)->&EntityStruct{
+                self.value.read()
+            }
+
+            pub fn get_mut(&mut self)->&mut EntityStruct{
+                self.value.write()
+            }
+            $(
+                pub fn $data_getter_name(&self)->&$var_type{
+                    &self.value.read().data_component_table.get($source_comp).unwrap().$source_name[$source_idx]
+                }
+
+                pub fn $data_getter_mut_name(&mut self)->&mut $var_type{
+                    &mut self.value.write().data_component_table.get_mut($source_comp).unwrap().$source_name[$source_idx]
+                }
+            )*
+            $(
+                pub fn $getter_name<'b>(&'b self)->$comp_type{
+                   <$comp_type>::from_ref(self.get().component_table.get($comp_name).unwrap())
+                }
+                pub fn $getter_mut_name<'b>(&'b mut self)->$comp_type{
+                   <$comp_type>::from_mut(self.get_mut().component_table.get_mut($comp_name).unwrap())
+                }
+            )*
+            pub fn new(pos:raylib::math::Vector3,$($var_name:$var_type,)* $($arg_name:$arg_t,)*)->Entity{
+                let  out = create_entity();
+                let out_act = out.clone();
+                let mut ent = out.write();
+                ent.position = pos;
+                $(
+                    {
+                    let mut comp =crate::system::EntityDataComponent::default();
+                    comp.parent_id = out;
+                    comp.kind = $data_comp_kind;
+                    ent.data_component_table.insert(
+                        $data_comp_name.into(),comp
+                    );
+                    }
+                )*
+                $(
+                    {
+                    let mut comp = crate::system::EntityComponent::default();
+                    comp.kind = $comp_kind;
+                    comp.width = 1.0;
+                    comp.height = 1.0;
+                    comp.depth = 1.0;
+                    comp.parent_id= out;
+                    ent.component_table.insert($comp_name.into(), comp);
+                    }
+                )*
+                let mut v = Self{
+                    value:EntityRef::Write(ent)
+                };
+                $(
+                    *v.$data_getter_mut_name() = $var_name;
+                )*
+                $constructor(&mut v,$($arg_name,)*);
+                out_act
+            }
+        }
+        impl<'a> EntityWrapper<'a> for $name<'a>{
+            fn create(x:EntityRef<'a>)->Result<Self, EntityRef<'a>>{
+                if x.read().kind != $kind{
+                    Err(x)
+                } else{Ok(Self{value:x})}
+            }
+        }
+    };
+}
+
+pub enum ComponentRef<'a> {
+    Reference(&'a EntityComponent),
+    ReferenceMut(&'a mut EntityComponent),
+}
+impl<'a> ComponentRef<'a> {
+    pub fn get(&self) -> &EntityComponent {
+        match self {
+            Self::Reference(x) => x,
+            Self::ReferenceMut(x) => x,
+        }
+    }
+    pub fn get_mut(&mut self) -> &mut EntityComponent {
+        match self {
+            Self::Reference(_) => {
+                todo!();
+            }
+            Self::ReferenceMut(x) => x,
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! make_component_wrapper {
+    ($name:ident,
+        $kind:expr,
+        ($(($var_name:ident, $var_type:ty,$source_name:ident, $source_idx:literal, $getter_name:ident, $getter_mut_name:ident)$(,)?)*)) => {
+        pub struct $name<'a> {
+            value: ComponentRef<'a>,
+        }
+        impl<'a> $name<'a>
+        {
+            pub fn from_ref(v:&'a EntityComponent)->Self{
+                Self{
+                    value:ComponentRef::Reference(v)
+                }
+            }
+            pub fn from_mut(v:&'a mut EntityComponent)->Self{
+                Self{
+                    value:ComponentRef::ReferenceMut(v)
+                }
+            }
+            pub fn get(&self)->&EntityComponent{
+                self.value.get()
+            }
+
+            pub fn get_mut(&mut self)->&mut EntityComponent{
+                self.value.get_mut()
+            }
+            $(
+                pub fn $getter_name(&self)->&$var_type{
+                    &self.value.get().$source_name[$source_idx]
+                }
+
+                pub fn $getter_mut_name(&mut self)->&mut $var_type{
+                    &mut self.value.get_mut().$source_name[$source_idx]
+                }
+            )*
+        }
+    }
 }
