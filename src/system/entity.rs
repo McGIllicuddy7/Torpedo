@@ -1,10 +1,11 @@
 pub use anyhow::Result;
 use raylib::camera::Camera3D;
 use raylib::color::Color;
-use raylib::math::Quaternion;
 pub use raylib::math::{BoundingBox, RayCollision, Vector3};
-use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt};
-use raylib::shaders::Shader;
+use raylib::math::{Quaternion, Vector2};
+use raylib::models::{Mesh, Model, RaylibMesh, RaylibModel};
+use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt, RaylibShaderModeExt};
+use raylib::shaders::{RaylibShader, Shader};
 use raylib::{RaylibHandle, RaylibThread};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -95,6 +96,7 @@ pub struct EntityDataComponent {
     pub entity_data: [Entity; 4],
     pub string_data: [Option<Arc<str>>; 4],
     pub vector_data: [Vector3; 4],
+    pub vector_data_lists: [Vec<Vector3>; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -144,15 +146,16 @@ impl Default for EntityVTableEntry {
     }
 }
 pub struct GameEngineVTableEntry {
-    pub on_update: fn(f32) -> anyhow::Result<()>,
+    pub on_update: fn(f32, handle: &mut RaylibHandle) -> anyhow::Result<()>,
     pub on_level_load: fn() -> anyhow::Result<()>,
     pub on_entity_created: fn(Entity) -> anyhow::Result<()>,
     pub on_entity_destroyed: fn(Entity) -> anyhow::Result<()>,
 }
+
 impl Default for GameEngineVTableEntry {
     fn default() -> Self {
         Self {
-            on_update: |_| Ok(()),
+            on_update: |_, _| Ok(()),
             on_level_load: || Ok(()),
             on_entity_created: |_| Ok(()),
             on_entity_destroyed: |_| Ok(()),
@@ -186,6 +189,7 @@ pub struct Level {
     pub entities: Box<[EntityNiche]>, //always MAX_ENTITY_COUNT in length,
     pub player_entity: Mutex<Option<Entity>>,
     pub camera: Mutex<CamData>,
+    pub star_positions: Mutex<(Box<[Vector2]>, Box<[f32]>)>,
 }
 
 pub struct Runtime {
@@ -412,6 +416,7 @@ impl Level {
                 }),
             })
             .collect();
+
         Self {
             entities: list.into(),
             player_entity: Mutex::new(None),
@@ -421,6 +426,7 @@ impl Level {
                 target: Vector3::forward(),
                 fov: 90.,
             }),
+            star_positions: Mutex::new((Box::new([]), Box::new([]))),
         }
     }
 }
@@ -614,7 +620,7 @@ impl Level {
         _ = thread;
         self.update(delta_time);
         if let Some(x) = RUNTIME.game_vtable.get(&*RUNTIME.game_mode.lock().unwrap()) {
-            let rs = (x.on_update)(delta_time);
+            let rs = (x.on_update)(delta_time, handle);
             if rs.is_err() {
                 todo!()
             }
@@ -651,6 +657,9 @@ impl Level {
         cam_data.up = cam.up;
         let mut draw = handle.begin_drawing(thread);
         draw.clear_background(Color::BLACK);
+        unsafe {
+            raylib::ffi::rlSetClipPlanes(0.001, 100000.0);
+        }
         let mut mode = draw.begin_mode3D(cam);
         for i in self.entities() {
             let j = i.read();
@@ -658,7 +667,7 @@ impl Level {
             for k in j.component_table.values() {
                 let comp_pos = pos + k.offset.rotate_by(j.rotation);
                 if comp_pos.distance_to(cam_data.pos) > 200. {
-                    continue;
+                    //          continue;
                 }
                 match k.render_as {
                     RenderKind::Cube => {
@@ -675,6 +684,17 @@ impl Level {
                     }
                 }
             }
+        }
+        unsafe {
+            raylib::ffi::rlDisableBackfaceCulling();
+            let cb = assets.meshes.get_mut("sky").unwrap();
+            let old = cb.materials()[0].shader;
+            let shader = assets.shaders.get_mut("sky_shader").unwrap();
+            cb.materials_mut()[0].shader = **shader;
+            (*cb.materials_mut()[0].maps).texture = *assets.textures["sky"];
+            mode.draw_model(&*cb, Vector3::zero(), 5000.0, Color::WHITE);
+            cb.materials_mut()[0].shader = old;
+            raylib::ffi::rlEnableBackfaceCulling();
         }
         drop(mode);
         draw.draw_fps(1500, 60);
@@ -842,11 +862,7 @@ pub fn create_debug_cube(at: Vector3, vel: Vector3, size: f32, color: Color) -> 
 pub fn game_loop(setup: impl FnOnce()) {
     let (mut handle, thread) = raylib::RaylibBuilder::default().build();
     setup();
-    let mut assets = Assetpack {
-        textures: HashMap::new(),
-        meshes: HashMap::new(),
-        shaders: HashMap::new(),
-    };
+    let mut assets = create_asset_pack(&mut handle, &thread);
     while !handle.window_should_close() {
         RUNTIME.level.tick(&mut handle, &thread, &mut assets);
     }
@@ -1043,205 +1059,59 @@ pub fn transfer_entities_to(data: &mut LevelData, entities: HashMap<Entity, Enti
     }
     data.entities = data2;
 }
-pub enum EntityRef<'a> {
-    Reference(&'a mut EntityStruct),
-    Write(RwLockWriteGuard<'a, EntityStruct>),
-    Read(RwLockReadGuard<'a, EntityStruct>),
-}
 
-impl<'a> EntityRef<'a> {
-    pub fn read(&self) -> &EntityStruct {
-        match self {
-            Self::Reference(r) => *r,
-            Self::Write(r) => &**r,
-            Self::Read(r) => &**r,
-        }
+pub fn create_asset_pack(handle: &mut RaylibHandle, thread: &RaylibThread) -> Assetpack {
+    let shader = handle.load_shader(thread, None, Some("shaders/star_frag.glsl"));
+    let cube_mesh = raylib::prelude::Mesh::gen_mesh_cube(&thread, 1., 1., 1.);
+    let sphere_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 30, 30);
+    let sky_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 20, 20);
+    let cone_mesh = raylib::prelude::Mesh::gen_mesh_cone(thread, 0.1, 1.0, 32);
+    let cylinder_mesh = raylib::prelude::Mesh::gen_mesh_cylinder(thread, 0.1, 1., 32);
+    let mut mesh_map: HashMap<Arc<str>, Model> = HashMap::new();
+    unsafe {
+        mesh_map.insert(
+            "cube".into(),
+            handle
+                .load_model_from_mesh(thread, cube_mesh.make_weak())
+                .unwrap(),
+        );
+        mesh_map.insert(
+            "sphere".into(),
+            handle
+                .load_model_from_mesh(thread, sphere_mesh.make_weak())
+                .unwrap(),
+        );
+        mesh_map.insert(
+            "cone".into(),
+            handle
+                .load_model_from_mesh(thread, cone_mesh.make_weak())
+                .unwrap(),
+        );
+        mesh_map.insert(
+            "cylinder".into(),
+            handle
+                .load_model_from_mesh(thread, cylinder_mesh.make_weak())
+                .unwrap(),
+        );
+        mesh_map.insert(
+            "sky".into(),
+            handle
+                .load_model_from_mesh(thread, sky_mesh.make_weak())
+                .unwrap(),
+        );
     }
-    pub fn write(&mut self) -> &mut EntityStruct {
-        match self {
-            Self::Reference(r) => *r,
-            Self::Write(r) => &mut **r,
-            Self::Read(_) => {
-                todo!()
-            }
-        }
-    }
-    pub fn try_write(&mut self) -> Option<&mut EntityStruct> {
-        match self {
-            Self::Reference(r) => Some(*r),
-            Self::Write(r) => Some(&mut **r),
-            Self::Read(_) => None,
-        }
-    }
-}
-
-pub trait EntityWrapper<'a>: Sized + 'a {
-    fn create(x: EntityRef<'a>) -> Result<Self, EntityRef<'a>>;
-}
-
-#[macro_export]
-macro_rules! make_trait_wrapper {
-    ($name:ident,
-        $kind:expr,
-        $constructor:expr, (constructor_args $(
-            $arg_name:ident:$arg_t:ty
-        $(,)?)*),
-        (data component names: $(($data_comp_name:literal:$data_comp_kind:expr)$(,)?)*),
-        ($(($var_name:ident, $var_type:ty,$source_comp:literal,$source_name:ident, $source_idx:literal, $data_getter_name:ident, $data_getter_mut_name:ident)$(,)?)*), ($(
-            ($comp_name:literal, $comp_kind:expr, $comp_type:ident, $comp_type_mut:ident,$getter_name:ident, $getter_mut_name:ident)
-        )*)) => {
-        pub struct $name<'a> {
-            value: EntityRef<'a>,
-        }
-        impl<'a> $name<'a>
-        {
-            pub fn get(&self)->&EntityStruct{
-                self.value.read()
-            }
-
-            pub fn get_mut(&mut self)->&mut EntityStruct{
-                self.value.write()
-            }
-            $(
-                pub fn $data_getter_name(&self)->&$var_type{
-                    &self.value.read().data_component_table.get($source_comp).unwrap().$source_name[$source_idx]
-                }
-
-                pub fn $data_getter_mut_name(&mut self)->&mut $var_type{
-                    &mut self.value.write().data_component_table.get_mut($source_comp).unwrap().$source_name[$source_idx]
-                }
-            )*
-            $(
-                pub fn $getter_name<'b>(&'b self)->$comp_type<'b>{
-                   <$comp_type>::from_ref(self.get().component_table.get($comp_name).unwrap())
-                }
-                pub fn $getter_mut_name<'b>(&'b mut self)->$comp_type_mut<'b>{
-                   <$comp_type_mut>::from_mut(self.get_mut().component_table.get_mut($comp_name).unwrap())
-                }
-            )*
-            pub fn new(pos:raylib::math::Vector3,$($var_name:$var_type,)* $($arg_name:$arg_t,)*)->Entity{
-                let  out = create_entity();
-                let out_act = out.clone();
-                let mut ent = out.write();
-                ent.position = pos;
-                $(
-                    {
-                    let mut comp =crate::system::EntityDataComponent::default();
-                    comp.parent_id = out;
-                    comp.kind = $data_comp_kind;
-                    ent.data_component_table.insert(
-                        $data_comp_name.into(),comp
-                    );
-                    }
-                )*
-                $(
-                    {
-                    let mut comp = crate::system::EntityComponent::default();
-                    comp.kind = $comp_kind;
-                    comp.width = 1.0;
-                    comp.height = 1.0;
-                    comp.depth = 1.0;
-                    comp.parent_id= out;
-                    ent.component_table.insert($comp_name.into(), comp);
-                    }
-                )*
-                let mut v = Self{
-                    value:EntityRef::Write(ent)
-                };
-                $(
-                    *v.$data_getter_mut_name() = $var_name;
-                )*
-                $constructor(&mut v,$($arg_name,)*);
-                out_act
-            }
-        }
-        impl<'a> EntityWrapper<'a> for $name<'a>{
-            fn create(x:EntityRef<'a>)->Result<Self, EntityRef<'a>>{
-                if x.read().kind != $kind{
-                    Err(x)
-                } else{Ok(Self{value:x})}
-            }
-        }
-    };
-}
-
-pub enum ComponentRef<'a> {
-    Reference(&'a EntityComponent),
-    ReferenceMut(&'a mut EntityComponent),
-}
-impl<'a> ComponentRef<'a> {
-    pub fn get(&self) -> &EntityComponent {
-        match self {
-            Self::Reference(x) => x,
-            Self::ReferenceMut(x) => x,
-        }
-    }
-    pub fn get_mut(&mut self) -> &mut EntityComponent {
-        match self {
-            Self::Reference(_) => {
-                todo!();
-            }
-            Self::ReferenceMut(x) => x,
-        }
+    let mut shaders: HashMap<_, Shader> = HashMap::new();
+    shaders.insert("sky_shader".into(), shader);
+    let mut textures = HashMap::new();
+    let h = handle.load_texture(thread, "hazy_nebulae_1.png").unwrap();
+    textures.insert("sky".into(), h);
+    Assetpack {
+        textures,
+        meshes: mesh_map,
+        shaders: shaders,
     }
 }
 
-#[macro_export]
-macro_rules! make_component_wrapper {
-    ($name:ident,$mut_name:ident,
-        $kind:expr,
-        ($(($var_name:ident, $var_type:ty,$source_name:ident, $source_idx:literal, $getter_name:ident, $getter_mut_name:ident)$(,)?)*)) => {
-        pub struct $mut_name<'a> {
-            value: ComponentRef<'a>,
-        }
-        impl<'a> $mut_name<'a>
-        {
-            pub fn from_mut(v:&'a mut EntityComponent)->Self{
-                Self{
-                    value:ComponentRef::ReferenceMut(v)
-                }
-            }
-            pub fn get(&self)->&EntityComponent{
-                self.value.get()
-            }
-
-            pub fn get_mut(&mut self)->&mut EntityComponent{
-                self.value.get_mut()
-            }
-            $(
-                pub fn $getter_name(&self)->&$var_type{
-                    &self.value.get().$source_name[$source_idx]
-                }
-
-                pub fn $getter_mut_name(&mut self)->&mut $var_type{
-                    &mut self.value.get_mut().$source_name[$source_idx]
-                }
-            )*
-        }
-        pub struct $name<'a> {
-            value: ComponentRef<'a>,
-        }
-        impl<'a> $name<'a>
-        {
-            pub fn from_ref(v:&'a EntityComponent)->Self{
-                Self{
-                    value:ComponentRef::Reference(v)
-                }
-            }
-            pub fn from_mut(v:&'a mut EntityComponent)->Self{
-                Self{
-                    value:ComponentRef::ReferenceMut(v)
-                }
-            }
-            pub fn get(&self)->&EntityComponent{
-                self.value.get()
-            }
-
-            $(
-                pub fn $getter_name(&self)->&$var_type{
-                    &self.value.get().$source_name[$source_idx]
-                }
-            )*
-        }
-    }
+pub fn get_star_data() -> MutexGuard<'static, (Box<[Vector2]>, Box<[f32]>)> {
+    RUNTIME.level.star_positions.lock().unwrap()
 }
