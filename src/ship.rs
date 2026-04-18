@@ -49,7 +49,7 @@ pub fn new_sun(at: Vector3, size: f32) -> Entity {
 pub fn create_solar_system() {
     for _ in 0..256 {
         let pos = random_position();
-        new_asteroid(pos, (random_float() + 0.25) * 0.5);
+        new_asteroid(pos, (random_float() + 0.25));
     }
     let mut l1 = Vec::new();
     let mut l2 = Vec::new();
@@ -70,7 +70,7 @@ pub fn random_float() -> f32 {
 }
 
 pub fn random_position() -> Vector3 {
-    let radius = (random_float() + 0.25) * 500.0;
+    let radius = (random_float() + 0.25) * 50.0;
     let phi = random_float() * TAU;
     let theta = random_float() * TAU;
     from_spherical(radius, phi, theta)

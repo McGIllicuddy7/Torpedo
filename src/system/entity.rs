@@ -2,8 +2,9 @@ pub use anyhow::Result;
 use raylib::camera::Camera3D;
 use raylib::color::Color;
 pub use raylib::math::{BoundingBox, RayCollision, Vector3};
-use raylib::math::{Quaternion, Vector2};
+use raylib::math::{Matrix, Quaternion, Vector2, Vector4};
 use raylib::models::{Mesh, Model, RaylibMesh, RaylibModel};
+use raylib::prelude::RenderTexture2D;
 use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt, RaylibShaderModeExt};
 use raylib::shaders::{RaylibShader, Shader};
 use raylib::{RaylibHandle, RaylibThread};
@@ -24,6 +25,7 @@ lazy_static::lazy_static!(
 lazy_static::lazy_static!(
     pub static ref SYSTEM_VTABLE:HashMap<GameMode, GameEngineVTableEntry> = make_system_vtable();
 );
+
 pub use crate::{EntityComponentKind, EntityKind};
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub enum RenderKind {
@@ -49,6 +51,7 @@ pub struct Entity {
     index: u32,
     generation: u32,
 }
+
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct EntityStruct {
     pub self_id: Entity,
@@ -78,6 +81,7 @@ pub struct EntityComponent {
     pub u32_data: [u32; 8],
     pub i32_data: [i32; 8],
     pub f32_data: [f32; 8],
+    pub lights: Vec<Light>,
     pub entity_data: [Entity; 4],
     pub string_data: [Option<Arc<str>>; 4],
     pub children: Vec<Arc<str>>,
@@ -107,6 +111,7 @@ pub struct PointDamageInfo {
     pub amount: u32,
     pub damage_type: DamageType,
 }
+
 #[derive(Debug, Clone)]
 pub struct RadialDamageInfo {
     pub source: Entity,
@@ -183,9 +188,21 @@ pub struct CamData {
     pub target: Vector3,
     pub fov: f32,
 }
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct Light {
+    pub position: Vector3,
+    pub color: Vector4,
+}
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct LightingData {
+    pub ambient_light_color: Vector4,
+    pub directional_light_direction: Vector3,
+    pub directional_light_color: Vector4,
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Level {
+    pub lighting_data: Mutex<LightingData>,
     pub entities: Box<[EntityNiche]>, //always MAX_ENTITY_COUNT in length,
     pub player_entity: Mutex<Option<Entity>>,
     pub camera: Mutex<CamData>,
@@ -426,6 +443,11 @@ impl Level {
                 target: Vector3::forward(),
                 fov: 90.,
             }),
+            lighting_data: Mutex::new(LightingData {
+                ambient_light_color: Vector4::new(1.0 * 0.1, 0.95 * 0.1, 0.9 * 0.1, 1.0),
+                directional_light_color: Vector4::new(1.0 * 0.5, 0.95 * 0.5, 0.9 * 0.5, 1.0),
+                directional_light_direction: (Vector3::forward() + Vector3::up()).normalized(),
+            }),
             star_positions: Mutex::new((Box::new([]), Box::new([]))),
         }
     }
@@ -660,6 +682,36 @@ impl Level {
         unsafe {
             raylib::ffi::rlSetClipPlanes(0.001, 100000.0);
         }
+        let mut lights: Vec<Light> = Vec::new();
+        for i in self.entities() {
+            let g = i.read();
+            for j in &g.component_table {
+                for t in &j.1.lights {
+                    let mut tmp = *t;
+                    let offset = j.1.offset + tmp.position;
+                    let base = g.position;
+                    tmp.position = base + offset.rotate_by(g.rotation);
+                    lights.push(tmp);
+                }
+            }
+        }
+        let shade = assets.shaders.get_mut("shader").unwrap();
+        let positions_idx = shade.get_shader_location("light_positions");
+        let colors_idx = shade.get_shader_location("light_colors");
+        let len_idx = shade.get_shader_location("light_count");
+        {
+            let data = RUNTIME.level.lighting_data.lock().unwrap();
+            let cam_pos_idx = shade.get_shader_location("camera_position");
+            let ambient_idx = shade.get_shader_location("ambient");
+            let direction_idx = shade.get_shader_location("directional_light_direction");
+            let direction_color_idx = shade.get_shader_location("directional_light_color");
+            shade.set_shader_value(len_idx, lights.len() as i32);
+            shade.set_shader_value(cam_pos_idx, cam.position);
+            shade.set_shader_value(ambient_idx, data.ambient_light_color);
+            shade.set_shader_value(direction_idx, data.directional_light_direction);
+            shade.set_shader_value(direction_color_idx, data.directional_light_color);
+        }
+        let _ = shade;
         let mut mode = draw.begin_mode3D(cam);
         for i in self.entities() {
             let j = i.read();
@@ -669,19 +721,46 @@ impl Level {
                 if comp_pos.distance_to(cam_data.pos) > 200. {
                     //          continue;
                 }
-                match k.render_as {
-                    RenderKind::Cube => {
-                        mode.draw_cube(comp_pos, k.width, k.height, k.depth, k.color);
-                    }
-                    RenderKind::Cylinder => {
-                        mode.draw_cylinder(comp_pos, k.width, k.width, k.height, 30, k.color);
-                    }
-                    RenderKind::Sphere => {
-                        mode.draw_sphere(comp_pos, k.width, k.color);
-                    }
-                    RenderKind::Cone => {
-                        mode.draw_cylinder(comp_pos, 0.0, k.width, k.height, 30, k.color);
-                    }
+                let mut positions = [Vector3::zero(); 16];
+                let mut colors = [Vector4::new(0.0, 0.0, 0.0, 0.0); 16];
+                let mut con = lights.clone();
+                con.sort_by(|i, j| {
+                    i.position
+                        .distance_to(comp_pos)
+                        .partial_cmp(&j.position.distance_to(comp_pos))
+                        .unwrap()
+                });
+                con = con.into_iter().take(16).collect();
+                for (idx, i) in con.iter().enumerate() {
+                    positions[idx] = i.position;
+                    colors[idx] = i.color;
+                }
+                {
+                    let shade = assets.shaders.get_mut("shader").unwrap();
+                    shade.set_shader_value_v(positions_idx, &positions);
+                    shade.set_shader_value_v(colors_idx, &colors);
+                    shade.set_shader_value(len_idx, con.len() as i32);
+                }
+                let mesh = match k.render_as {
+                    RenderKind::Cube => assets.meshes.get_mut("cube").unwrap(),
+                    RenderKind::Cylinder => assets.meshes.get_mut("cylinder").unwrap(),
+                    RenderKind::Sphere => assets.meshes.get_mut("sphere").unwrap(),
+                    RenderKind::Cone => assets.meshes.get_mut("cone").unwrap(),
+                };
+                let old = mesh.materials_mut()[0].shader;
+                mesh.materials_mut()[0].shader = **assets.shaders.get_mut("shader").unwrap();
+                let old_tex = unsafe { (*mesh.materials_mut()[0].maps.add(1)).texture };
+                unsafe {
+                    (*mesh.materials_mut()[0].maps.add(1)).texture = assets.lightmap.texture;
+                }
+                let old_trans = mesh.transform;
+                mesh.transform =
+                    (j.rotation.to_matrix() * Matrix::scale(k.width, k.height, k.depth)).into();
+                mode.draw_model(&mesh, comp_pos, 1.0, Color::WHITE);
+                mesh.materials_mut()[0].shader = old;
+                mesh.transform = old_trans;
+                unsafe {
+                    (*mesh.materials_mut()[0].maps.add(1)).texture = old_tex;
                 }
             }
         }
@@ -980,6 +1059,7 @@ pub struct Assetpack {
     pub textures: HashMap<Arc<str>, raylib::texture::Texture2D>,
     pub meshes: HashMap<Arc<str>, raylib::models::Model>,
     pub shaders: HashMap<Arc<str>, Shader>,
+    pub lightmap: RenderTexture2D,
 }
 
 pub fn transfer_entities_to(data: &mut LevelData, entities: HashMap<Entity, EntityStruct>) {
@@ -1063,8 +1143,8 @@ pub fn transfer_entities_to(data: &mut LevelData, entities: HashMap<Entity, Enti
 pub fn create_asset_pack(handle: &mut RaylibHandle, thread: &RaylibThread) -> Assetpack {
     let shader = handle.load_shader(thread, None, Some("shaders/star_frag.glsl"));
     let cube_mesh = raylib::prelude::Mesh::gen_mesh_cube(&thread, 1., 1., 1.);
-    let sphere_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 30, 30);
-    let sky_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 20, 20);
+    let sphere_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 20, 20);
+    let sky_mesh = raylib::prelude::Mesh::gen_mesh_sphere(thread, 1., 3, 3);
     let cone_mesh = raylib::prelude::Mesh::gen_mesh_cone(thread, 0.1, 1.0, 32);
     let cylinder_mesh = raylib::prelude::Mesh::gen_mesh_cylinder(thread, 0.1, 1., 32);
     let mut mesh_map: HashMap<Arc<str>, Model> = HashMap::new();
@@ -1102,13 +1182,18 @@ pub fn create_asset_pack(handle: &mut RaylibHandle, thread: &RaylibThread) -> As
     }
     let mut shaders: HashMap<_, Shader> = HashMap::new();
     shaders.insert("sky_shader".into(), shader);
+    let gshader = handle.load_shader(thread, Some("shaders/vert.glsl"), Some("shaders/frag.glsl"));
+    shaders.insert("shader".into(), gshader);
     let mut textures = HashMap::new();
     let h = handle.load_texture(thread, "hazy_nebulae_1.png").unwrap();
+
     textures.insert("sky".into(), h);
+    let lightmap = handle.load_render_texture(thread, 4096, 4096).unwrap();
     Assetpack {
         textures,
         meshes: mesh_map,
         shaders: shaders,
+        lightmap,
     }
 }
 
