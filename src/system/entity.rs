@@ -1,17 +1,20 @@
 pub use anyhow::Result;
+use rand::Rng;
 use raylib::camera::Camera3D;
 use raylib::color::Color;
 pub use raylib::math::{BoundingBox, RayCollision, Vector3};
-use raylib::math::{Matrix, Quaternion, Vector2, Vector4};
-use raylib::models::{Mesh, Model, RaylibMesh, RaylibModel};
-use raylib::prelude::RenderTexture2D;
+use raylib::math::{Matrix, Quaternion, Ray, Vector2, Vector4};
+use raylib::models::{Material, Mesh, Model, RaylibMesh, RaylibModel};
 use raylib::prelude::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt, RaylibShaderModeExt};
+use raylib::prelude::{RaylibTextureModeExt, RenderTexture2D};
 use raylib::shaders::{RaylibShader, Shader};
+use raylib::texture::{Image, RaylibRenderTexture2D};
 use raylib::{RaylibHandle, RaylibThread};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 pub use std::collections::HashMap;
 use std::collections::{HashSet, VecDeque};
+use std::f32::consts::TAU;
 use std::hash::Hash;
 pub use std::sync::Arc;
 pub use std::sync::{Mutex, RwLock};
@@ -216,6 +219,7 @@ pub struct Runtime {
     pub game_vtable: &'static HashMap<GameMode, GameEngineVTableEntry>,
     pub event_queue: Mutex<VecDeque<Event>>,
     pub loader_info: Mutex<LoaderInfo>,
+    pub should_redo_lighting: Mutex<bool>,
 }
 
 #[derive(Debug)]
@@ -262,6 +266,8 @@ lazy_static::lazy_static!(
         game_mode:Mutex::new(GameMode::Menu),
         game_vtable:&SYSTEM_VTABLE,
         loader_info:Mutex::new(LoaderInfo::None),
+        should_redo_lighting:Mutex::new(false),
+
     };
 );
 
@@ -446,7 +452,7 @@ impl Level {
             lighting_data: Mutex::new(LightingData {
                 ambient_light_color: Vector4::new(1.0 * 0.1, 0.95 * 0.1, 0.9 * 0.1, 1.0),
                 directional_light_color: Vector4::new(1.0 * 0.5, 0.95 * 0.5, 0.9 * 0.5, 1.0),
-                directional_light_direction: (Vector3::forward() + Vector3::up()).normalized(),
+                directional_light_direction: (-Vector3::up()).normalized(),
             }),
             star_positions: Mutex::new((Box::new([]), Box::new([]))),
         }
@@ -653,6 +659,12 @@ impl Level {
         self.graphics_update(handle, thread, assets);
         join.join().unwrap();
         self.poll_events();
+        let mut should_update_graphics = RUNTIME.should_redo_lighting.lock().unwrap();
+        if *should_update_graphics {
+            *should_update_graphics = false;
+            drop(should_update_graphics);
+            rebuild_lightmap(assets, handle, thread);
+        }
     }
 
     pub fn graphics_update(
@@ -710,6 +722,7 @@ impl Level {
             shade.set_shader_value(ambient_idx, data.ambient_light_color);
             shade.set_shader_value(direction_idx, data.directional_light_direction);
             shade.set_shader_value(direction_color_idx, data.directional_light_color);
+            // shade.set_shader_value_texture(map_idx, assets.lightmap.texture());]un
         }
         let _ = shade;
         let mut mode = draw.begin_mode3D(cam);
@@ -748,19 +761,22 @@ impl Level {
                     RenderKind::Cone => assets.meshes.get_mut("cone").unwrap(),
                 };
                 let old = mesh.materials_mut()[0].shader;
-                mesh.materials_mut()[0].shader = **assets.shaders.get_mut("shader").unwrap();
                 let old_tex = unsafe { (*mesh.materials_mut()[0].maps.add(1)).texture };
-                unsafe {
-                    (*mesh.materials_mut()[0].maps.add(1)).texture = assets.lightmap.texture;
-                }
+                let shade = assets.shaders.get_mut("shader").unwrap();
+                mesh.materials_mut()[0].shader = **shade;
                 let old_trans = mesh.transform;
                 mesh.transform =
                     (j.rotation.to_matrix() * Matrix::scale(k.width, k.height, k.depth)).into();
+                unsafe {
+                    (*(*mesh.materials).maps.add(1)).texture = **assets.lightmap.texture();
+                    mesh.materialCount = 2;
+                };
                 mode.draw_model(&mesh, comp_pos, 1.0, Color::WHITE);
                 mesh.materials_mut()[0].shader = old;
                 mesh.transform = old_trans;
                 unsafe {
                     (*mesh.materials_mut()[0].maps.add(1)).texture = old_tex;
+                    mesh.materialCount = 1;
                 }
             }
         }
@@ -776,7 +792,9 @@ impl Level {
             raylib::ffi::rlEnableBackfaceCulling();
         }
         drop(mode);
+        //draw.draw_texture(assets.lightmap.texture(), 1000, 100, Color::WHITE);
         draw.draw_fps(1500, 60);
+        drop(draw);
     }
 
     pub fn entities(&self) -> impl Iterator<Item = Entity> {
@@ -1061,6 +1079,7 @@ pub struct Assetpack {
     pub shaders: HashMap<Arc<str>, Shader>,
     pub lightmap: RenderTexture2D,
 }
+unsafe impl Sync for Assetpack {}
 
 pub fn transfer_entities_to(data: &mut LevelData, entities: HashMap<Entity, EntityStruct>) {
     let mut lut = HashMap::new();
@@ -1186,9 +1205,9 @@ pub fn create_asset_pack(handle: &mut RaylibHandle, thread: &RaylibThread) -> As
     shaders.insert("shader".into(), gshader);
     let mut textures = HashMap::new();
     let h = handle.load_texture(thread, "hazy_nebulae_1.png").unwrap();
-
     textures.insert("sky".into(), h);
-    let lightmap = handle.load_render_texture(thread, 4096, 4096).unwrap();
+    let mut lightmap = handle.load_render_texture(thread, 4096, 4096).unwrap();
+    setup_lightmap(&mut lightmap, handle, thread);
     Assetpack {
         textures,
         meshes: mesh_map,
@@ -1199,4 +1218,239 @@ pub fn create_asset_pack(handle: &mut RaylibHandle, thread: &RaylibThread) -> As
 
 pub fn get_star_data() -> MutexGuard<'static, (Box<[Vector2]>, Box<[f32]>)> {
     RUNTIME.level.star_positions.lock().unwrap()
+}
+
+pub fn setup_lightmap(map: &mut RenderTexture2D, handle: &mut RaylibHandle, thread: &RaylibThread) {
+    let mut mode = handle.begin_texture_mode(thread, map);
+    mode.clear_background(Color::WHITE);
+}
+
+pub fn rebuild_lightmap(assets: &mut Assetpack, handle: &mut RaylibHandle, thread: &RaylibThread) {
+    let map = recalculate_lightmap_data(assets);
+    let mut t2 = Image::gen_image_color(4096, 4096, Color::BLACK);
+    let mut target = handle.begin_texture_mode(thread, &mut assets.lightmap);
+    target.clear_background(Color::BLACK);
+    for i in 0..4096 {
+        for j in 0..4096 {
+            let v = map.values[(i * 4096 + j) as usize];
+            let tmp = v as u8;
+            target.draw_pixel(
+                j,
+                i,
+                Color {
+                    r: tmp,
+                    g: tmp,
+                    b: tmp,
+                    a: 255,
+                },
+            );
+            t2.draw_pixel(
+                j,
+                i,
+                Color {
+                    r: tmp,
+                    g: tmp,
+                    b: tmp,
+                    a: 255,
+                },
+            );
+        }
+    }
+    t2.export_image("t2.png");
+}
+
+pub struct LightMap {
+    pub values: Box<[f32]>,
+}
+
+pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
+    let out = vec![0.0; 4096 * 4096].into_boxed_slice();
+    let mut out = LightMap { values: out };
+    let mut entities = Vec::new();
+    for i in RUNTIME.level.entities() {
+        let tg = i.read();
+        if tg.is_static {
+            entities.push(i);
+        }
+    }
+    let mut lights = Vec::new();
+    for i in &entities {
+        let tg = i.read();
+        for (_, j) in &tg.component_table {
+            for k in &j.lights {
+                lights.push(*k);
+            }
+        }
+    }
+    let stride = 16 * 16;
+    let directional_size = 256 as i32;
+    let mut img = Image::gen_image_color(256, 256, Color::BLACK);
+    for i in 0..256 {
+        for j in 0..256 {
+            let v = &mut out.values[(i * 256 + j) as usize];
+            let mut avg = 0.0;
+            for _ in 0..8 {
+                let start =
+                    Vector3::new(
+                        (j as f32 - directional_size as f32 / 2.),
+                        128.,
+                        (i as f32 - directional_size as f32 / 2.),
+                    ) + Vector3::new(random_float() * 2. - 1., 0.0, random_float() * 2. - 1.)
+                        / (2.);
+                let mut dt = 256.;
+                for i in &entities {
+                    let rs = raycast_against_entity_mesh(assets, *i, start, -Vector3::up());
+                    if rs.hit && rs.distance < dt {
+                        dt = rs.distance;
+                    }
+                }
+                avg += dt;
+            }
+            *v = ((avg) / (8.)).atan();
+            if *v < 127. {
+                println!("x:{i}, y:{j} v:{}", *v);
+            }
+        }
+    }
+    {
+        let mut img = raylib::prelude::Image::gen_image_color(
+            directional_size,
+            directional_size,
+            Color::BLACK,
+        );
+        for i in 0..directional_size {
+            for j in 0..directional_size {
+                let v = out.values[(i * directional_size + j) as usize];
+                let at = v as u8;
+                img.draw_pixel(
+                    j,
+                    i,
+                    Color {
+                        r: at,
+                        g: at,
+                        b: at,
+                        a: 255,
+                    },
+                );
+                //     println!("x:{j} y:{i} distance:{v} as :{at}");
+            }
+        }
+        img.export_image("test.png");
+    }
+    for (idx, i) in lights.iter().enumerate() {
+        let base = idx * stride + (directional_size * directional_size) as usize;
+        let r = 256.0;
+        for theta in 0..16 {
+            for phi in 0..16 {
+                let start = i.position;
+                let direction =
+                    from_spherical(r, theta as f32 / 16.0 * 6.28, phi as f32 / 16. * 6.28)
+                        .normalized();
+                let mut min = 256.0;
+                for i in &entities {
+                    let c = raycast_against_entity_mesh(assets, *i, start, direction);
+                    if c.hit {
+                        if c.distance < min {
+                            min = c.point.y / 4.;
+                        }
+                    }
+                }
+                out.values[base + theta * 16 + phi] = min;
+            }
+        }
+    }
+    out
+}
+
+pub fn raycast_against_entity_mesh(
+    assets: &Assetpack,
+    entity: Entity,
+    start: Vector3,
+    direction: Vector3,
+) -> RayCollision {
+    let mut out = RayCollision {
+        hit: false,
+        distance: 1000000.0,
+        point: Vector3::zero(),
+        normal: Vector3::forward(),
+    };
+    let g = entity.write();
+    if !g
+        .cached_bounds
+        .get_ray_collision_box(Ray {
+            position: start,
+            direction,
+        })
+        .hit
+    {
+        return out;
+    }
+    let pos = g.position;
+    let rot = g.rotation;
+    let rmat = rot.to_matrix();
+    for (_, comp) in &g.component_table {
+        let ps = pos + comp.offset.rotate_by(rot);
+        let mat = Matrix::translate(ps.x, ps.y, ps.z)
+            * rmat
+            * Matrix::scale(comp.width, comp.height, comp.depth);
+        let v = match comp.render_as {
+            RenderKind::Cone => assets.meshes.get("cone").unwrap(),
+            RenderKind::Cube => assets.meshes.get("cube").unwrap(),
+            RenderKind::Cylinder => assets.meshes.get("cylinder").unwrap(),
+            RenderKind::Sphere => assets.meshes.get("sphere").unwrap(),
+        };
+        for i in 0..v.meshCount {
+            let msh = &v.meshes()[i as usize];
+            let col = unsafe {
+                raylib::ffi::GetRayCollisionMesh(
+                    raylib::ffi::Ray {
+                        position: start.into(),
+                        direction: direction.into(),
+                    },
+                    **msh,
+                    mat.into(),
+                )
+            };
+            if col.hit {
+                if col.distance < out.distance || !out.hit {
+                    out.distance = col.distance;
+                    out.normal = col.normal.into();
+                    out.point = col.point.into();
+                    out.hit = col.hit;
+                }
+                out.hit = true;
+            }
+        }
+    }
+    out
+}
+
+pub fn random_float() -> f32 {
+    let tmp = rand::rng().next_u32() % 1_000_000;
+    tmp as f32 / 1_000_000.0
+}
+
+pub fn random_position() -> Vector3 {
+    let radius = (random_float() + 0.25) * 50.0;
+    let phi = random_float() * TAU;
+    let theta = random_float() * TAU;
+    from_spherical(radius, phi, theta)
+}
+
+pub fn from_spherical(r: f32, theta: f32, phi: f32) -> Vector3 {
+    let x = r * theta.sin() * phi.cos();
+    let y = r * theta.sin() * phi.sin();
+    let z = r * theta.cos();
+    Vector3::new(x, y, z)
+}
+
+pub fn to_spherical(v: Vector3) -> (f32, f32, f32) {
+    let theta = v.y.atan2(v.x);
+    let r = (v.x * v.x + v.y * v.y + v.z * v.z).sqrt();
+    let phi = (v.z / r).acos();
+    (r, theta, phi)
+}
+
+pub fn mark_graphics_should_update() {
+    *RUNTIME.should_redo_lighting.lock().unwrap() = true;
 }
