@@ -1289,7 +1289,7 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
     let mut img = Image::gen_image_color(256, 256, Color::BLACK);
     for i in 0..256 {
         for j in 0..256 {
-            let v = &mut out.values[(i * 256 + j) as usize];
+            let v = &mut out.values[(j * 256 + i) as usize];
             let mut avg = 0.0;
             for _ in 0..8 {
                 let start =
