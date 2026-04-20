@@ -1233,14 +1233,16 @@ pub fn rebuild_lightmap(assets: &mut Assetpack, handle: &mut RaylibHandle, threa
     for i in 0..4096 {
         for j in 0..4096 {
             let v = map.values[(i * 4096 + j) as usize];
-            let tmp = v as u8;
+            let r= (v/10.0) as u8;
+            let g = v as u8;
+            let b = (v*10.0) as u8; 
             target.draw_pixel(
                 j,
                 i,
                 Color {
-                    r: tmp,
-                    g: tmp,
-                    b: tmp,
+                    r,
+                    g,
+                    b,
                     a: 255,
                 },
             );
@@ -1248,9 +1250,9 @@ pub fn rebuild_lightmap(assets: &mut Assetpack, handle: &mut RaylibHandle, threa
                 j,
                 i,
                 Color {
-                    r: tmp,
-                    g: tmp,
-                    b: tmp,
+                    r,
+                    g,
+                    b,
                     a: 255,
                 },
             );
@@ -1306,9 +1308,9 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
                 }
                 avg += dt;
             }
-            *v = ((avg) / (8.)).atan();
+            *v = ((avg) / (8.));
             if *v < 127. {
-                println!("x:{i}, y:{j} v:{}", *v);
+            //    println!("x:{i}, y:{j} v:{}", *v);
             }
         }
     }
@@ -1321,14 +1323,16 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
         for i in 0..directional_size {
             for j in 0..directional_size {
                 let v = out.values[(i * directional_size + j) as usize];
-                let at = v as u8;
+                let r= (v/10.0) as u8;
+                let g = v as u8;
+                let b = (v*10.0) as u8;
                 img.draw_pixel(
                     j,
                     i,
                     Color {
-                        r: at,
-                        g: at,
-                        b: at,
+                        r,
+                        g,
+                        b,
                         a: 255,
                     },
                 );

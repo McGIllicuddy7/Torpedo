@@ -40,10 +40,10 @@ int offset_from_delta(vec3 delta) {
 vec4 array_access(int at) {
   int dx = at % 4096;
   int dy = at / 4096;
-  float x = float(dx) / (4096.);
-  float y = float(dy) / (4096.);
-  vec2 point = vec2(x, y);
-  return texture(texture1, point);
+  float x = float(dx+0.5) / (4096.);
+  float y = float(dy+0.5) / (4096.);
+  vec2 point = vec2(x,y);
+  return texture2D(texture1, point);
 }
 
 vec4 contribution(int light_idx, vec4 texel_color) {
@@ -66,9 +66,9 @@ vec4 from_directional() {
 
   float x = fragPosition.x;
   float z = fragPosition.z;
-  x += float(direct_light_size / 2);
-  z += float(direct_light_size / 2);
-  int pos = int((z * float(direct_light_size) + x));
+  x-=float(direct_light_size/2);
+  z -= float(direct_light_size/2);
+  int pos = int(ceil(z* float(direct_light_size) + x));
   if (pos >= 256 * 256) {
     o.r = 1.0;
     o.g = 0.0;
@@ -78,9 +78,10 @@ vec4 from_directional() {
   vec3 xyz = vec3(fragPosition.x, 128., fragPosition.z);
   vec4 at = array_access(pos);
   if (true) {
-    o.r = at.b;
-    o.g = 0.0;
-    o.b = 0.0;
+    o.r = at.r;
+    o.g = at.g;
+    o.b = at.b;
+    o.a = 1.0;
     // o.g = x / 256.;
     // o.b = z / 256.;
     return o;
