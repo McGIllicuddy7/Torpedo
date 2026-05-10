@@ -1232,17 +1232,18 @@ pub fn rebuild_lightmap(assets: &mut Assetpack, handle: &mut RaylibHandle, threa
     target.clear_background(Color::BLACK);
     for i in 0..4096 {
         for j in 0..4096 {
-            let v = map.values[(i * 4096 + j) as usize];
-            let r= (v/10.0) as u8;
-            let g = v as u8;
-            let b = (v*10.0) as u8; 
+            let v = map.values[(i * 4096 + j) as usize] * 256.;
+            let x = (v as u32).to_le_bytes();
+            let r = x[0];
+            let g = x[1];
+            let b = x[2];
             target.draw_pixel(
                 j,
                 i,
                 Color {
-                    r,
-                    g,
-                    b,
+                    r: r as u8,
+                    g: g as u8,
+                    b: b as u8,
                     a: 255,
                 },
             );
@@ -1250,9 +1251,9 @@ pub fn rebuild_lightmap(assets: &mut Assetpack, handle: &mut RaylibHandle, threa
                 j,
                 i,
                 Color {
-                    r,
-                    g,
-                    b,
+                    r: r as u8,
+                    g: g as u8,
+                    b: b as u8,
                     a: 255,
                 },
             );
@@ -1285,21 +1286,20 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
         }
     }
     let stride = 16 * 16;
-    let directional_size = 256 as i32;
-    let mut img = Image::gen_image_color(256, 256, Color::BLACK);
-    for i in 0..256 {
-        for j in 0..256 {
-            let v = &mut out.values[(j * 256 + i) as usize];
+    let directional_size = 1024 as i32;
+    let mut img = Image::gen_image_color(1024, 1024, Color::BLACK);
+    for i in 0..1024 {
+        for j in 0..1024 {
+            let v = &mut out.values[(j * 4096 + i) as usize];
             let mut avg = 0.0;
-            for _ in 0..8 {
+            for _ in 0..4 {
                 let start =
                     Vector3::new(
                         (j as f32 - directional_size as f32 / 2.),
-                        128.,
+                        512.,
                         (i as f32 - directional_size as f32 / 2.),
-                    ) + Vector3::new(random_float() * 2. - 1., 0.0, random_float() * 2. - 1.)
-                        / (2.);
-                let mut dt = 256.;
+                    ) + Vector3::new(random_float() * 2. - 1., 0.0, random_float() * 2. - 1.) / 32.;
+                let mut dt = 512.;
                 for i in &entities {
                     let rs = raycast_against_entity_mesh(assets, *i, start, -Vector3::up());
                     if rs.hit && rs.distance < dt {
@@ -1308,10 +1308,19 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
                 }
                 avg += dt;
             }
-            *v = ((avg) / (8.));
-            if *v < 127. {
-            //    println!("x:{i}, y:{j} v:{}", *v);
-            }
+            *v = ((avg) / (4.));
+            /*
+            if *v < 400. {
+                let x = (*v as u32).to_le_bytes();
+                let r = x[0] as f32 / 256.;
+                let g = x[1] as f32 / 256.;
+                let b = x[2] as f32 / 256.;
+                println!(
+                    "x:{i}, y:{j} v:{}, vgpu:{}, r:{r}, g:{g}, b:{b}",
+                    *v,
+                    (r + g * 256. + b * 256. * 256.) * 256.
+                );
+            }*/
         }
     }
     {
@@ -1322,17 +1331,18 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
         );
         for i in 0..directional_size {
             for j in 0..directional_size {
-                let v = out.values[(i * directional_size + j) as usize];
-                let r= (v/10.0) as u8;
-                let g = v as u8;
-                let b = (v*10.0) as u8;
+                let v = out.values[(i * 4096 + j) as usize] * 256.;
+                let x = (v as u32).to_le_bytes();
+                let r = x[0];
+                let g = x[1];
+                let b = x[2];
                 img.draw_pixel(
-                    j,
                     i,
+                    j,
                     Color {
-                        r,
-                        g,
-                        b,
+                        r: r as u8,
+                        g: g as u8,
+                        b: b as u8,
                         a: 255,
                     },
                 );
@@ -1359,7 +1369,7 @@ pub fn recalculate_lightmap_data(assets: &Assetpack) -> LightMap {
                         }
                     }
                 }
-                out.values[base + theta * 16 + phi] = min;
+                out.values[base + theta * 4096 + phi] = min;
             }
         }
     }
