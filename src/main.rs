@@ -1,12 +1,19 @@
 use rand::{random, random_bool};
-use raylib::{RaylibHandle, RaylibThread, math::Vector3};
+use raylib::{
+    RaylibHandle, RaylibThread,
+    color::Color,
+    drawing::RaylibDraw,
+    math::{Quaternion, Vector3},
+};
 
-use crate::engine::{generate_cube, generate_ufo, random_vector};
+use crate::engine::{
+    ENGINE, GObject, GameMode, generate_cube, generate_ufo, random_vector, raycast,
+};
 pub mod engine;
 pub mod mesh;
 pub mod ship;
 fn main() {
-    engine::run(setup_ufo);
+    engine::run(setup_ufo, &mut TorpedoGameMode {});
 }
 
 pub fn setup_old(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
@@ -31,7 +38,7 @@ pub fn setup(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
 }
 
 pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
-    for _ in 0..100 {
+    for _ in 0..10 {
         let t = generate_ufo(random_vector() * 20., 1.0);
         let pos = t.get().get_data().location;
         let mut data = t.get_mut();
@@ -42,5 +49,31 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
             -0.5 + (random::<u64>() % 100) as f32 / 100.,
             -2. + (random::<u64>() % 100) as f32 / 25.,
         );
+    }
+    let _t = ship::create_player_ufo(random_vector() * 30., Quaternion::identity());
+}
+
+pub struct TorpedoGameMode {}
+impl GameMode for TorpedoGameMode {
+    fn on_render(
+        &mut self,
+        handle: &mut raylib::prelude::RaylibDrawHandle,
+        _thread: &RaylibThread,
+    ) {
+        let w = handle.get_screen_width();
+        let h = handle.get_screen_height();
+        handle.draw_rectangle(w / 2 - 1, h / 2 - 10, 2, 20, Color::WHITE);
+        handle.draw_rectangle(w / 2 - 10, h / 2 - 1, 20, 2, Color::WHITE);
+    }
+    fn on_update(&mut self, _handle: &mut RaylibHandle, _thread: &RaylibThread) {
+        /*if handle.is_key_down(raylib::ffi::KeyboardKey::KEY_F) {
+            let cinfo = ENGINE.camera_data.lock().unwrap();
+            let pos = cinfo.position;
+            let dir = (cinfo.target - cinfo.position).normalized();
+            if let Some(rc) = raycast(pos, dir, 100., &[], true) {
+                engine::delete_object(GObject::new(), rc.hit_object);
+                // println!("destroyed?");
+            }
+        }*/
     }
 }

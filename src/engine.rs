@@ -2,7 +2,7 @@ use std::{
     any::type_name,
     collections::{BTreeMap, HashMap, VecDeque},
     hash::Hash,
-    ops::{Deref, DerefMut},
+    ops::{Bound, Deref, DerefMut},
     sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -11,8 +11,8 @@ use raylib::{
     RaylibHandle, RaylibThread,
     camera::Camera3D,
     color::Color,
-    drawing::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt},
-    math::{BoundingBox, Matrix, Quaternion, Vector3, Vector4},
+    drawing::{RaylibDraw, RaylibDraw3D, RaylibDrawHandle, RaylibMode3DExt},
+    math::{BoundingBox, Matrix, Quaternion, Ray, Vector3, Vector4},
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{
@@ -34,7 +34,7 @@ pub enum EventInfo {
     DestroyObject {},
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GObject {
     pub idx: u32,
     pub generation: u32,
@@ -94,6 +94,7 @@ pub struct Engine {
     pub player_object: Mutex<GObject>,
     pub camera_data: Mutex<GCameraData>,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GCameraData {
     pub position: Vector3,
@@ -103,6 +104,14 @@ pub struct GCameraData {
 
 pub enum DrawEvent {}
 pub enum DrawEvent3D {}
+
+pub struct HitInfo {
+    pub hit_location: Vector3,
+    pub start: Vector3,
+    pub distance: f32,
+    pub normal: Vector3,
+    pub hit_object: GObject,
+}
 pub static ENGINE: Engine = Engine {
     objects: [const {
         RwLock::new(GameObjectBox {
@@ -124,13 +133,14 @@ pub static ENGINE: Engine = Engine {
     }),
 };
 
-pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
+pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dyn GameMode) {
     for i in &ENGINE.objects {
         if let Some(obj) = i.try_write().unwrap().ptr.as_mut() {
             obj.on_update(handle, thread);
         }
     }
-    while let Some(ev) = ENGINE.events.try_lock().unwrap().pop_front() {
+    game_mode.on_update(handle, thread);
+    while let Some(ev) = ENGINE.events.lock().unwrap().pop_front() {
         match ev.kind() {
             EventKind::DestroyObject => {
                 let mut tmp = ENGINE.objects[ev.target.idx as usize].write().unwrap();
@@ -163,7 +173,7 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
     c.position = cm.position;
     c.target = cm.target;
     c.up = cm.up;
-    if false {
+    {
         let tmp = ENGINE.player_object.lock().unwrap();
         if let Some(g) = tmp.get_checked() {
             let data = g.get_data();
@@ -215,6 +225,7 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
         }
     }
     drop(draw3d);
+    game_mode.on_render(&mut draw, thread);
     draw.draw_fps(1600, 20);
     let mut pobj = ENGINE.player_object.lock().unwrap();
     if !pobj.is_valid() {
@@ -231,7 +242,7 @@ impl Event {
         match self.info {
             EventInfo::OnDamage {} => EventKind::OnDamage,
             EventInfo::OnDestroy {} => EventKind::OnDestroy,
-            EventInfo::DestroyObject {} => EventKind::OnDestroy,
+            EventInfo::DestroyObject {} => EventKind::DestroyObject,
         }
     }
 }
@@ -391,12 +402,13 @@ impl GameObject for Object {
     }
 }
 
-pub fn run(setup: impl FnOnce(&mut RaylibHandle, &RaylibThread)) {
+pub fn run(setup: impl FnOnce(&mut RaylibHandle, &RaylibThread), game_mode: &mut dyn GameMode) {
     let (mut handle, thread) = raylib::RaylibBuilder::default().build();
     handle.set_target_fps(60);
+    handle.disable_cursor();
     setup(&mut handle, &thread);
     while !handle.window_should_close() {
-        step(&mut handle, &thread);
+        step(&mut handle, &thread, game_mode);
     }
 }
 
@@ -678,7 +690,40 @@ impl GameObjectData {
         //println!("{}, {:#?}", min_delta, min_vec);
         Some(min_vec)
     }
+
+    pub fn raycast_against(&self, start: Vector3, end: Vector3) -> Option<HitInfo> {
+        let bb = BoundingBox::new(
+            Vector3::new(-self.depth / 2., -self.width / 2., -self.height / 2.),
+            Vector3::new(self.depth / 2., self.width / 2., self.height / 2.),
+        );
+        let s0 = start - self.location;
+        let e0 = end - self.location;
+        let mat = self.rotation.inverted();
+        let s1 = s0.rotate_by(mat);
+        let e1 = e0.rotate_by(mat);
+        let col = bb.get_ray_collision_box(Ray {
+            position: s1,
+            direction: (e1 - s1).normalized(),
+        });
+        if col.hit {
+            let max_dist = e1.distance_to(s1);
+            if col.distance > max_dist {
+                return None;
+            }
+            let out = HitInfo {
+                hit_object: GObject::new(),
+                hit_location: col.point.rotate_by(self.rotation) + self.location,
+                start: start,
+                distance: col.distance,
+                normal: col.normal.rotate_by(self.rotation),
+            };
+            return Some(out);
+        } else {
+        }
+        return None;
+    }
 }
+
 pub fn random_vector() -> Vector3 {
     let resolution = 100;
     let r2 = resolution as f32 / 2.;
@@ -726,11 +771,11 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
         lines: Vec::new(),
     };
     msh.add_cylinder(
-        1.,
-        0.8,
-        0.5,
+        1. * size,
+        0.8 * size,
+        0.5 * size,
         6,
-        Vector3::new(0., 0., 0.25),
+        Vector3::new(0., 0., -0.25 * size),
         Vector3::new(0.0, 0.0, 1.),
         Vector3::new(1., 0.0, 0.0),
     );
@@ -739,9 +784,9 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
             model: Some(msh),
             location: pos,
             rotation: Quaternion::identity(),
-            width: 1.,
-            depth: 1.,
-            height: 0.4,
+            width: 2. * size,
+            depth: 2. * size,
+            height: 0.5 * size,
             velocity: Vector3::zero(),
             angular_velocity: Vector3::zero(),
             camera_data: None,
@@ -750,4 +795,68 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
         },
     });
     v
+}
+
+pub trait GameMode {
+    fn on_update(&mut self, _handle: &mut RaylibHandle, _thread: &RaylibThread) {}
+    fn on_init(&mut self, _handle: &mut RaylibHandle, _thread: &RaylibThread) {}
+    fn on_render(&mut self, _handle: &mut RaylibDrawHandle, _thread: &RaylibThread) {}
+}
+
+pub struct DefaultGameMode {}
+
+impl GameMode for DefaultGameMode {}
+
+pub fn raycast(
+    start: Vector3,
+    direction: Vector3,
+    max_range: f32,
+    ignored_entities: &[GObject],
+    include_projectiles: bool,
+) -> Option<HitInfo> {
+    let mut hs = HitInfo {
+        hit_location: Vector3::zero(),
+        start: start,
+        distance: 0.0,
+        normal: Vector3::zero(),
+        hit_object: GObject::new(),
+    };
+    let mut has_hit = false;
+    let mut min_dist = 100000000.0;
+    let end = start + direction * max_range;
+    for i in 0..ENGINE.objects.len() {
+        let lck = match ENGINE.objects[i].try_read() {
+            Ok(x) => x,
+            Err(e) => match e {
+                std::sync::TryLockError::Poisoned(x) => x.into_inner(),
+                std::sync::TryLockError::WouldBlock => {
+                    continue;
+                }
+            },
+        };
+        let g = GObject {
+            idx: i as u32,
+            generation: lck.generation as u32,
+        };
+
+        if ignored_entities.contains(&g) {
+            continue;
+        }
+        if let Some(t) = lck.ptr.as_ref() {
+            if !include_projectiles {
+                if t.get_data().is_projectile {
+                    continue;
+                }
+            }
+            if let Some(hit) = t.get_data().raycast_against(start, end) {
+                if hit.distance < min_dist {
+                    min_dist = hit.distance;
+                    hs = hit;
+                    hs.hit_object = g;
+                    has_hit = true;
+                }
+            }
+        }
+    }
+    if has_hit { return Some(hs) } else { None }
 }
