@@ -1,5 +1,7 @@
 use std::{
-    collections::VecDeque,
+    any::type_name,
+    collections::{BTreeMap, HashMap, VecDeque},
+    hash::Hash,
     ops::{Deref, DerefMut},
     sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
@@ -13,7 +15,12 @@ use raylib::{
     math::{BoundingBox, Matrix, Quaternion, Vector3, Vector4},
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{Deserialize, Serialize, de};
+use serde::{
+    Deserialize, Serialize,
+    de::{self, DeserializeOwned},
+};
+
+use crate::mesh::GameMesh;
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum EventKind {
     OnDamage,
@@ -52,12 +59,6 @@ pub struct GameObjectData {
     pub camera_data: Option<CameraData>,
     pub is_projectile: bool,
     pub is_static: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct GameMesh {
-    pub points: Vec<Vector3>,
-    pub lines: Vec<(u16, u16)>,
 }
 
 pub trait GameObject: Send + Sync + 'static {
@@ -125,11 +126,11 @@ pub static ENGINE: Engine = Engine {
 
 pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
     for i in &ENGINE.objects {
-        if let Some(obj) = i.write().unwrap().ptr.as_mut() {
+        if let Some(obj) = i.try_write().unwrap().ptr.as_mut() {
             obj.on_update(handle, thread);
         }
     }
-    while let Some(ev) = ENGINE.events.lock().unwrap().pop_front() {
+    while let Some(ev) = ENGINE.events.try_lock().unwrap().pop_front() {
         match ev.kind() {
             EventKind::DestroyObject => {
                 let mut tmp = ENGINE.objects[ev.target.idx as usize].write().unwrap();
@@ -162,7 +163,7 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
     c.position = cm.position;
     c.target = cm.target;
     c.up = cm.up;
-    {
+    if false {
         let tmp = ENGINE.player_object.lock().unwrap();
         if let Some(g) = tmp.get_checked() {
             let data = g.get_data();
@@ -219,10 +220,10 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread) {
     if !pobj.is_valid() {
         *pobj = GObject::new();
         drop(pobj);
-        let mut lck = ENGINE.camera_data.lock().unwrap();
-        lck.target = Vector3::new(0.0, 0.0, 0.0);
-        lck.position = Vector3::new(-1., 0.0, 0.0);
-        lck.up = Vector3::new(0., 0.0, 1.0);
+        //    let mut lck = ENGINE.camera_data.lock().unwrap();
+        // lck.target = Vector3::new(0.0, 0.0, 0.0);
+        // lck.position = Vector3::new(-1., 0.0, 0.0);
+        //lck.up = Vector3::new(0., 0.0, 1.0);
     }
 }
 impl Event {
@@ -234,46 +235,7 @@ impl Event {
         }
     }
 }
-impl GameMesh {
-    pub fn new() -> Self {
-        Self {
-            points: Vec::new(),
-            lines: Vec::new(),
-        }
-    }
 
-    pub fn add_cube(&mut self, start: Vector3, width: f32, height: f32, depth: f32) {
-        let mut points = vec![
-            Vector3::new(-depth / 2., -width / 2., -height / 2.),
-            Vector3::new(-depth / 2., -width / 2., height / 2.),
-            Vector3::new(-depth / 2., width / 2., -height / 2.),
-            Vector3::new(-depth / 2., width / 2., height / 2.),
-            Vector3::new(depth / 2., -width / 2., -height / 2.),
-            Vector3::new(depth / 2., -width / 2., height / 2.),
-            Vector3::new(depth / 2., width / 2., -height / 2.),
-            Vector3::new(depth / 2., width / 2., height / 2.),
-        ];
-        let base = self.points.len();
-        let mut connections = Vec::new();
-        for i in 0..points.len() {
-            for j in i + 1..points.len() {
-                if points[i].distance_to(points[j]) <= 1. {
-                    connections.push(((i + base) as u16, (j + base) as u16));
-                }
-            }
-        }
-
-        for i in &mut points {
-            *i += start;
-        }
-        for i in points {
-            self.points.push(i);
-        }
-        for i in connections {
-            self.lines.push(i);
-        }
-    }
-}
 impl GObject {
     pub const fn new() -> Self {
         Self {
@@ -479,31 +441,50 @@ pub fn update_physics() {
             if tmp.is_static {
                 return;
             }
-            let old = tmp.location;
-            let old_rot = tmp.rotation;
-            tmp.location += tmp.velocity * 1. / 60.;
-            tmp.rotation = Vector4::from_euler(
+            let delta = tmp.velocity * 1. / 60.;
+            let mut count = (delta.length() / 10.) as i32;
+            if count < 1 {
+                count = 1;
+            }
+            let dv = count as f32;
+            let end = tmp.location + tmp.velocity / 60.;
+            let end_rot = Vector4::from_euler(
                 tmp.angular_velocity.x / 60.,
                 tmp.angular_velocity.y / 60.,
                 tmp.angular_velocity.z / 60.,
             ) * tmp.rotation;
-            let mut hit = false;
-            let mut hv = Vector3::new(1.0, 0.0, 0.0);
-            for (j, v0) in &list {
-                if *j == i {
-                    continue;
+            for _j in 0..count {
+                let old = tmp.location;
+                let old_rot = tmp.rotation;
+                tmp.location += tmp.velocity * 1. / (60. * dv);
+                tmp.rotation = Vector4::from_euler(
+                    tmp.angular_velocity.x / (60. * dv),
+                    tmp.angular_velocity.y / (60. * dv),
+                    tmp.angular_velocity.z / (60. * dv),
+                ) * tmp.rotation;
+                if _j == count - 1 {
+                    tmp.location = end;
+                    tmp.rotation = end_rot;
                 }
-                if let Some(y) = tmp.check_collision(v0) {
-                    hv = y;
-                    hit = true;
-                    break;
+                let mut hit = false;
+                let mut hv = Vector3::new(1.0, 0.0, 0.0);
+                for (j, v0) in &list {
+                    if *j == i {
+                        continue;
+                    }
+                    if let Some(y) = tmp.check_collision(v0) {
+                        hv = y;
+                        hit = true;
+                        break;
+                    }
                 }
-            }
-            if hit {
-                tmp.angular_velocity *= -0.9;
-                tmp.velocity = tmp.velocity.reflect_from(hv) * 0.9;
-                tmp.location = old;
-                tmp.rotation = old_rot;
+                if hit {
+                    tmp.angular_velocity *= -0.95;
+                    tmp.velocity = tmp.velocity.reflect_from(hv) * 0.95;
+                    tmp.location = old;
+                    tmp.rotation = old_rot;
+                    return;
+                }
             }
         }
     });
@@ -713,4 +694,60 @@ pub fn set_player(id: GObject) {
 
 pub fn clear_player() {
     *ENGINE.player_object.lock().unwrap() = GObject::new();
+}
+
+pub struct TypeRegistery {
+    pub types: Mutex<BTreeMap<String, fn(&GameObjectSerialized) -> Box<dyn GameObject>>>,
+}
+
+pub static TYPE_REGISTERY: TypeRegistery = TypeRegistery {
+    types: Mutex::new(BTreeMap::new()),
+};
+
+pub fn register_type<T: Serialize + DeserializeOwned + GameObject>() {
+    let name = type_name::<T>().to_string();
+    fn deserialize_func<T: Serialize + DeserializeOwned + GameObject>(
+        obj: &GameObjectSerialized,
+    ) -> Box<dyn GameObject> {
+        assert!(obj.type_name == type_name::<T>());
+        let out: T = serde_json::from_str(&obj.data).unwrap();
+        Box::new(out)
+    }
+    TYPE_REGISTERY
+        .types
+        .lock()
+        .unwrap()
+        .insert(name, deserialize_func::<T>);
+}
+
+pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
+    let mut msh = GameMesh {
+        points: Vec::new(),
+        lines: Vec::new(),
+    };
+    msh.add_cylinder(
+        1.,
+        0.8,
+        0.5,
+        6,
+        Vector3::new(0., 0., 0.25),
+        Vector3::new(0.0, 0.0, 1.),
+        Vector3::new(1., 0.0, 0.0),
+    );
+    let v = make_object(Object {
+        data: GameObjectData {
+            model: Some(msh),
+            location: pos,
+            rotation: Quaternion::identity(),
+            width: 1.,
+            depth: 1.,
+            height: 0.4,
+            velocity: Vector3::zero(),
+            angular_velocity: Vector3::zero(),
+            camera_data: None,
+            is_projectile: false,
+            is_static: false,
+        },
+    });
+    v
 }
