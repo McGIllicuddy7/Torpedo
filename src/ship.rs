@@ -89,10 +89,10 @@ impl Ship {
             lin_acc.x -= 1.;
         }
         if handle.is_key_down(KeyboardKey::KEY_A) {
-            lin_acc.y -= 1.;
+            lin_acc.y += 1.
         }
         if handle.is_key_down(KeyboardKey::KEY_D) {
-            lin_acc.y += 1.;
+            lin_acc.y -= 1.;
         }
         if handle.is_key_down(KeyboardKey::KEY_Z) {
             lin_acc.z -= 1.;
@@ -112,7 +112,13 @@ impl Ship {
         if handle.is_key_down(KeyboardKey::KEY_F) {
             racc.y -= 1.;
         }
-        let v = handle.get_mouse_delta();
+        if handle.is_key_down(KeyboardKey::KEY_T) {
+            racc.x += 1.;
+        }
+        if handle.is_key_down(KeyboardKey::KEY_G) {
+            racc.x -= 1.;
+        }
+        let v = handle.get_mouse_delta() * 5.;
         racc.z += v.x;
         racc.y -= v.y;
         if racc.length() > 0.0 {

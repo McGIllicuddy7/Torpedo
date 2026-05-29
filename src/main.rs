@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use rand::{random, random_bool};
 use raylib::{
     RaylibHandle, RaylibThread,
@@ -6,10 +8,12 @@ use raylib::{
     math::{Quaternion, Vector3},
 };
 
-use crate::engine::{
-    ENGINE, GObject, GameMode, generate_cube, generate_ufo, random_vector, raycast,
+use crate::{
+    engine::{ENGINE, GObject, GameMode, generate_cube, generate_ufo, random_vector, raycast},
+    graphics::{ParticleSystem, SpawnData, SpawnVelocityData, create_particle_system},
 };
 pub mod engine;
+pub mod graphics;
 pub mod mesh;
 pub mod ship;
 fn main() {
@@ -50,7 +54,41 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
             -2. + (random::<u64>() % 100) as f32 / 25.,
         );
     }
-    let _t = ship::create_player_ufo(random_vector() * 30., Quaternion::identity());
+    let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
+    for _ in 0..10 {
+        let _fountain = create_particle_system(ParticleSystem::new(
+            random_vector() * 5.,
+            Vector3::zero(),
+            true,
+            SpawnData {
+                amount_to_spawn: 1,
+                probability_to_spawn_per_second: 32.,
+                spawn_radius: 0.1,
+                velocity_info: SpawnVelocityData::Cone {
+                    direction: Vector3::new(0.0, 0.0, 1.),
+                    max_angle: 2. / (360.) * 2. * PI,
+                    length: 10.,
+                },
+                max_connection_count: 2,
+                max_connection_distance: 1.,
+                max_lifetime: 5.,
+                min_lifetime: 2.,
+                spawning_duration: -1.,
+                can_stop_spawning: false,
+                color: Color {
+                    r: 100,
+                    g: 200,
+                    b: 255,
+                    a: 128,
+                },
+                min_radius: 0.1,
+                max_radius: 1.,
+            },
+        ));
+        _fountain.get().get_mut().force_fields[0] = Some(graphics::ForceField::Global {
+            force: -Vector3::new(0.0, 0.0, 5.),
+        });
+    }
 }
 
 pub struct TorpedoGameMode {}

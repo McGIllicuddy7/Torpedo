@@ -1,6 +1,7 @@
 use std::{
     any::type_name,
     collections::{BTreeMap, HashMap, VecDeque},
+    f32::consts::PI,
     hash::Hash,
     ops::{Bound, Deref, DerefMut},
     sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -20,7 +21,10 @@ use serde::{
     de::{self, DeserializeOwned},
 };
 
-use crate::mesh::GameMesh;
+use crate::{
+    graphics::{DrawEvent, DrawEvent3D, ParticleSystem, ParticleSystemContainer, run_graphics},
+    mesh::GameMesh,
+};
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum EventKind {
     OnDamage,
@@ -88,6 +92,7 @@ pub struct Event {
 
 pub struct Engine {
     pub objects: [RwLock<GameObjectBox>; 16384],
+    pub particle_systems: [Mutex<ParticleSystemContainer>; 256],
     pub events: Mutex<VecDeque<Event>>,
     pub draw_events: Mutex<VecDeque<DrawEvent>>,
     pub draw_events_3d: Mutex<VecDeque<DrawEvent3D>>,
@@ -102,9 +107,6 @@ pub struct GCameraData {
     pub up: Vector3,
 }
 
-pub enum DrawEvent {}
-pub enum DrawEvent3D {}
-
 pub struct HitInfo {
     pub hit_location: Vector3,
     pub start: Vector3,
@@ -116,6 +118,12 @@ pub static ENGINE: Engine = Engine {
     objects: [const {
         RwLock::new(GameObjectBox {
             ptr: None,
+            generation: 0,
+        })
+    }; _],
+    particle_systems: [const {
+        Mutex::new(ParticleSystemContainer {
+            v: None,
             generation: 0,
         })
     }; _],
@@ -137,6 +145,12 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
     for i in &ENGINE.objects {
         if let Some(obj) = i.try_write().unwrap().ptr.as_mut() {
             obj.on_update(handle, thread);
+        }
+    }
+    for i in 0..ENGINE.particle_systems.len() {
+        let mut g = ENGINE.particle_systems[i].lock().unwrap();
+        if let Some(g) = g.v.as_mut() {
+            g.update(handle, thread);
         }
     }
     game_mode.on_update(handle, thread);
@@ -167,66 +181,7 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
         }
     }
     update_physics();
-    let mut c = ENGINE.camera_data.lock().unwrap();
-    let mut cm = Camera3D::perspective(c.position, c.target, c.up, 90.);
-    handle.update_camera(&mut cm, raylib::ffi::CameraMode::CAMERA_FREE);
-    c.position = cm.position;
-    c.target = cm.target;
-    c.up = cm.up;
-    {
-        let tmp = ENGINE.player_object.lock().unwrap();
-        if let Some(g) = tmp.get_checked() {
-            let data = g.get_data();
-            if let Some(y) = data.camera_data.as_ref() {
-                let brot = data.rotation.inverted() * y.rotation;
-                let bpos = data.location + y.position.rotate_by(data.rotation.inverted());
-                let target = Vector3::new(1.0, 0.0, 0.0).rotate_by(brot) + data.location;
-                let up = Vector3::new(0.0, 0.0, 1.0).rotate_by(brot);
-                cm.position = bpos;
-                cm.target = target;
-                cm.up = up;
-            }
-        }
-    }
-    let mut draw = handle.begin_drawing(&thread);
-    draw.clear_background(Color::BLACK);
-    let mut draw3d = draw.begin_mode3D(&cm);
-    for i in &ENGINE.objects {
-        let t = i.read().unwrap();
-        if let Some(t2) = t.ptr.as_ref() {
-            let data = t2.get_data();
-            let trans = data.rotation.to_matrix();
-            if let Some(md) = data.model.as_ref() {
-                let mut points = md.points.clone();
-                for i in &mut points {
-                    *i = i.transform_with(trans);
-                    *i += data.location;
-                }
-                for (start, end) in &md.lines {
-                    let start = points[*start as usize];
-                    let end = points[*end as usize];
-                    let dist =
-                        (cm.position.distance_to(start) + cm.position.distance_to(end)) / (20.);
-                    let colb = Color::GREEN;
-                    let vc =
-                        Vector3::new(colb.r as f32, colb.g as f32, colb.b as f32) / (dist.sqrt());
-                    if vc.length() < 20. {
-                        continue;
-                    }
-                    let cl = Color {
-                        r: vc.x as u8,
-                        g: vc.y as u8,
-                        b: vc.z as u8,
-                        a: 255,
-                    };
-                    draw3d.draw_line_3D(start, end, cl);
-                }
-            }
-        }
-    }
-    drop(draw3d);
-    game_mode.on_render(&mut draw, thread);
-    draw.draw_fps(1600, 20);
+    run_graphics(handle, thread, game_mode);
     let mut pobj = ENGINE.player_object.lock().unwrap();
     if !pobj.is_valid() {
         *pobj = GObject::new();
@@ -732,6 +687,16 @@ pub fn random_vector() -> Vector3 {
     let z = ((random::<u64>() % resolution) as f32 - r2) / r2;
     Vector3::new(x, y, z)
 }
+pub fn random_unit_vector() -> Vector3 {
+    let resolution = 100;
+    let r2 = resolution as f32 / 2.;
+    let theta = ((random::<u64>() % resolution) as f32 - r2) / r2 * 2. * PI;
+    let phi = ((random::<u64>() % resolution) as f32 - r2) / r2 * 2. * PI;
+    let x = phi.cos() * theta.cos();
+    let y = phi.sin() * theta.sin();
+    let z = theta.cos();
+    Vector3::new(x, y, z)
+}
 
 pub fn set_player(id: GObject) {
     *ENGINE.player_object.lock().unwrap() = id;
@@ -859,4 +824,8 @@ pub fn raycast(
         }
     }
     if has_hit { return Some(hs) } else { None }
+}
+
+pub fn get_engine() -> &'static Engine {
+    &ENGINE
 }
