@@ -268,7 +268,10 @@ pub struct Particle {
     pub velocity: Vector3,
     pub connections: [i16; 32],
     pub radius: f32,
-    pub color: Color,
+    pub start_color: Color,
+    pub end_color: Color,
+    pub glowing: bool,
+    pub starting_lifetime: f32,
     pub lifetime: f32,
 }
 
@@ -286,6 +289,8 @@ pub struct SpawnData {
     pub max_radius: f32,
     pub spawning_duration: f32,
     pub can_stop_spawning: bool,
+    pub ending_color: Color,
+    pub glowing: bool,
     pub color: Color,
 }
 
@@ -440,9 +445,12 @@ impl ParticleSystem {
                         position: pos,
                         velocity,
                         connections,
-                        color: self.spawn_data.color,
+                        start_color: self.spawn_data.color,
+                        end_color: self.spawn_data.ending_color,
                         lifetime: lt,
                         radius: rad,
+                        starting_lifetime: lt,
+                        glowing: self.spawn_data.glowing,
                     });
                     break;
                 }
@@ -453,13 +461,54 @@ impl ParticleSystem {
     pub fn render(&self, draw: &mut impl RaylibDraw3D, _thread: &RaylibThread) {
         for i in 0..self.particles.len() {
             if let Some(y) = self.particles[i].as_ref() {
+                let col = {
+                    let lerp = 1. - y.lifetime / y.starting_lifetime;
+                    let r = (1. - lerp) * y.start_color.r as f32 + lerp * y.end_color.r as f32;
+                    let g = (1. - lerp) * y.start_color.g as f32 + lerp * y.end_color.g as f32;
+                    let b = (1. - lerp) * y.start_color.b as f32 + lerp * y.end_color.b as f32;
+                    let a = (1. - lerp) * y.start_color.a as f32 + lerp * y.end_color.a as f32;
+                    Color {
+                        r: r as u8,
+                        g: g as u8,
+                        b: b as u8,
+                        a: a as u8,
+                    }
+                };
                 if self.show_particles {
-                    draw.draw_sphere_ex(y.position, y.radius, 3, 3, y.color);
+                    let should_glow = (col.r >= 250 || col.g > 250 || col.b > 250);
+                    if y.glowing && should_glow {
+                        draw.draw_sphere_ex(
+                            y.position,
+                            y.radius * 0.8,
+                            3,
+                            3,
+                            Color {
+                                r: 255,
+                                g: 255,
+                                b: 255,
+                                a: col.a,
+                            },
+                        );
+                        draw.draw_sphere_ex(
+                            y.position,
+                            y.radius * 1.1,
+                            6,
+                            6,
+                            Color {
+                                r: col.r,
+                                g: col.g,
+                                b: col.b,
+                                a: 100,
+                            },
+                        );
+                    } else {
+                        draw.draw_sphere_ex(y.position, y.radius, 3, 3, col);
+                    }
                 }
                 for i in y.connections {
                     if i > -1 {
                         if let Some(x) = self.particles[i as usize].as_ref() {
-                            draw.draw_line_3D(y.position, x.position, y.color);
+                            draw.draw_line_3D(y.position, x.position, col);
                         }
                     }
                 }

@@ -55,39 +55,48 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
         );
     }
     let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
-    for _ in 0..10 {
+    for _ in 0..20 {
         let _fountain = create_particle_system(ParticleSystem::new(
-            random_vector() * 5.,
+            random_vector() * 2.,
             Vector3::zero(),
             true,
             SpawnData {
-                amount_to_spawn: 1,
-                probability_to_spawn_per_second: 32.,
-                spawn_radius: 0.1,
-                velocity_info: SpawnVelocityData::Cone {
-                    direction: Vector3::new(0.0, 0.0, 1.),
-                    max_angle: 2. / (360.) * 2. * PI,
-                    length: 10.,
-                },
-                max_connection_count: 2,
+                amount_to_spawn: 5,
+                probability_to_spawn_per_second: 10.,
+                spawn_radius: 2.,
+                velocity_info: SpawnVelocityData::Sphere { radius: 10. },
+                max_connection_count: 0,
                 max_connection_distance: 1.,
                 max_lifetime: 5.,
                 min_lifetime: 2.,
                 spawning_duration: -1.,
                 can_stop_spawning: false,
                 color: Color {
-                    r: 100,
-                    g: 200,
+                    r: 0,
+                    g: 50,
                     b: 255,
-                    a: 128,
+                    a: 100,
                 },
-                min_radius: 0.1,
-                max_radius: 1.,
+                ending_color: Color {
+                    r: 0,
+                    g: 200,
+                    b: 240,
+                    a: 64,
+                },
+                glowing: true,
+                min_radius: 0.05,
+                max_radius: 0.4,
             },
         ));
-        _fountain.get().get_mut().force_fields[0] = Some(graphics::ForceField::Global {
-            force: -Vector3::new(0.0, 0.0, 5.),
+        _fountain.get().get_mut().force_fields[1] = Some(graphics::ForceField::Point {
+            offset: Vector3::new(0., 0., -10.),
+            amount: 100.,
         });
+        _fountain.get().get_mut().force_fields[2] = Some(graphics::ForceField::Point {
+            offset: Vector3::new(0.0, 0.0, 10.),
+            amount: 100.,
+        });
+        _fountain.get().get_mut().force_fields[3] = Some(graphics::ForceField::Drag { coef: 0.1 });
     }
 }
 
