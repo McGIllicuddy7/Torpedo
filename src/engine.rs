@@ -147,11 +147,16 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
             obj.on_update(handle, thread);
         }
     }
-    for i in 0..ENGINE.particle_systems.len() {
-        let mut g = ENGINE.particle_systems[i].lock().unwrap();
-        if let Some(g) = g.v.as_mut() {
-            g.update(handle, thread);
-        }
+    {
+        let dt = handle.get_frame_time();
+        (0..ENGINE.particle_systems.len())
+            .into_par_iter()
+            .for_each(|i| {
+                let mut g = ENGINE.particle_systems[i].lock().unwrap();
+                if let Some(g) = g.v.as_mut() {
+                    g.update(dt);
+                }
+            });
     }
     game_mode.on_update(handle, thread);
     while let Some(ev) = ENGINE.events.lock().unwrap().pop_front() {

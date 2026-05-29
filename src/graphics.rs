@@ -308,8 +308,7 @@ pub enum SpawnVelocityData {
 }
 
 impl ParticleSystem {
-    pub fn update(&mut self, handle: &mut RaylibHandle, _thread: &RaylibThread) {
-        let dt = handle.get_frame_time();
+    pub fn update(&mut self, dt: f32) {
         let t0 = self.particles;
         for i in &mut self.particles {
             let mut should_destroy = false;
