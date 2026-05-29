@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use rand::{random, random_bool};
 use raylib::{
     RaylibHandle, RaylibThread,
@@ -7,15 +9,20 @@ use raylib::{
 };
 
 use crate::{
+    audio::{audio_write_func, init_audio},
     engine::{GameMode, generate_cube, generate_ufo, random_vector},
     graphics::{ParticleSystem, SpawnData, SpawnVelocityData, create_particle_system, draw_flame},
 };
+pub mod audio;
 pub mod engine;
 pub mod graphics;
 pub mod mesh;
 pub mod ship;
 fn main() {
-    engine::run(setup_ufo, &mut TorpedoGameMode {});
+    //engine::run(setup_ufo, &mut TorpedoGameMode {});
+    let _ad = init_audio();
+    audio_write_func(|x| (x * 4400.).sin() / 10. + (x * 2000.).cos() / 10., 5.);
+    std::thread::sleep(Duration::from_secs(10));
 }
 
 pub fn setup_old(_handle: &mut RaylibHandle, _thread: &RaylibThread) {

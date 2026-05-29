@@ -411,15 +411,19 @@ impl ParticleSystem {
                 }
             }
         }
-        let should_spawn = (dt * self.spawn_data.probability_to_spawn_per_second * 10000.) as u64
+        let mut should_spawn = (dt * self.spawn_data.probability_to_spawn_per_second * 10000.)
+            as u64
             > (random::<u64>() % 10000);
         self.position += self.velocity * dt;
-        if !self.spawn_data.can_stop_spawning && self.spawn_data.spawning_duration > 0. {
+        if self.spawn_data.can_stop_spawning && self.spawn_data.spawning_duration > 0. {
             self.spawn_data.spawning_duration -= dt;
+            if self.spawn_data.probability_to_spawn_per_second >= 0.0
+                && self.spawn_data.spawning_duration <= 0.0
+            {
+                should_spawn = true;
+            }
         }
-        if should_spawn
-            && (self.spawn_data.spawning_duration > 0.0 || !self.spawn_data.can_stop_spawning)
-        {
+        if should_spawn {
             for _ in 0..self.spawn_data.amount_to_spawn {
                 loop {
                     let idx = {
@@ -587,6 +591,20 @@ impl ParticleSystem {
             show_particles,
             force_fields: [None; _],
         }
+    }
+
+    pub fn should_be_gced(&self) -> bool {
+        for i in &self.particles {
+            if i.is_some() {
+                return false;
+            }
+        }
+        if self.spawn_data.can_stop_spawning {
+            if self.spawn_data.spawning_duration <= 0.0 {
+                return true;
+            }
+        }
+        false
     }
 }
 

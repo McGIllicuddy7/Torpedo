@@ -28,7 +28,12 @@ pub enum EventKind {
 }
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventInfo {
-    OnDamage {},
+    OnDamage {
+        direction: Vector3,
+        damage_amount: i32,
+        penetration: i32,
+        aoe: bool,
+    },
     OnDestroy {},
     DestroyObject {},
 }
@@ -60,6 +65,8 @@ pub struct GameObjectData {
     pub is_static: bool,
     pub tags: Arc<[Arc<str>]>,
     pub self_id: GObject,
+    pub projectile_damage: i32,
+    pub projectile_penetration: i32,
 }
 
 pub trait GameObject: Send + Sync + 'static {
@@ -150,8 +157,15 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
             .into_par_iter()
             .for_each(|i| {
                 let mut g = ENGINE.particle_systems[i].lock().unwrap();
+                let mut should_gc = false;
                 if let Some(g) = g.v.as_mut() {
                     g.update(dt);
+                    if g.should_be_gced() {
+                        should_gc = true;
+                    }
+                }
+                if should_gc {
+                    g.v = None;
                 }
             });
     }
@@ -202,7 +216,12 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
 impl Event {
     pub fn kind(&self) -> EventKind {
         match self.info {
-            EventInfo::OnDamage {} => EventKind::OnDamage,
+            EventInfo::OnDamage {
+                direction: _,
+                damage_amount: _,
+                penetration: _,
+                aoe: _,
+            } => EventKind::OnDamage,
             EventInfo::OnDestroy {} => EventKind::OnDestroy,
             EventInfo::DestroyObject {} => EventKind::DestroyObject,
         }
@@ -395,6 +414,8 @@ pub fn generate_cube(pos: Vector3, size: f32) -> GObject {
             is_static: false,
             tags: Arc::new([]),
             self_id: GObject::new(),
+            projectile_damage: 0,
+            projectile_penetration: 0,
         },
     })
 }
@@ -469,7 +490,12 @@ pub fn update_physics() {
                         get_engine().events.lock().unwrap().push_back(Event {
                             source,
                             target: hit_id,
-                            info: EventInfo::OnDamage {},
+                            info: EventInfo::OnDamage {
+                                aoe: false,
+                                direction: tmp.velocity.normalized(),
+                                damage_amount: tmp.projectile_damage,
+                                penetration: tmp.projectile_penetration,
+                            },
                         });
                         delete_object(hit_id, source);
                     }
@@ -786,6 +812,8 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
             is_static: false,
             tags: Arc::new([]),
             self_id: GObject::new(),
+            projectile_damage: 0,
+            projectile_penetration: 0,
         },
     })
 }

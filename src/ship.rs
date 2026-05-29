@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rand::random_bool;
+use rand::{random, random_bool};
 use raylib::{
     RaylibHandle, RaylibThread,
     color::Color,
@@ -14,13 +14,16 @@ use crate::{
         CameraData, GObject, GameObject, GameObjectData, delete_object, make_object, random_vector,
         set_player,
     },
-    graphics::draw_text,
+    graphics::{
+        ParticleSystem, SpawnData, SpawnVelocityData, create_particle_system, draw_flame, draw_text,
+    },
     mesh::GameMesh,
 };
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Ship {
     pub data: GameObjectData,
+    pub dead: bool,
     pub is_ai: bool,
     pub quadrants: [[[Vec<ShipComponent>; 3]; 3]; 3],
     pub acc_time: f32,
@@ -40,8 +43,13 @@ impl GameObject for Ship {
         _ev: crate::engine::Event,
     ) {
         match _ev.info {
-            crate::engine::EventInfo::OnDamage {} => {
-                delete_object(_ev.source, self.data.self_id);
+            crate::engine::EventInfo::OnDamage {
+                direction,
+                damage_amount,
+                penetration,
+                aoe,
+            } => {
+                self.on_damage(damage_amount, penetration, direction, aoe);
             }
             _ => {}
         }
@@ -63,10 +71,20 @@ impl Ship {
         let dt = handle.get_frame_time();
         let lin_acc_amount = 0.25;
         let rot_acc_amount = 20.;
-        let input = if self.is_ai {
-            self.ai_input(handle, thread)
+        let input = if self.dead {
+            Input {
+                rotational_acc: Vector3::zero(),
+                lin_acc: Vector3::zero(),
+                wants_to_stop: false,
+                fire_missile: false,
+                fire_cannon: false,
+            }
         } else {
-            self.player_input(handle, thread)
+            if self.is_ai {
+                self.ai_input(handle, thread)
+            } else {
+                self.player_input(handle, thread)
+            }
         };
         self.data.angular_velocity += input.rotational_acc * rot_acc_amount * 1. / 60.;
         if input.rotational_acc.length() == 0.0 {
@@ -236,6 +254,63 @@ impl Ship {
             let t5 = format!("bullets:{}/{}", bullet_amount, bullet_cap);
             draw_text(&t5, 100, 560, 16, Color::GREEN);
             draw_text(&t4, 100, 580, 16, Color::GREEN);
+            if self.dead {
+                draw_text("DEAD", 500, 500, 32, Color::WHITE);
+            }
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    let mut max = 0;
+                    let mut current = 0;
+                    for dz in -1..=1 {
+                        for i in self.get_comps(dx, dy, dz) {
+                            max += i.max_health;
+                            current += i.health;
+                        }
+                    }
+                    let ps = (current as f32 * 100. / max as f32) as i32;
+                    let x = (dy * 50) + 50;
+                    let y = ((1 - dx) * 40) + 600;
+                    let text = format!("[{}%]", ps);
+                    draw_text(&text, x, y, 16, Color::WHITE);
+                }
+            }
+        }
+        if !self.dead {
+            let d1 = Vector3::new(-1., 0., 0.).rotate_by(self.data.rotation.inverted());
+            let d2 = Vector3::new(0., 1., 0.).rotate_by(self.data.rotation.inverted());
+            let l = input_dir.length() / 2. + 0.1;
+            draw_flame(
+                d1 * 0.5 + d2 * 0.5 + self.data.location,
+                d1,
+                0.1,
+                l,
+                Color::VIOLET,
+            );
+            draw_flame(
+                d1 * 0.5 - d2 * 0.5 + self.data.location,
+                d1,
+                0.1,
+                l,
+                Color::VIOLET,
+            );
+        }
+        let mut should_explode = false;
+        let mut health_base = 0;
+        let mut health_current = 0;
+        self.iter_over_all_comps(|_, i| {
+            health_base += i.max_health;
+            health_current += i.health;
+            if i.health < 0 && i.on_fire {
+                should_explode = true;
+            }
+        });
+        if health_base >= health_current * 2 {
+            should_explode = true;
+        }
+        if should_explode {
+            self.dead = true;
+            delete_object(self.data.self_id, self.data.self_id);
+            spawn_explosion(self.data.location, 10.);
         }
     }
 
@@ -297,7 +372,7 @@ impl Ship {
         if handle.is_key_down(KeyboardKey::KEY_G) {
             racc.x -= 1.;
         }
-        let v = handle.get_mouse_delta() * 5.;
+        let v = handle.get_mouse_delta() * 4.;
         racc.z += v.x;
         racc.y -= v.y;
         if racc.length() > 0.0 {
@@ -427,6 +502,107 @@ impl Ship {
             }
         }
     }
+
+    pub fn on_damage(&mut self, damage: i32, penetration: i32, direction: Vector3, aoe: bool) {
+        let dir = direction.rotate_by(self.data.rotation);
+        let mut hit_set = Vec::new();
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    let delt = Vector3::new(-dx as f32, -dy as f32, -dz as f32);
+                    hit_set.push(((dx, dy, dz), delt));
+                }
+            }
+        }
+        let mut min_idx = hit_set[0].0;
+        let mut min = dir.dot(hit_set[0].1);
+        for (p, d) in &hit_set {
+            if d.dot(dir) < min {
+                min = d.dot(dir);
+                min_idx = *p;
+            }
+        }
+        let mut damage = damage;
+        let mut hit = false;
+        for _ in 0..3 {
+            if min_idx.0 < -1
+                || min_idx.1 < -1
+                || min_idx.2 < -1
+                || min_idx.0 > 1
+                || min_idx.1 > 1
+                || min_idx.2 > 1
+            {
+                break;
+            }
+            let mut penetrated = false;
+            if aoe {
+                let mut min_health = 100000;
+                for i in self.get_comps_mut(min_idx.0, min_idx.1, min_idx.2) {
+                    if i.health < min_health {
+                        min_health = i.health;
+                    }
+                    if i.health < 0 {
+                        penetrated = true;
+                        continue;
+                    }
+                    i.on_damage(damage);
+                    hit = true;
+                    if i.health < damage * penetration {
+                        penetrated = true;
+                    }
+                }
+                damage -= min_health / penetration;
+            } else {
+                let mut total = 0;
+                for i in self.get_comps(min_idx.0, min_idx.1, min_idx.2) {
+                    total += i.volume;
+                }
+                if total == 0 {
+                    break;
+                }
+                let r = random::<u64>() % total;
+                let mut base = 0;
+                for i in self.get_comps_mut(min_idx.0, min_idx.1, min_idx.2) {
+                    base += i.volume;
+                    if base >= r {
+                        let oh = i.health;
+                        if oh < 0 {
+                            penetrated = true;
+                            break;
+                        }
+                        i.on_damage(damage);
+                        hit = true;
+                        if i.health < damage.saturating_mul(penetration) {
+                            damage -= oh / penetration;
+                            penetrated = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            if !penetrated || damage < 0 {
+                break;
+            }
+            let next =
+                Vector3::new(min_idx.0 as f32, min_idx.1 as f32, min_idx.2 as f32) + dir * 1.;
+            min_idx.0 = next.x.round() as i32;
+            min_idx.1 = next.y.round() as i32;
+            min_idx.2 = next.z.round() as i32;
+        }
+        if !hit {
+            self.iter_over_all_comps_mut(|_, i| {
+                if i.health > 0 {
+                    i.health -= damage / 10;
+                }
+            });
+        }
+    }
+    pub fn get_comps(&self, x: i32, y: i32, z: i32) -> &Vec<ShipComponent> {
+        &self.quadrants[(x + 1) as usize][(y + 1) as usize][(z + 1) as usize]
+    }
+    pub fn get_comps_mut(&mut self, x: i32, y: i32, z: i32) -> &mut Vec<ShipComponent> {
+        &mut self.quadrants[(x + 1) as usize][(y + 1) as usize][(z + 1) as usize]
+    }
 }
 
 pub struct Input {
@@ -454,6 +630,7 @@ pub fn create_player_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
         Vector3::new(1., 0.0, 0.0),
     );
     let mut s = Ship {
+        dead: false,
         acc_time: 0.0,
         is_ai: false,
         data: GameObjectData {
@@ -473,6 +650,8 @@ pub fn create_player_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
             is_static: false,
             tags: Arc::new(["ship".into()]),
             self_id: GObject::new(),
+            projectile_damage: 0,
+            projectile_penetration: 0,
         },
         quadrants: [const { [const { [const { Vec::new() }; _] }; _] }; _],
     };
@@ -499,6 +678,7 @@ pub fn create_ai_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
         Vector3::new(1., 0.0, 0.0),
     );
     let mut s = Ship {
+        dead: false,
         acc_time: 0.0,
         is_ai: true,
         data: GameObjectData {
@@ -515,6 +695,8 @@ pub fn create_ai_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
             is_static: false,
             tags: Arc::new(["ship".into()]),
             self_id: GObject::new(),
+            projectile_damage: 0,
+            projectile_penetration: 0,
         },
         quadrants: [const { [const { [const { Vec::new() }; _] }; _] }; _],
     };
@@ -528,6 +710,7 @@ pub struct ShipComponent {
     pub is_brain: bool,
     pub integral: bool,
     pub health: i32,
+    pub max_health: i32,
     pub volume: u64,
     pub on_fire: bool,
     pub data: ShipComponentData,
@@ -580,6 +763,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Engine { direction: thrust },
@@ -594,6 +778,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::FuelTank {
@@ -611,6 +796,7 @@ impl Ship {
                 is_brain: true,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Cockpit {},
@@ -625,6 +811,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::CargoHold {},
@@ -639,6 +826,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Armor {},
@@ -653,6 +841,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Antenna {},
@@ -676,6 +865,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Magazine {
@@ -695,6 +885,7 @@ impl Ship {
                 is_brain: false,
                 integral: false,
                 health: hp,
+                max_health: hp,
                 volume: vol,
                 on_fire: false,
                 data: ShipComponentData::Turret {
@@ -706,7 +897,7 @@ impl Ship {
     }
 
     pub fn default_layout(&mut self) {
-        for i in -1..1 {
+        for i in -1..=1 {
             for j in -1..=1 {
                 for k in -1..=1 {
                     if i != 0 || j != 0 || k != 0 {
@@ -819,6 +1010,28 @@ impl ShipComponent {
             }
         }
     }
+
+    pub fn on_damage(&mut self, amount: i32) {
+        self.health -= amount;
+
+        match self.data {
+            ShipComponentData::Magazine {
+                max_missile_count: _,
+                max_bullet_count: _,
+                missile_count: _,
+                bullet_count: _,
+            } => {
+                self.on_fire = true;
+            }
+            ShipComponentData::FuelTank {
+                remaining_fuel: _,
+                max_fuel: _,
+            } => {
+                self.on_fire = true;
+            }
+            _ => {}
+        }
+    }
 }
 
 pub struct Bullet {
@@ -878,9 +1091,38 @@ pub fn fire_bullet(start: Vector3, direction: Vector3, rotation: Quaternion) -> 
             is_static: false,
             tags: Arc::new(["bullet".into()]),
             self_id: GObject::new(),
+            projectile_damage: 20,
+            projectile_penetration: 10,
         },
         remaining_time: 30.,
     };
     let out = make_object(s);
     out
+}
+
+pub fn spawn_explosion(at: Vector3, radius: f32) {
+    create_particle_system(ParticleSystem::new(
+        at,
+        Vector3::zero(),
+        true,
+        SpawnData {
+            amount_to_spawn: 100,
+            probability_to_spawn_per_second: 1.,
+            spawn_radius: 10.,
+            velocity_info: SpawnVelocityData::Sphere { radius },
+            can_stop_spawning: true,
+            max_connection_count: 0,
+            max_connection_distance: 0.0,
+            min_lifetime: 0.1,
+            max_lifetime: 1.,
+            min_radius: 0.1,
+            max_radius: 1.,
+            min_end_radius: 1.,
+            max_end_radius: 4.,
+            spawning_duration: 0.2,
+            ending_color: Color::GRAY,
+            glowing: false,
+            color: Color::ORANGERED,
+        },
+    ));
 }

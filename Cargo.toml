@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+cpal = "0.17.3"
 rand = "0.10.1"
 raylib = {version = "5.5.1", features = ["serde_json", "with_serde"]}
 rayon = "1.12.0"
