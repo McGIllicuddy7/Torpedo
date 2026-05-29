@@ -697,7 +697,7 @@ pub fn random_unit_vector() -> Vector3 {
     let r2 = resolution as f32 / 2.;
     let theta = ((random::<u64>() % resolution) as f32 - r2) / r2 * 2. * PI;
     let phi = ((random::<u64>() % resolution) as f32 - r2) / r2 * 2. * PI;
-    let x = phi.cos() * theta.cos();
+    let x = phi.cos() * theta.sin();
     let y = phi.sin() * theta.sin();
     let z = theta.cos();
     Vector3::new(x, y, z)

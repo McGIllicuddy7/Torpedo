@@ -268,6 +268,7 @@ pub struct Particle {
     pub velocity: Vector3,
     pub connections: [i16; 32],
     pub radius: f32,
+    pub ending_radius: f32,
     pub start_color: Color,
     pub end_color: Color,
     pub glowing: bool,
@@ -287,6 +288,8 @@ pub struct SpawnData {
     pub max_lifetime: f32,
     pub min_radius: f32,
     pub max_radius: f32,
+    pub min_end_radius: f32,
+    pub max_end_radius: f32,
     pub spawning_duration: f32,
     pub can_stop_spawning: bool,
     pub ending_color: Color,
@@ -391,7 +394,9 @@ impl ParticleSystem {
                         }
                         tidx as usize
                     };
-                    let pos = self.position + random_vector() * self.spawn_data.spawn_radius;
+                    let pos = self.position
+                        + random_unit_vector() * (random::<u64>() % 10000) as f32 / 10000.
+                            * self.spawn_data.spawn_radius;
                     let velocity = match self.spawn_data.velocity_info {
                         SpawnVelocityData::Cone {
                             direction,
@@ -406,7 +411,10 @@ impl ParticleSystem {
                             let vel = direction.rotate_by(r) * length;
                             vel
                         }
-                        SpawnVelocityData::Sphere { radius } => random_vector() * radius,
+                        SpawnVelocityData::Sphere { radius } => {
+                            random_unit_vector() * (random::<u64>() % 10000) as f32 / 10000.
+                                * radius
+                        }
                     };
                     let velocity = self.velocity + velocity;
                     let mut connections = [-1; _];
@@ -441,6 +449,8 @@ impl ParticleSystem {
                     let rad_lerp = (random::<u64>() % 1000) as f32 / 1000.;
                     let rad = (1. - rad_lerp) * self.spawn_data.min_radius
                         + rad_lerp * self.spawn_data.max_radius;
+                    let end_rad = (1. - rad_lerp) * self.spawn_data.min_end_radius
+                        + rad_lerp * self.spawn_data.max_end_radius;
                     self.particles[idx] = Some(Particle {
                         position: pos,
                         velocity,
@@ -449,6 +459,7 @@ impl ParticleSystem {
                         end_color: self.spawn_data.ending_color,
                         lifetime: lt,
                         radius: rad,
+                        ending_radius: end_rad,
                         starting_lifetime: lt,
                         glowing: self.spawn_data.glowing,
                     });
@@ -461,8 +472,8 @@ impl ParticleSystem {
     pub fn render(&self, draw: &mut impl RaylibDraw3D, _thread: &RaylibThread) {
         for i in 0..self.particles.len() {
             if let Some(y) = self.particles[i].as_ref() {
+                let lerp = 1. - y.lifetime / y.starting_lifetime;
                 let col = {
-                    let lerp = 1. - y.lifetime / y.starting_lifetime;
                     let r = (1. - lerp) * y.start_color.r as f32 + lerp * y.end_color.r as f32;
                     let g = (1. - lerp) * y.start_color.g as f32 + lerp * y.end_color.g as f32;
                     let b = (1. - lerp) * y.start_color.b as f32 + lerp * y.end_color.b as f32;
@@ -479,7 +490,7 @@ impl ParticleSystem {
                     if y.glowing && should_glow {
                         draw.draw_sphere_ex(
                             y.position,
-                            y.radius * 0.8,
+                            ((1. - lerp) * y.radius + y.ending_radius * lerp) * 0.8,
                             3,
                             3,
                             Color {
@@ -491,7 +502,7 @@ impl ParticleSystem {
                         );
                         draw.draw_sphere_ex(
                             y.position,
-                            y.radius * 1.1,
+                            ((1. - lerp) * y.radius + y.ending_radius * lerp) * 1.1,
                             6,
                             6,
                             Color {
@@ -502,7 +513,13 @@ impl ParticleSystem {
                             },
                         );
                     } else {
-                        draw.draw_sphere_ex(y.position, y.radius, 3, 3, col);
+                        draw.draw_sphere_ex(
+                            y.position,
+                            ((1. - lerp) * y.radius + y.ending_radius * lerp),
+                            3,
+                            3,
+                            col,
+                        );
                     }
                 }
                 for i in y.connections {

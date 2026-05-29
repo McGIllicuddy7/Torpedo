@@ -42,7 +42,7 @@ pub fn setup(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
 }
 
 pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
-    for _ in 0..10 {
+    for _ in 0..0 {
         let t = generate_ufo(random_vector() * 20., 1.0);
         let pos = t.get().get_data().location;
         let mut data = t.get_mut();
@@ -55,16 +55,16 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
         );
     }
     let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
-    for _ in 0..20 {
+    for _ in 0..1 {
         let _fountain = create_particle_system(ParticleSystem::new(
-            random_vector() * 2.,
+            Vector3::new(10., 0., 0.),
             Vector3::zero(),
             true,
             SpawnData {
-                amount_to_spawn: 5,
-                probability_to_spawn_per_second: 10.,
-                spawn_radius: 2.,
-                velocity_info: SpawnVelocityData::Sphere { radius: 10. },
+                amount_to_spawn: 1000,
+                probability_to_spawn_per_second: 0.2,
+                spawn_radius: 0.1,
+                velocity_info: SpawnVelocityData::Sphere { radius: 20. },
                 max_connection_count: 0,
                 max_connection_distance: 1.,
                 max_lifetime: 5.,
@@ -72,31 +72,25 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
                 spawning_duration: -1.,
                 can_stop_spawning: false,
                 color: Color {
-                    r: 0,
-                    g: 50,
-                    b: 255,
-                    a: 100,
+                    r: 255,
+                    g: 255,
+                    b: 220,
+                    a: 255,
                 },
                 ending_color: Color {
-                    r: 0,
-                    g: 200,
-                    b: 240,
-                    a: 64,
+                    r: 10,
+                    g: 10,
+                    b: 10,
+                    a: 100,
                 },
-                glowing: true,
+                glowing: false,
                 min_radius: 0.05,
                 max_radius: 0.4,
+                max_end_radius: 2.,
+                min_end_radius: 0.1,
             },
         ));
-        _fountain.get().get_mut().force_fields[1] = Some(graphics::ForceField::Point {
-            offset: Vector3::new(0., 0., -10.),
-            amount: 100.,
-        });
-        _fountain.get().get_mut().force_fields[2] = Some(graphics::ForceField::Point {
-            offset: Vector3::new(0.0, 0.0, 10.),
-            amount: 100.,
-        });
-        _fountain.get().get_mut().force_fields[3] = Some(graphics::ForceField::Drag { coef: 0.1 });
+        _fountain.get().get_mut().force_fields[0] = Some(graphics::ForceField::Drag { coef: 2. });
     }
 }
 
