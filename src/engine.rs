@@ -1,28 +1,23 @@
 use std::{
     any::type_name,
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, VecDeque},
     f32::consts::PI,
     hash::Hash,
-    ops::{Bound, Deref, DerefMut},
-    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    ops::{Deref, DerefMut},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use rand::random;
 use raylib::{
     RaylibHandle, RaylibThread,
-    camera::Camera3D,
-    color::Color,
-    drawing::{RaylibDraw, RaylibDraw3D, RaylibDrawHandle, RaylibMode3DExt},
-    math::{BoundingBox, Matrix, Quaternion, Ray, Vector3, Vector4},
+    drawing::RaylibDrawHandle,
+    math::{BoundingBox, Quaternion, Ray, Vector3, Vector4},
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{
-    Deserialize, Serialize,
-    de::{self, DeserializeOwned},
-};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
-    graphics::{DrawEvent, DrawEvent3D, ParticleSystem, ParticleSystemContainer, run_graphics},
+    graphics::{DrawEvent, DrawEvent3D, ParticleSystemContainer, run_graphics},
     mesh::GameMesh,
 };
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -63,6 +58,8 @@ pub struct GameObjectData {
     pub camera_data: Option<CameraData>,
     pub is_projectile: bool,
     pub is_static: bool,
+    pub tags: Arc<[Arc<str>]>,
+    pub self_id: GObject,
 }
 
 pub trait GameObject: Send + Sync + 'static {
@@ -159,7 +156,12 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
             });
     }
     game_mode.on_update(handle, thread);
-    while let Some(ev) = ENGINE.events.lock().unwrap().pop_front() {
+    loop {
+        let mut _tmp = ENGINE.events.lock().unwrap();
+        let Some(ev) = _tmp.pop_front() else {
+            break;
+        };
+        drop(_tmp);
         match ev.kind() {
             EventKind::DestroyObject => {
                 let mut tmp = ENGINE.objects[ev.target.idx as usize].write().unwrap();
@@ -177,10 +179,10 @@ pub fn step(handle: &mut RaylibHandle, thread: &RaylibThread, game_mode: &mut dy
             }
             _ => {
                 let mut tmp = ENGINE.objects[ev.target.idx as usize].write().unwrap();
-                if tmp.generation == ev.target.generation {
-                    if let Some(t) = tmp.ptr.as_mut() {
-                        t.on_event(handle, thread, ev);
-                    }
+                if tmp.generation == ev.target.generation
+                    && let Some(t) = tmp.ptr.as_mut()
+                {
+                    t.on_event(handle, thread, ev);
                 }
             }
         }
@@ -207,6 +209,12 @@ impl Event {
     }
 }
 
+impl Default for GObject {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GObject {
     pub const fn new() -> Self {
         Self {
@@ -225,11 +233,7 @@ impl GObject {
     pub fn with<W>(&self, func: impl FnOnce(&dyn GameObject) -> W) -> Option<W> {
         let r = ENGINE.objects[self.idx as usize].read().unwrap();
         if r.generation == self.generation {
-            if let Some(t) = r.ptr.as_ref() {
-                Some(func(t.as_ref()))
-            } else {
-                None
-            }
+            r.ptr.as_ref().map(|t| func(t.as_ref()))
         } else {
             None
         }
@@ -238,11 +242,7 @@ impl GObject {
     pub fn with_mut<W>(&self, func: impl FnOnce(&mut dyn GameObject) -> W) -> Option<W> {
         let mut r = ENGINE.objects[self.idx as usize].write().unwrap();
         if r.generation == self.generation {
-            if let Some(t) = r.ptr.as_mut() {
-                Some(func(t.as_mut()))
-            } else {
-                None
-            }
+            r.ptr.as_mut().map(|t| func(t.as_mut()))
         } else {
             None
         }
@@ -327,6 +327,7 @@ pub fn make_object(v: impl GameObject) -> GObject {
                 generation: tmp.generation,
             };
             tmp.ptr = Some(Box::new(v));
+            tmp.ptr.as_mut().unwrap().get_data_mut().self_id = out;
             return out;
         }
     }
@@ -335,7 +336,7 @@ pub fn make_object(v: impl GameObject) -> GObject {
 
 pub fn delete_object(source: GObject, v: GObject) {
     ENGINE.events.lock().unwrap().push_back(Event {
-        source: source,
+        source,
         target: v,
         info: EventInfo::DestroyObject {},
     });
@@ -378,7 +379,8 @@ pub fn generate_cube(pos: Vector3, size: f32) -> GObject {
         lines: Vec::new(),
     };
     msh.add_cube(Vector3::zero(), size, size, size);
-    let v = make_object(Object {
+
+    make_object(Object {
         data: GameObjectData {
             model: Some(msh),
             location: pos,
@@ -391,23 +393,26 @@ pub fn generate_cube(pos: Vector3, size: f32) -> GObject {
             camera_data: None,
             is_projectile: false,
             is_static: false,
+            tags: Arc::new([]),
+            self_id: GObject::new(),
         },
-    });
-    v
+    })
 }
 
 pub fn update_physics() {
     let mut list = Vec::new();
     for i in 0..ENGINE.objects.len() {
         let t0 = ENGINE.objects[i].read().unwrap();
-        if let Some(y) = t0.ptr.as_ref() {
-            if !y.get_data().is_projectile {
-                list.push((i, y.get_data().clone()));
-            }
+        let gn = t0.generation;
+        if let Some(y) = t0.ptr.as_ref()
+            && !y.get_data().is_projectile
+        {
+            list.push((i, gn, y.get_data().clone()));
         }
     }
     (0..ENGINE.objects.len()).into_par_iter().for_each(|i| {
         let mut t1 = ENGINE.objects[i].write().unwrap();
+        let gn = t1.generation as u32;
         if let Some(y) = t1.ptr.as_mut() {
             let tmp = y.get_data_mut();
             if tmp.is_static {
@@ -440,17 +445,34 @@ pub fn update_physics() {
                 }
                 let mut hit = false;
                 let mut hv = Vector3::new(1.0, 0.0, 0.0);
-                for (j, v0) in &list {
+                let mut hit_id = GObject::new();
+                for (j, x, v0) in &list {
                     if *j == i {
                         continue;
                     }
                     if let Some(y) = tmp.check_collision(v0) {
                         hv = y;
                         hit = true;
+                        hit_id = GObject {
+                            idx: *j as u32,
+                            generation: *x,
+                        };
                         break;
                     }
                 }
                 if hit {
+                    if tmp.is_projectile {
+                        let source = GObject {
+                            idx: i as u32,
+                            generation: gn,
+                        };
+                        get_engine().events.lock().unwrap().push_back(Event {
+                            source,
+                            target: hit_id,
+                            info: EventInfo::OnDamage {},
+                        });
+                        delete_object(hit_id, source);
+                    }
                     tmp.angular_velocity *= -0.95;
                     tmp.velocity = tmp.velocity.reflect_from(hv) * 0.95;
                     tmp.location = old;
@@ -673,14 +695,13 @@ impl GameObjectData {
             let out = HitInfo {
                 hit_object: GObject::new(),
                 hit_location: col.point.rotate_by(self.rotation) + self.location,
-                start: start,
+                start,
                 distance: col.distance,
                 normal: col.normal.rotate_by(self.rotation),
             };
             return Some(out);
-        } else {
         }
-        return None;
+        None
     }
 }
 
@@ -749,7 +770,8 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
         Vector3::new(0.0, 0.0, 1.),
         Vector3::new(1., 0.0, 0.0),
     );
-    let v = make_object(Object {
+
+    make_object(Object {
         data: GameObjectData {
             model: Some(msh),
             location: pos,
@@ -762,9 +784,10 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
             camera_data: None,
             is_projectile: false,
             is_static: false,
+            tags: Arc::new([]),
+            self_id: GObject::new(),
         },
-    });
-    v
+    })
 }
 
 pub trait GameMode {
@@ -786,7 +809,7 @@ pub fn raycast(
 ) -> Option<HitInfo> {
     let mut hs = HitInfo {
         hit_location: Vector3::zero(),
-        start: start,
+        start,
         distance: 0.0,
         normal: Vector3::zero(),
         hit_object: GObject::new(),
@@ -806,31 +829,112 @@ pub fn raycast(
         };
         let g = GObject {
             idx: i as u32,
-            generation: lck.generation as u32,
+            generation: lck.generation,
         };
 
         if ignored_entities.contains(&g) {
             continue;
         }
         if let Some(t) = lck.ptr.as_ref() {
-            if !include_projectiles {
-                if t.get_data().is_projectile {
-                    continue;
-                }
+            if !include_projectiles && t.get_data().is_projectile {
+                continue;
             }
-            if let Some(hit) = t.get_data().raycast_against(start, end) {
-                if hit.distance < min_dist {
-                    min_dist = hit.distance;
-                    hs = hit;
-                    hs.hit_object = g;
-                    has_hit = true;
-                }
+            if let Some(hit) = t.get_data().raycast_against(start, end)
+                && hit.distance < min_dist
+            {
+                min_dist = hit.distance;
+                hs = hit;
+                hs.hit_object = g;
+                has_hit = true;
             }
         }
     }
-    if has_hit { return Some(hs) } else { None }
+    if has_hit { Some(hs) } else { None }
 }
 
 pub fn get_engine() -> &'static Engine {
     &ENGINE
+}
+
+pub fn get_all_objects_with_tag(tag: &str) -> Vec<GObject> {
+    let mut out = Vec::new();
+    for i in 0..get_engine().objects.len() {
+        let tmp = match get_engine().objects[i].try_read() {
+            Ok(x) => x,
+            Err(e) => match e {
+                std::sync::TryLockError::Poisoned(x) => x.into_inner(),
+                std::sync::TryLockError::WouldBlock => {
+                    continue;
+                }
+            },
+        };
+        if let Some(t) = tmp.ptr.as_ref() {
+            for j in t.get_data().tags.as_ref() {
+                if *tag == **j {
+                    out.push(GObject {
+                        idx: i as u32,
+                        generation: tmp.generation as u32,
+                    });
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
+
+pub fn get_all_objects() -> Vec<GObject> {
+    let mut out = Vec::new();
+    for i in 0..get_engine().objects.len() {
+        let tmp = match get_engine().objects[i].try_read() {
+            Ok(x) => x,
+            Err(e) => match e {
+                std::sync::TryLockError::Poisoned(x) => x.into_inner(),
+                std::sync::TryLockError::WouldBlock => {
+                    continue;
+                }
+            },
+        };
+        if tmp.ptr.as_ref().is_some() {
+            out.push(GObject {
+                idx: i as u32,
+                generation: tmp.generation as u32,
+            });
+        }
+    }
+    out
+}
+
+pub fn get_all_objects_with_tags(tags: &[&str]) -> Vec<GObject> {
+    let mut out = Vec::new();
+    for i in 0..get_engine().objects.len() {
+        let tmp = match get_engine().objects[i].try_read() {
+            Ok(x) => x,
+            Err(e) => match e {
+                std::sync::TryLockError::Poisoned(x) => x.into_inner(),
+                std::sync::TryLockError::WouldBlock => {
+                    continue;
+                }
+            },
+        };
+        if let Some(t) = tmp.ptr.as_ref() {
+            for k in tags {
+                let mut hit = false;
+                for j in t.get_data().tags.as_ref() {
+                    if **k == **j {
+                        hit = true;
+                        break;
+                    }
+                }
+                if !hit {
+                    continue;
+                }
+            }
+            out.push(GObject {
+                idx: i as u32,
+                generation: tmp.generation,
+            });
+        }
+    }
+    out
 }

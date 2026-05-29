@@ -1,19 +1,29 @@
+use std::sync::Arc;
+
+use rand::random_bool;
 use raylib::{
     RaylibHandle, RaylibThread,
-    ffi::KeyboardKey::{self, KEY_W},
+    color::Color,
+    ffi::KeyboardKey::{self},
     math::{Quaternion, Vector3},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     engine::{
-        CameraData, GObject, GameObject, GameObjectData, make_object, random_vector, set_player,
+        CameraData, GObject, GameObject, GameObjectData, delete_object, make_object, random_vector,
+        set_player,
     },
+    graphics::draw_text,
     mesh::GameMesh,
 };
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Ship {
     pub data: GameObjectData,
     pub is_ai: bool,
+    pub quadrants: [[[Vec<ShipComponent>; 3]; 3]; 3],
+    pub acc_time: f32,
 }
 impl GameObject for Ship {
     fn on_update(
@@ -25,10 +35,16 @@ impl GameObject for Ship {
     }
     fn on_event(
         &mut self,
-        handle: &mut raylib::prelude::RaylibHandle,
-        thread: &raylib::prelude::RaylibThread,
-        ev: crate::engine::Event,
+        _handle: &mut raylib::prelude::RaylibHandle,
+        _thread: &raylib::prelude::RaylibThread,
+        _ev: crate::engine::Event,
     ) {
+        match _ev.info {
+            crate::engine::EventInfo::OnDamage {} => {
+                delete_object(_ev.source, self.data.self_id);
+            }
+            _ => {}
+        }
     }
     fn get_data(&self) -> &GameObjectData {
         &self.data
@@ -44,7 +60,8 @@ impl Ship {
         handle: &mut raylib::prelude::RaylibHandle,
         thread: &raylib::prelude::RaylibThread,
     ) {
-        let lin_acc_amount = 10.;
+        let dt = handle.get_frame_time();
+        let lin_acc_amount = 0.25;
         let rot_acc_amount = 20.;
         let input = if self.is_ai {
             self.ai_input(handle, thread)
@@ -60,26 +77,180 @@ impl Ship {
                     self.data.angular_velocity.normalized() * rot_acc_amount / 60.;
             }
         }
-        self.data.velocity +=
-            input.lin_acc.rotate_by(self.data.rotation.inverted()) * lin_acc_amount * 1. / 60.;
+        let input_dir = {
+            let mut tmp = input.lin_acc;
+            let (acc, nacc) = self.max_thrust();
+            if tmp.x > 0. {
+                tmp.x *= acc.x;
+            } else {
+                tmp.x *= nacc.x.abs();
+            }
+            if tmp.y > 0. {
+                tmp.y *= acc.y;
+            } else {
+                tmp.y *= nacc.y.abs();
+            }
+            if tmp.z > 0. {
+                tmp.z *= acc.z;
+            } else {
+                tmp.z *= nacc.z.abs();
+            }
+            tmp
+        };
+        if input.wants_to_stop && self.data.velocity.length() < 1. {
+            self.data.velocity = Vector3::zero();
+        } else {
+            self.data.velocity +=
+                input_dir.rotate_by(self.data.rotation.inverted()) * lin_acc_amount * 1. / 60.;
+        }
+        self.acc_time += handle.get_frame_time() * input_dir.length();
+        if self.acc_time > 1. {
+            self.consume_fuel_for_manuever(1);
+            self.acc_time = 0.0;
+        }
         if self.data.angular_velocity.length() > 1. {
             let n = self.data.angular_velocity.normalized();
             self.data.angular_velocity = n * 1.;
         }
-        if self.data.velocity.length() > 3. {
+        if self.data.velocity.length() > 1000. {
             let n = self.data.velocity.normalized();
-            self.data.velocity = n * 3.;
+            self.data.velocity = n * 1000.;
+        }
+        let mut fuel_cap = 0;
+        let mut fuel_amount = 0;
+        let mut missile_amount = 0;
+        let mut missile_cap = 0;
+        let mut bullet_amount = 0;
+        let mut bullet_cap = 0;
+        self.iter_over_all_comps(|_, comp| match &comp.data {
+            ShipComponentData::FuelTank {
+                remaining_fuel,
+                max_fuel,
+            } => {
+                if comp.health > 0 {
+                    fuel_amount += *remaining_fuel;
+                }
+                fuel_cap += *max_fuel;
+            }
+            ShipComponentData::Magazine {
+                max_missile_count,
+                max_bullet_count,
+                missile_count,
+                bullet_count,
+            } => {
+                missile_cap += *max_missile_count;
+                bullet_cap += *max_bullet_count;
+                missile_amount += *missile_count;
+                bullet_amount += *bullet_count;
+            }
+            _ => {}
+        });
+        self.iter_over_all_comps_mut(|_, cmp| {
+            cmp.update(dt);
+        });
+        if input.fire_cannon {
+            let mut can_fire = false;
+            let mut to_fire_idx = (0, 0, 0, 0);
+            let mut max_ammo_count = 0;
+            let mut max_ammo_idx = (0, 0, 0, 0);
+            self.iter_over_all_comps(|idx, v| {
+                if v.health > 0 {
+                    match &v.data {
+                        ShipComponentData::Magazine {
+                            max_missile_count: _,
+                            max_bullet_count: _,
+                            missile_count: _,
+                            bullet_count,
+                        } => {
+                            if *bullet_count > max_ammo_count {
+                                max_ammo_count = *bullet_count;
+                                max_ammo_idx = idx;
+                            }
+                        }
+                        ShipComponentData::Turret {
+                            cool_down_time: _,
+                            remaining_cool_down_time,
+                        } => {
+                            if can_fire {
+                                return;
+                            }
+                            if *remaining_cool_down_time <= 0.0 {
+                                to_fire_idx = idx;
+                                can_fire = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
+            if can_fire && max_ammo_count >= 2 {
+                let tmp = &mut self.quadrants[(to_fire_idx.0 + 1) as usize]
+                    [(to_fire_idx.1 + 1) as usize][(to_fire_idx.2 + 1) as usize][to_fire_idx.3];
+                match &mut tmp.data {
+                    ShipComponentData::Turret {
+                        cool_down_time,
+                        remaining_cool_down_time,
+                    } => {
+                        *remaining_cool_down_time = *cool_down_time;
+                    }
+                    _ => {}
+                }
+                let tmp = &mut self.quadrants[(max_ammo_idx.0 + 1) as usize]
+                    [(max_ammo_idx.1 + 1) as usize][(max_ammo_idx.2 + 1) as usize][max_ammo_idx.3];
+                match &mut tmp.data {
+                    ShipComponentData::Magazine {
+                        max_missile_count: _,
+                        max_bullet_count: _,
+                        missile_count: _,
+                        bullet_count,
+                    } => {
+                        *bullet_count -= 2;
+                    }
+                    _ => {}
+                }
+                let dir = Vector3::new(1.0, 0.0, 0.0).rotate_by(self.data.rotation.inverted());
+                let dir_perp =
+                    Vector3::new(0.0, 1.0, 0.0).rotate_by(self.data.rotation.inverted()) * 0.5;
+                let base = self.data.location + dir * 1.5;
+                fire_bullet(base + dir_perp, dir, self.data.rotation);
+                fire_bullet(base - dir_perp, dir, self.data.rotation);
+            }
+        }
+        let text = format!("{} seconds of thrust remaining", fuel_amount);
+        let text2 = format!(
+            "{} seconds specific impulse",
+            (fuel_cap as f32 / 10.) as i32
+        );
+        if !self.is_ai {
+            let v = self.data.velocity.rotate_by(self.data.rotation);
+            let t3 = format!(
+                "relative velocity(m/s): x:{}, y:{}, z:{}",
+                (v.x * 10.).ceil() as i32,
+                (v.y * 10.).ceil() as i32,
+                (v.z * 10.).ceil() as i32
+            );
+            draw_text(&text, 100, 500, 16, Color::GREEN);
+            draw_text(&text2, 100, 520, 16, Color::GREEN);
+            draw_text(&t3, 100, 540, 16, Color::GREEN);
+            let t4 = format!("missiles:{}/{}", missile_amount, missile_cap);
+            let t5 = format!("bullets:{}/{}", bullet_amount, bullet_cap);
+            draw_text(&t5, 100, 560, 16, Color::GREEN);
+            draw_text(&t4, 100, 580, 16, Color::GREEN);
         }
     }
 
     pub fn ai_input(&self, _handle: &mut RaylibHandle, _thread: &RaylibThread) -> Input {
         Input {
+            wants_to_stop: false,
             rotational_acc: random_vector() / 20.0,
             lin_acc: random_vector(),
+            fire_cannon: random_bool((0.1 * _handle.get_frame_time()) as f64),
+            fire_missile: random_bool((0.1 * _handle.get_frame_time()) as f64),
         }
     }
 
     pub fn player_input(&self, handle: &mut RaylibHandle, _thread: &RaylibThread) -> Input {
+        let mut wants_to_stop = false;
         let mut lin_acc = Vector3::zero();
         let mut racc = Vector3::zero();
         if handle.is_key_down(KeyboardKey::KEY_W) {
@@ -99,6 +270,14 @@ impl Ship {
         }
         if handle.is_key_down(KeyboardKey::KEY_SPACE) {
             lin_acc.z += 1.;
+        }
+        if handle.is_key_down(KeyboardKey::KEY_LEFT_SHIFT) {
+            wants_to_stop = true;
+            if self.data.velocity.length() > 0.0 {
+                lin_acc = -self.data.velocity.normalized();
+            } else {
+                lin_acc = Vector3::zero();
+            }
         }
         if handle.is_key_down(KeyboardKey::KEY_Q) {
             racc.z -= 1.;
@@ -135,9 +314,117 @@ impl Ship {
                 racc.y = -1.;
             }
         }
+        let mut should_fire_cannon = false;
+        let mut should_fire_missile = false;
+        if handle.is_key_down(KeyboardKey::KEY_X) {
+            should_fire_cannon = true;
+        }
+        if handle.is_key_down(KeyboardKey::KEY_C) {
+            should_fire_missile = true;
+        }
         Input {
             rotational_acc: racc,
             lin_acc,
+            wants_to_stop,
+            fire_cannon: should_fire_cannon,
+            fire_missile: should_fire_missile,
+        }
+    }
+
+    pub fn max_thrust(&mut self) -> (Vector3, Vector3) {
+        let mut out_pos = Vector3::zero();
+        let mut out_neg = Vector3::zero();
+        let mut max_fuel_amount = 0;
+        for i in 0..self.quadrants.len() {
+            for j in 0..self.quadrants[i].len() {
+                for l in 0..self.quadrants[i][j].len() {
+                    for k in 0..self.quadrants[i][j][l].len() {
+                        let tmp = &self.quadrants[i][j][l][k];
+                        if tmp.health > 0 {
+                            match &tmp.data {
+                                ShipComponentData::FuelTank {
+                                    remaining_fuel,
+                                    max_fuel: _,
+                                } => {
+                                    if *remaining_fuel > max_fuel_amount {
+                                        max_fuel_amount = *remaining_fuel;
+                                    }
+                                }
+                                ShipComponentData::Engine { direction } => {
+                                    if direction.x < 0.0 {
+                                        out_neg.x += direction.x;
+                                    } else {
+                                        out_pos.x += direction.x;
+                                    }
+                                    if direction.y < 0.0 {
+                                        out_neg.y += direction.y;
+                                    } else {
+                                        out_pos.y += direction.y;
+                                    }
+                                    if direction.z < 0.0 {
+                                        out_neg.z += direction.z;
+                                    } else {
+                                        out_pos.z += direction.z;
+                                    }
+                                }
+                                _ => {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if max_fuel_amount < 1 {
+            (Vector3::zero(), Vector3::zero())
+        } else {
+            (out_pos, out_neg)
+        }
+    }
+
+    pub fn consume_fuel_for_manuever(&mut self, len: i32) {
+        for _ in 0..len {
+            let mut max_amount = 0;
+            let mut max_idx = (0, 0, 0, 0);
+            for i in 0..self.quadrants.len() {
+                for j in 0..self.quadrants[i].len() {
+                    for k in 0..self.quadrants[i][j].len() {
+                        for l in 0..self.quadrants[i][j][k].len() {
+                            let tmp = &self.quadrants[i][j][k][l];
+                            if tmp.health > 0 {
+                                match &tmp.data {
+                                    ShipComponentData::FuelTank {
+                                        remaining_fuel,
+                                        max_fuel: _,
+                                    } => {
+                                        if *remaining_fuel > max_amount {
+                                            max_amount = *remaining_fuel;
+                                            max_idx = (i, j, k, l);
+                                        }
+                                    }
+                                    _ => {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if max_amount == 0 {
+                break;
+            }
+            let tmp = &mut self.quadrants[max_idx.0][max_idx.1][max_idx.2][max_idx.3];
+            match &mut tmp.data {
+                ShipComponentData::FuelTank {
+                    remaining_fuel,
+                    max_fuel: _,
+                } => {
+                    *remaining_fuel -= 1;
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -145,6 +432,9 @@ impl Ship {
 pub struct Input {
     pub rotational_acc: Vector3,
     pub lin_acc: Vector3,
+    pub wants_to_stop: bool,
+    pub fire_missile: bool,
+    pub fire_cannon: bool,
 }
 
 pub fn create_player_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
@@ -163,7 +453,8 @@ pub fn create_player_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
         Vector3::new(0.0, 0.0, 1.),
         Vector3::new(1., 0.0, 0.0),
     );
-    let v = make_object(Ship {
+    let mut s = Ship {
+        acc_time: 0.0,
         is_ai: false,
         data: GameObjectData {
             model: Some(msh),
@@ -175,13 +466,421 @@ pub fn create_player_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
             velocity: Vector3::zero(),
             angular_velocity: Vector3::zero(),
             camera_data: Some(CameraData {
-                position: Vector3::zero(),
+                position: Vector3::new(0.5, 0.15, 0.05),
                 rotation: Quaternion::identity(),
             }),
             is_projectile: false,
             is_static: false,
+            tags: Arc::new(["ship".into()]),
+            self_id: GObject::new(),
         },
-    });
+        quadrants: [const { [const { [const { Vec::new() }; _] }; _] }; _],
+    };
+    s.default_layout();
+    let v = make_object(s);
     set_player(v);
     v
+}
+
+pub fn create_ai_ufo(pos: Vector3, rotation: Quaternion) -> GObject {
+    let size = 1.;
+    _ = rotation;
+    let mut msh = GameMesh {
+        points: Vec::new(),
+        lines: Vec::new(),
+    };
+    msh.add_cylinder(
+        1. * size,
+        0.8 * size,
+        0.5 * size,
+        6,
+        Vector3::new(0., 0., -0.25 * size),
+        Vector3::new(0.0, 0.0, 1.),
+        Vector3::new(1., 0.0, 0.0),
+    );
+    let mut s = Ship {
+        acc_time: 0.0,
+        is_ai: true,
+        data: GameObjectData {
+            model: Some(msh),
+            location: pos,
+            rotation: Quaternion::identity(),
+            width: 2. * size,
+            depth: 2. * size,
+            height: 0.5 * size,
+            velocity: Vector3::zero(),
+            angular_velocity: Vector3::zero(),
+            camera_data: None,
+            is_projectile: false,
+            is_static: false,
+            tags: Arc::new(["ship".into()]),
+            self_id: GObject::new(),
+        },
+        quadrants: [const { [const { [const { Vec::new() }; _] }; _] }; _],
+    };
+    s.default_layout();
+    let v = make_object(s);
+    v
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct ShipComponent {
+    pub is_brain: bool,
+    pub integral: bool,
+    pub health: i32,
+    pub volume: u64,
+    pub on_fire: bool,
+    pub data: ShipComponentData,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ShipComponentData {
+    Cockpit {},
+    FuelTank {
+        remaining_fuel: u64,
+        max_fuel: u64,
+    },
+    Antenna {},
+    Magazine {
+        max_missile_count: u32,
+        max_bullet_count: u32,
+        missile_count: u32,
+        bullet_count: u32,
+    },
+    CargoHold {},
+    Engine {
+        direction: Vector3,
+    },
+    Armor {},
+    Turret {
+        cool_down_time: f32,
+        remaining_cool_down_time: f32,
+    },
+    MissileBattery {
+        loaded: bool,
+        loading_time: f32,
+        remaining_loading_time: f32,
+    },
+}
+
+impl Ship {
+    pub fn add_component(&mut self, to: (i32, i32, i32), comp: ShipComponent) {
+        let to = (
+            (to.0 + 1) as usize,
+            (to.1 + 1) as usize,
+            (to.2 + 1) as usize,
+        );
+        self.quadrants[to.0][to.1][to.2].push(comp);
+    }
+
+    pub fn add_engine(&mut self, to: (i32, i32, i32), thrust: Vector3, hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Engine { direction: thrust },
+            },
+        );
+    }
+
+    pub fn add_fuel_comp(&mut self, to: (i32, i32, i32), capacity: u64, hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::FuelTank {
+                    remaining_fuel: capacity,
+                    max_fuel: capacity,
+                },
+            },
+        );
+    }
+
+    pub fn add_cockpit(&mut self, to: (i32, i32, i32), hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: true,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Cockpit {},
+            },
+        );
+    }
+
+    pub fn add_cargo_hold(&mut self, to: (i32, i32, i32), hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::CargoHold {},
+            },
+        );
+    }
+
+    pub fn add_armor(&mut self, to: (i32, i32, i32), hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Armor {},
+            },
+        );
+    }
+
+    pub fn add_antenna(&mut self, to: (i32, i32, i32), hp: i32, vol: u64) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Antenna {},
+            },
+        );
+    }
+
+    pub fn add_magazine(
+        &mut self,
+        to: (i32, i32, i32),
+        hp: i32,
+        vol: u64,
+        missile_count: u32,
+        max_missile_count: u32,
+        bullet_count: u32,
+        max_bullet_count: u32,
+    ) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Magazine {
+                    max_missile_count,
+                    max_bullet_count,
+                    missile_count,
+                    bullet_count,
+                },
+            },
+        );
+    }
+
+    pub fn add_turret(&mut self, to: (i32, i32, i32), hp: i32, vol: u64, cool_down_time: f32) {
+        self.add_component(
+            to,
+            ShipComponent {
+                is_brain: false,
+                integral: false,
+                health: hp,
+                volume: vol,
+                on_fire: false,
+                data: ShipComponentData::Turret {
+                    cool_down_time,
+                    remaining_cool_down_time: 0.0,
+                },
+            },
+        );
+    }
+
+    pub fn default_layout(&mut self) {
+        for i in -1..1 {
+            for j in -1..=1 {
+                for k in -1..=1 {
+                    if i != 0 || j != 0 || k != 0 {
+                        self.add_armor((i, j, k), 10, 100);
+                    }
+                }
+            }
+        }
+        self.add_cockpit((1, 0, 0), 100, 10);
+        self.add_turret((1, 0, 0), 100, 10, 0.1);
+        self.add_magazine((0, 0, 0), 100, 100, 10, 16, 800, 1600);
+        self.add_fuel_comp((0, 0, 0), 1000, 10, 100);
+        self.add_engine((-1, 0, 0), Vector3::new(1., 0., 0.), 20, 10);
+        self.add_fuel_comp((-1, 0, 0), 1000, 10, 100);
+        self.add_engine((1, 0, 0), Vector3::new(-1., 0., 0.), 20, 10);
+        self.add_engine((-1, 0, 0), Vector3::new(1., 0., 0.), 20, 10);
+        self.add_engine((0, 1, 0), Vector3::new(0., -1., 0.), 20, 10);
+        self.add_engine((0, -1, 0), Vector3::new(0., 1., 0.), 20, 10);
+        self.add_engine((0, 0, 1), Vector3::new(0., 0., -1.), 20, 10);
+        self.add_engine((0, 0, -1), Vector3::new(0., 0., 1.), 20, 10);
+    }
+
+    pub fn iter_over_all_comps_mut(
+        &mut self,
+        mut to_run: impl FnMut((i32, i32, i32, usize), &mut ShipComponent),
+    ) {
+        for i in 0..self.quadrants.len() {
+            for j in 0..self.quadrants[i].len() {
+                for k in 0..self.quadrants[i][j].len() {
+                    for l in 0..self.quadrants[i][j][k].len() {
+                        to_run(
+                            (i as i32 - 1, j as i32 - 1, k as i32 - 1, l),
+                            &mut self.quadrants[i][j][k][l],
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn iter_over_all_comps(
+        &self,
+        mut to_run: impl FnMut((i32, i32, i32, usize), &ShipComponent),
+    ) {
+        for i in 0..self.quadrants.len() {
+            for j in 0..self.quadrants[i].len() {
+                for k in 0..self.quadrants[i][j].len() {
+                    for l in 0..self.quadrants[i][j][k].len() {
+                        to_run(
+                            (i as i32 - 1, j as i32 - 1, k as i32 - 1, l),
+                            &self.quadrants[i][j][k][l],
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl ShipComponent {
+    pub fn update(&mut self, dt: f32) {
+        if self.health <= 0 {
+            return;
+        }
+        if self.on_fire {
+            if random_bool((dt as f64).clamp(0.0, 1.0)) {
+                self.health -= 1;
+            }
+            if random_bool((dt as f64).clamp(0.0, 1.0) / 2.) {
+                self.on_fire = false;
+            }
+        }
+        match &mut self.data {
+            ShipComponentData::Cockpit {} => {}
+            ShipComponentData::FuelTank {
+                remaining_fuel: _,
+                max_fuel: _,
+            } => {}
+            ShipComponentData::Antenna {} => {}
+            ShipComponentData::Magazine {
+                max_missile_count: _,
+                max_bullet_count: _,
+                missile_count: _,
+                bullet_count: _,
+            } => {}
+            ShipComponentData::CargoHold {} => {}
+            ShipComponentData::Engine { direction: _ } => {}
+            ShipComponentData::Armor {} => {}
+            ShipComponentData::Turret {
+                cool_down_time: _,
+                remaining_cool_down_time,
+            } => {
+                *remaining_cool_down_time -= dt;
+                if *remaining_cool_down_time < 0.0 {
+                    *remaining_cool_down_time = 0.0;
+                }
+            }
+            ShipComponentData::MissileBattery {
+                loaded,
+                loading_time: _,
+                remaining_loading_time,
+            } => {
+                if *remaining_loading_time > 0.0 {
+                    *remaining_loading_time -= dt;
+                    if *remaining_loading_time <= 0.0 {
+                        *loaded = true;
+                        *remaining_loading_time = 0.0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct Bullet {
+    data: GameObjectData,
+    remaining_time: f32,
+}
+impl GameObject for Bullet {
+    fn get_data(&self) -> &GameObjectData {
+        &self.data
+    }
+    fn get_data_mut(&mut self) -> &mut GameObjectData {
+        &mut self.data
+    }
+    fn on_event(
+        &mut self,
+        handle: &mut RaylibHandle,
+        thread: &RaylibThread,
+        ev: crate::engine::Event,
+    ) {
+        //delete_object(self.data.self_id, self.data.self_id);
+    }
+
+    fn on_update(&mut self, handle: &mut RaylibHandle, _thread: &RaylibThread) {
+        self.remaining_time -= handle.get_frame_time();
+        if self.remaining_time < 0.0 {
+            delete_object(self.data.self_id, self.data.self_id);
+        }
+    }
+}
+
+pub fn fire_bullet(start: Vector3, direction: Vector3, rotation: Quaternion) -> GObject {
+    let mut msh = GameMesh {
+        points: Vec::new(),
+        lines: Vec::new(),
+    };
+    msh.add_cylinder(
+        0.01,
+        0.01,
+        0.1,
+        6,
+        Vector3::new(0., 0., -0.05),
+        Vector3::new(1.0, 0.0, 0.),
+        Vector3::new(0., 0.0, 1.0),
+    );
+    let s = Bullet {
+        data: GameObjectData {
+            model: Some(msh),
+            location: start,
+            rotation,
+            width: 0.01,
+            depth: 0.1,
+            height: 0.01,
+            velocity: direction * 30.,
+            angular_velocity: Vector3::zero(),
+            camera_data: None,
+            is_projectile: true,
+            is_static: false,
+            tags: Arc::new(["bullet".into()]),
+            self_id: GObject::new(),
+        },
+        remaining_time: 30.,
+    };
+    let out = make_object(s);
+    out
 }

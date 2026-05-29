@@ -9,6 +9,12 @@ pub struct GameMesh {
     pub lines: Vec<(u16, u16)>,
 }
 
+impl Default for GameMesh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GameMesh {
     pub fn new() -> Self {
         Self {

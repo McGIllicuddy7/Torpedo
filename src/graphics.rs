@@ -1,7 +1,4 @@
-use std::{
-    ops::Deref,
-    sync::{Arc, MutexGuard},
-};
+use std::sync::{Arc, MutexGuard};
 
 use rand::random;
 use raylib::{
@@ -11,7 +8,6 @@ use raylib::{
     drawing::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt},
     math::{Quaternion, Vector3},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::engine::{ENGINE, GameMode, get_engine, random_unit_vector, random_vector};
 
@@ -55,6 +51,13 @@ pub enum DrawEvent3D {
         end: Vector3,
         color: Color,
     },
+    DrawFlame {
+        start: Vector3,
+        direction: Vector3,
+        length: f32,
+        base_radius: f32,
+        color: Color,
+    },
 }
 
 pub fn run_graphics(
@@ -75,7 +78,9 @@ pub fn run_graphics(
             if let Some(y) = data.camera_data.as_ref() {
                 let brot = data.rotation.inverted() * y.rotation;
                 let bpos = data.location + y.position.rotate_by(data.rotation.inverted());
-                let target = Vector3::new(1.0, 0.0, 0.0).rotate_by(brot) + data.location;
+                let target = Vector3::new(1.0, 0.0, 0.0).rotate_by(brot)
+                    + data.location
+                    + y.position.rotate_by(data.rotation.inverted());
                 let up = Vector3::new(0.0, 0.0, 1.0).rotate_by(brot);
                 cm.position = bpos;
                 cm.target = target;
@@ -83,9 +88,9 @@ pub fn run_graphics(
             }
         }
     }
-    let mut draw = handle.begin_drawing(&thread);
+    let mut draw = handle.begin_drawing(thread);
     draw.clear_background(Color::BLACK);
-    let mut draw3d = draw.begin_mode3D(&cm);
+    let mut draw3d = draw.begin_mode3D(cm);
     for i in &ENGINE.objects {
         let t = i.read().unwrap();
         if let Some(t2) = t.ptr.as_ref() {
@@ -127,6 +132,44 @@ pub fn run_graphics(
             }
             DrawEvent3D::DrawLine { start, end, color } => {
                 draw3d.draw_line_3D(start, end, color);
+            }
+
+            DrawEvent3D::DrawFlame {
+                start,
+                direction,
+                length,
+                base_radius,
+                color,
+            } => {
+                let col = Color {
+                    r: color.r,
+                    g: color.g,
+                    b: color.b,
+                    a: 100,
+                };
+                let c2 = Color {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                };
+                let df = random_vector() * 0.01;
+                draw3d.draw_cylinder_ex(
+                    start,
+                    start + direction * length + df,
+                    base_radius / 2.,
+                    0.0,
+                    10,
+                    c2,
+                );
+                draw3d.draw_cylinder_ex(
+                    start,
+                    start + direction * (length + 0.2) + df * 2.,
+                    base_radius,
+                    0.0,
+                    10,
+                    col,
+                );
             }
         }
     }
@@ -362,10 +405,8 @@ impl ParticleSystem {
         for i in 0..self.particles.len() {
             if let Some(i) = self.particles[i].as_mut() {
                 for j in &mut i.connections {
-                    if *j >= 0 {
-                        if t0[*j as usize].is_none() {
-                            *j = -1;
-                        }
+                    if *j >= 0 && t0[*j as usize].is_none() {
+                        *j = -1;
                     }
                 }
             }
@@ -408,8 +449,8 @@ impl ParticleSystem {
                             let thet1 =
                                 (((random::<u64>() % 1000) as f32 - 500.) / 500.) * max_angle;
                             let r = Quaternion::from_euler(thet0, thet1, 0.0);
-                            let vel = direction.rotate_by(r) * length;
-                            vel
+
+                            direction.rotate_by(r) * length
                         }
                         SpawnVelocityData::Sphere { radius } => {
                             random_unit_vector() * (random::<u64>() % 10000) as f32 / 10000.
@@ -428,11 +469,11 @@ impl ParticleSystem {
                             if connections.contains(&(j as i16)) {
                                 continue;
                             }
-                            if let Some(k) = k.as_mut() {
-                                if k.position.distance_to(pos) < min_dist {
-                                    min_dist = k.position.distance_to(pos);
-                                    min_idx = j as i16;
-                                }
+                            if let Some(k) = k.as_mut()
+                                && k.position.distance_to(pos) < min_dist
+                            {
+                                min_dist = k.position.distance_to(pos);
+                                min_idx = j as i16;
                             }
                         }
                         if min_idx == -1 {
@@ -486,7 +527,7 @@ impl ParticleSystem {
                     }
                 };
                 if self.show_particles {
-                    let should_glow = (col.r >= 250 || col.g > 250 || col.b > 250);
+                    let should_glow = col.r >= 250 || col.g > 250 || col.b > 250;
                     if y.glowing && should_glow {
                         draw.draw_sphere_ex(
                             y.position,
@@ -515,7 +556,7 @@ impl ParticleSystem {
                     } else {
                         draw.draw_sphere_ex(
                             y.position,
-                            ((1. - lerp) * y.radius + y.ending_radius * lerp),
+                            (1. - lerp) * y.radius + y.ending_radius * lerp,
                             3,
                             3,
                             col,
@@ -523,10 +564,10 @@ impl ParticleSystem {
                     }
                 }
                 for i in y.connections {
-                    if i > -1 {
-                        if let Some(x) = self.particles[i as usize].as_ref() {
-                            draw.draw_line_3D(y.position, x.position, col);
-                        }
+                    if i > -1
+                        && let Some(x) = self.particles[i as usize].as_ref()
+                    {
+                        draw.draw_line_3D(y.position, x.position, col);
                     }
                 }
             }
@@ -570,6 +611,12 @@ impl<'a> ParticleSystemGuard<'a> {
 pub struct ParticleSystemContainer {
     pub v: Option<ParticleSystem>,
     pub generation: u32,
+}
+
+impl Default for ParticleSystemHandle {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ParticleSystemHandle {
@@ -623,4 +670,18 @@ pub fn destroy_particle_system(system: ParticleSystemHandle) {
         return;
     }
     g.v = None;
+}
+
+pub fn draw_flame(start: Vector3, dir: Vector3, base_radius: f32, length: f32, color: Color) {
+    get_engine()
+        .draw_events_3d
+        .lock()
+        .unwrap()
+        .push_back(DrawEvent3D::DrawFlame {
+            start,
+            direction: dir,
+            length,
+            base_radius,
+            color,
+        });
 }
