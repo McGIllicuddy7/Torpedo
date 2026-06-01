@@ -38,10 +38,10 @@ impl Ship {
             .data
             .location
             .distance_to(self.ai_state.move_to_location)
-            < 2.
+            < 5.
             || self.ai_state.move_to_location.length() < 0.1
         {
-            self.ai_state.move_to_location = random_vector() * 10.;
+            self.ai_state.move_to_location = random_vector() * 40.;
         }
         let acc = calculate_acceleration(
             self.data.location,
@@ -51,7 +51,7 @@ impl Ship {
             0.25,
         )
         .rotate_by(self.data.rotation)
-            * 8.;
+            * 4.;
         // println!("acc:{:#?}", acc);
         draw_point(self.ai_state.move_to_location, Color::RED);
         let mut should_fire = false;
@@ -69,7 +69,9 @@ impl Ship {
             );*/
             tp
         } else {
-            let tp = self.delta_rotate_to_look_at_towards(self.data.location + acc * 10.) * 120.0;
+            let tp = self.delta_rotate_to_look_at_towards(
+                self.data.location + acc.rotate_by(self.data.rotation.inverted()),
+            ) * 120.0;
             tp
         };
         Input {
@@ -368,8 +370,8 @@ pub fn calculate_acceleration(
         Vector3::zero()
     };
     let cost_1 = cost(
-        point + (current_velocity + (acc_1 * 0.1) / dt) / dt,
-        current_velocity + (acc_1 * 0.1) / dt,
+        point + (current_velocity + (acc_1) / dt) / dt,
+        current_velocity + (acc_1) / dt,
     );
     let acc_2 = if (point - target_location).length() > 0.0 {
         (target_location - point).normalized() * max_acceleration
@@ -377,9 +379,17 @@ pub fn calculate_acceleration(
         Vector3::zero()
     };
     let cost_2 = cost(
-        point + (current_velocity + acc_2 / dt) / dt,
-        current_velocity + acc_2 / dt,
+        point + (current_velocity + acc_2 * 0.01 / dt) / dt,
+        current_velocity + acc_2 * 0.01 / dt,
     );
+    /*let acc_3 = (current_velocity
+        - current_velocity * ((target_location - point).dot(current_velocity)))
+    .normalized()
+        * max_acceleration;*/
+    /*let cost_3 = cost(
+        point + (current_velocity + acc_3 / dt) / dt,
+        current_velocity + acc_3 / dt,
+    );*/
     //let acc_3 = acc_1 * 0.5 + acc_2 * 0.5;
     /*let cost_3 = cost(
         point + (current_velocity + acc_3 / dt) / dt,

@@ -57,7 +57,7 @@ pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
             Quaternion::from_euler(0.0, PI, 0.0),
         );
     }
-    let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
+    // let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
 }
 
 pub struct TorpedoGameMode {}
