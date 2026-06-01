@@ -1,4 +1,5 @@
 use std::{
+    f32::consts::E,
     sync::{Mutex, atomic::AtomicU8},
     time::Duration,
 };
@@ -126,4 +127,30 @@ pub fn audio_write_byte_func(bytes: impl FnMut(f32) -> u8, time: f32) {
 
 pub fn audio_write_func(bytes: impl FnMut(f32) -> f32, time: f32) {
     AUDIO.write_func(bytes, time);
+}
+
+pub fn debug_play_sound_func(bytes: impl FnMut(f32) -> f32, time: f32) {
+    audio_write_func(bytes, time);
+    std::thread::sleep(Duration::from_secs_f32(time + 0.5));
+}
+
+pub fn thud_func(attack: f32, pitch: f32, fade: f32) -> (impl Fn(f32) -> f32, f32) {
+    (
+        move |t: f32| {
+            if t < attack {
+                E * (t / attack) * metallic_sound(t, pitch)
+            } else {
+                E * (1. - t / attack) * metallic_sound(t, pitch)
+            }
+        },
+        attack + fade,
+    )
+}
+
+pub fn metallic_sound(t: f32, pitch: f32) -> f32 {
+    (t * pitch).sin() / 2.
+        + (t * pitch * 2. - 0.1).sin() / 4.
+        + (t * pitch * 4. + 0.5).sin() / 8.
+        + (t * pitch * 8. + 1.).sin() / 16.
+        + (t * pitch * 16. + 1.).sin() / 32.
 }

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{f32::consts::PI, time::Duration};
 
 use rand::{random, random_bool};
 use raylib::{
@@ -9,10 +9,12 @@ use raylib::{
 };
 
 use crate::{
-    audio::{audio_write_func, init_audio},
+    ai::delta_rotation_to_look_at_test,
+    audio::{audio_write_func, debug_play_sound_func, init_audio, thud_func},
     engine::{GameMode, generate_cube, generate_ufo, random_vector},
     graphics::{ParticleSystem, SpawnData, SpawnVelocityData, create_particle_system, draw_flame},
 };
+pub mod ai;
 pub mod audio;
 pub mod engine;
 pub mod graphics;
@@ -20,9 +22,11 @@ pub mod mesh;
 pub mod ship;
 fn main() {
     let _ad = init_audio();
-    audio_write_func(|x| (x * 4400.).sin() / 10. + (x * 2000.).cos() / 10., 5.);
-    std::thread::sleep(Duration::from_secs(1));
+    //  audio_write_func(|x| (x * 4400.).sin() / 10. + (x * 2000.).cos() / 10., 5.);
+    // std::thread::sleep(Duration::from_secs(1));
     engine::run(setup_ufo, &mut TorpedoGameMode {});
+    //delta_rotation_to_look_at_test();
+    //sound_test();
 }
 
 pub fn setup_old(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
@@ -47,8 +51,11 @@ pub fn setup(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
 }
 
 pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
-    for _ in 0..10 {
-        let _t = ship::create_ai_ufo(random_vector() * 20., Quaternion::identity());
+    for _ in 0..1 {
+        let _t = ship::create_ai_ufo(
+            Vector3::new(10., 0.0, 0.0),
+            Quaternion::from_euler(0.0, PI, 0.0),
+        );
     }
     let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
 }
@@ -74,4 +81,9 @@ impl GameMode for TorpedoGameMode {
             Color::VIOLET,
         );
     }
+}
+
+pub fn sound_test() {
+    let (func, time) = thud_func(0.5, 1000., 2.);
+    debug_play_sound_func(func, time);
 }

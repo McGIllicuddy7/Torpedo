@@ -1,5 +1,5 @@
 use std::{
-    any::type_name,
+    any::{Any, TypeId, type_name},
     collections::{BTreeMap, VecDeque},
     f32::consts::PI,
     hash::Hash,
@@ -67,9 +67,10 @@ pub struct GameObjectData {
     pub self_id: GObject,
     pub projectile_damage: i32,
     pub projectile_penetration: i32,
+    pub allegience: i32,
 }
 
-pub trait GameObject: Send + Sync + 'static {
+pub trait GameObject: Send + Sync + Any + 'static {
     fn on_update(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread);
     fn on_event(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread, ev: Event);
     fn get_data(&self) -> &GameObjectData;
@@ -327,7 +328,23 @@ impl<'a> DerefMut for GObjectWrite<'a> {
         self.inner.ptr.as_mut().unwrap().as_mut()
     }
 }
+impl<'a> GObjectRead<'a> {
+    pub fn get_as<T: 'static>(&self) -> Option<&T> {
+        let v = self.inner.ptr.as_ref().unwrap().as_ref() as &dyn Any;
+        v.downcast_ref::<T>()
+    }
+}
 
+impl<'a> GObjectWrite<'a> {
+    pub fn get_as<T: 'static>(&self) -> Option<&T> {
+        let v = self.inner.ptr.as_ref().unwrap().as_ref() as &dyn Any;
+        v.downcast_ref::<T>()
+    }
+    pub fn get_as_mut<'b, T: 'static>(&'b mut self) -> Option<&'b mut T> {
+        let v = self.inner.ptr.as_mut().unwrap().as_mut() as &mut dyn Any;
+        v.downcast_mut::<T>()
+    }
+}
 pub fn make_object(v: impl GameObject) -> GObject {
     for i in 0..ENGINE.objects.len() {
         let mut tmp = match ENGINE.objects[i].try_write() {
@@ -416,6 +433,7 @@ pub fn generate_cube(pos: Vector3, size: f32) -> GObject {
             self_id: GObject::new(),
             projectile_damage: 0,
             projectile_penetration: 0,
+            allegience: -1,
         },
     })
 }
@@ -814,6 +832,7 @@ pub fn generate_ufo(pos: Vector3, size: f32) -> GObject {
             self_id: GObject::new(),
             projectile_damage: 0,
             projectile_penetration: 0,
+            allegience: -1,
         },
     })
 }
