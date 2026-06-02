@@ -617,18 +617,18 @@ impl Ship {
         if !self.dead {
             let d1 = Vector3::new(-1., 0., 0.).rotate_by(self.data.rotation.inverted());
             let d2 = Vector3::new(0., 1., 0.).rotate_by(self.data.rotation.inverted());
-            let l = input_dir.length() / 2. + 0.1;
+            let l = input_dir.length() * 1.25 + 0.025;
             draw_flame(
                 d1 * 0.5 + d2 * 0.5 + self.data.location,
                 d1,
-                0.1,
+                0.25,
                 l,
                 Color::VIOLET,
             );
             draw_flame(
                 d1 * 0.5 - d2 * 0.5 + self.data.location,
                 d1,
-                0.1,
+                0.25,
                 l,
                 Color::VIOLET,
             );
