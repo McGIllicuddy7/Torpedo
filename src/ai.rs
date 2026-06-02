@@ -352,7 +352,7 @@ pub fn calculate_acceleration(
     t = (-v_0 \pm \sqrt{v_0 *v_0 +4(1/2 max_acc)(p_1-p_0)}){(max_acc)}
      */
     let dt = 30.;
-    let mut out = Vector3::zero();
+    let mut out;
     let cost = |pos: Vector3, vel: Vector3| {
         let t0 = (vel - target_velocity).length() * 1.1;
         let t1 = (-(vel).length()
