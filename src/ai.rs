@@ -354,7 +354,7 @@ pub fn calculate_acceleration(
     let dt = 30.;
     let mut out = Vector3::zero();
     let cost = |pos: Vector3, vel: Vector3| {
-        let t0 = (vel - target_velocity).length();
+        let t0 = (vel - target_velocity).length() * 1.1;
         let t1 = (-(vel).length()
             + (vel.length() * vel.length()
                 + 2. * max_acceleration * (pos - target_location).length())
@@ -370,8 +370,8 @@ pub fn calculate_acceleration(
         Vector3::zero()
     };
     let cost_1 = cost(
-        point + (current_velocity + (acc_1) / dt) / dt,
-        current_velocity + (acc_1) / dt,
+        point + (current_velocity + (acc_1 * 0.1) / dt) / dt,
+        current_velocity + (acc_1 * 0.1) / dt,
     );
     let acc_2 = if (point - target_location).length() > 0.0 {
         (target_location - point).normalized() * max_acceleration
@@ -379,23 +379,16 @@ pub fn calculate_acceleration(
         Vector3::zero()
     };
     let cost_2 = cost(
-        point + (current_velocity + acc_2 * 0.01 / dt) / dt,
-        current_velocity + acc_2 * 0.01 / dt,
+        point + (current_velocity + acc_2 / dt) / dt,
+        current_velocity + acc_2 / dt,
     );
-    /*let acc_3 = (current_velocity
-        - current_velocity * ((target_location - point).dot(current_velocity)))
-    .normalized()
-        * max_acceleration;*/
-    /*let cost_3 = cost(
+    let acc_3 = acc_1 * 0.5 + acc_2 * 0.5;
+    let cost_3 = cost(
         point + (current_velocity + acc_3 / dt) / dt,
         current_velocity + acc_3 / dt,
-    );*/
-    //let acc_3 = acc_1 * 0.5 + acc_2 * 0.5;
-    /*let cost_3 = cost(
-        point + (current_velocity + acc_3 / dt) / dt,
-        current_velocity + acc_3 / dt,
-    );*/
-    let costs = [(cost_1, acc_1), (cost_2, acc_2)];
+    );
+
+    let costs = [(cost_1, acc_1), (cost_2, acc_2), (cost_3, acc_3)];
     // println!("costs:{:#?}", costs);
     let mut min_cost = cost_1;
     out = acc_1;
