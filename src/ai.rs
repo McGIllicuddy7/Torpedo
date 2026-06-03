@@ -26,14 +26,14 @@ impl Ship {
                     continue;
                 }
                 let npos = i.predicated_location
-                    + i.predicated_velocity * (distance / (35.))
-                    + random_vector() * distance * 0.05;
+                    + (i.predicated_velocity - self.data.velocity) * (distance / (35.))
+                    + random_vector() * distance * 0.01;
                 target_pos = npos;
                 //  draw_point(self.data.location, Color::RED);
                 break;
             }
         }
-        should_target = false;
+        //should_target = false;
         if self
             .data
             .location
@@ -60,7 +60,7 @@ impl Ship {
                 .normalized()
                 .dot(Vector3::new(1., 0., 0.0).rotate_by(self.data.rotation.inverted()));
             if dot > 0.85 {
-                should_fire = true && random_bool(0.25);
+                should_fire = true && random_bool(0.8);
             }
             let tp = self.delta_rotate_to_look_at_towards(target_pos) * 120.0;
             /*   println!(
@@ -79,7 +79,7 @@ impl Ship {
             rotational_acc: racc,
             lin_acc: acc,
             fire_cannon: should_fire,
-            fire_missile: random_bool((0.1 * _handle.get_frame_time()) as f64),
+            fire_missile: random_bool((0.8 * _handle.get_frame_time()) as f64),
         }
     }
 

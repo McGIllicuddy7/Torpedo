@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ai::{AiState, ScannerInfo},
+    audio::{debug_play_sound_func, thud_func},
     engine::{
         CameraData, GObject, GameObject, GameObjectData, delete_object, make_object, random_vector,
         set_player,
@@ -285,6 +286,10 @@ impl Ship {
     }
 
     pub fn on_damage(&mut self, damage: i32, penetration: i32, direction: Vector3, aoe: bool) {
+        if !self.is_ai {
+            let (func, time) = thud_func(0.1, 10., 0.4);
+            debug_play_sound_func(func, time);
+        }
         self.debug_hit_count += 1;
         let dir = -direction.rotate_by(self.data.rotation);
         let mut hit_set = Vec::new();
@@ -623,14 +628,14 @@ impl Ship {
                 d1,
                 0.25,
                 l,
-                Color::VIOLET,
+                Color::BLUEVIOLET,
             );
             draw_flame(
                 d1 * 0.5 - d2 * 0.5 + self.data.location,
                 d1,
                 0.25,
                 l,
-                Color::VIOLET,
+                Color::BLUEVIOLET,
             );
         }
     }

@@ -22,8 +22,8 @@ pub mod mesh;
 pub mod ship;
 fn main() {
     let _ad = init_audio();
-    //  audio_write_func(|x| (x * 4400.).sin() / 10. + (x * 2000.).cos() / 10., 5.);
-    // std::thread::sleep(Duration::from_secs(1));
+    //audio_write_func(|x| (x * 440.).sin() / 10. + (x * 200.).cos() / 10., 5.);
+    //s td::thread::sleep(Duration::from_secs(1));
     engine::run(setup_ufo, &mut TorpedoGameMode {});
     //delta_rotation_to_look_at_test();
     //sound_test();
@@ -53,11 +53,11 @@ pub fn setup(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
 pub fn setup_ufo(_handle: &mut RaylibHandle, _thread: &RaylibThread) {
     for _ in 0..1 {
         let _t = ship::create_ai_ufo(
-            Vector3::new(10., 0.0, 0.0),
+            Vector3::new(50., 0.0, 0.0),
             Quaternion::from_euler(0.0, PI, 0.0),
         );
     }
-    // let _t = ship::create_player_ufo(Vector3::new(-10., 0., 0.0), Quaternion::identity());
+    let _t = ship::create_player_ufo(Vector3::new(-50., 0., 0.0), Quaternion::identity());
 }
 
 pub struct TorpedoGameMode {}
@@ -84,6 +84,6 @@ impl GameMode for TorpedoGameMode {
 }
 
 pub fn sound_test() {
-    let (func, time) = thud_func(0.5, 1000., 2.);
+    let (func, time) = thud_func(0.1, 10., 0.4);
     debug_play_sound_func(func, time);
 }
